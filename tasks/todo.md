@@ -94,7 +94,7 @@
 
 ### Tasks
 
-- [ ] **P1.1 Instrument and time domain** — 實作`src/stonks_agent/domain/{instrument,calendar,market_data}.py`、`ports/instrument_repository.py`、`ports/trading_calendar.py`、`tests/domain/test_instrument.py`。（Depends：P0 gate；Complexity：L；Risk：High）
+- [x] **P1.1 Instrument and time domain** — 實作`src/stonks_agent/domain/{instrument,calendar,market_data}.py`、`ports/instrument_repository.py`、`ports/trading_calendar.py`、`tests/domain/test_instrument.py`。（Depends：P0 gate；Complexity：L；Risk：High）
   - Instrument以UUID + MIC/currency/timezone為identity；provider symbols帶validity interval。
   - Calendar tests涵蓋休市、午休、DST、跨日session與symbol change。
 

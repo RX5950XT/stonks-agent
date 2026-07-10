@@ -18,7 +18,11 @@ def commands(*, with_postgres: bool) -> tuple[tuple[str, ...], ...]:
     python = sys.executable
     pytest_command = (python, "-m", "pytest", "-q")
     if not with_postgres:
-        pytest_command += ("-m", "not postgres")
+        pytest_command += (
+            "-m",
+            "not postgres",
+            "--cov-config=.coveragerc.core",
+        )
     checks: list[tuple[str, ...]] = [
         (python, "-m", "ruff", "check", "."),
         (python, "-m", "mypy", "src", "packages"),

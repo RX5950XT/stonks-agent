@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import pytest
 from sqlalchemy import Connection, Engine, text
 
 from stonks_agent.adapters.postgres.job_queue import PostgresJobQueue
@@ -16,6 +17,7 @@ NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
 RUN_ID = UUID("40000000-0000-4000-8000-000000000001")
 JOB_ID = UUID("40000000-0000-4000-8000-000000000002")
 RESULT_HASH = "9" * 64
+pytestmark = pytest.mark.postgres
 
 
 def test_skip_locked_allows_only_one_claim_per_job(clean_database: Engine) -> None:

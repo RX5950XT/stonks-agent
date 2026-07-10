@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+import pytest
 from sqlalchemy import Connection, Engine, text
 
 from stonks_agent.adapters.postgres.unit_of_work import PostgresUnitOfWork
@@ -15,6 +16,7 @@ from stonks_contracts.market_data import DataQuality, DataQualityStatus
 
 NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
 ARTIFACT_HASH = "e" * 64
+pytestmark = pytest.mark.postgres
 
 
 def test_unit_of_work_rolls_back_without_explicit_commit(

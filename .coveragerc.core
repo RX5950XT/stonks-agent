@@ -1,0 +1,16 @@
+[run]
+branch = True
+source =
+    stonks_agent
+    stonks_contracts
+omit =
+    */stonks_agent/adapters/postgres/*
+    */stonks_agent/entrypoints/worker.py
+
+[report]
+show_missing = True
+skip_covered = True
+fail_under = 80
+
+[xml]
+output = coverage.xml

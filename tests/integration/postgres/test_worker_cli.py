@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from sqlalchemy import Engine
 from typer.testing import CliRunner
 
 from stonks_agent.entrypoints.worker import app
+
+pytestmark = pytest.mark.postgres
 
 
 def test_worker_claim_once_handles_empty_queue_without_leaking_database_url(

@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import pytest
 from sqlalchemy import Connection, Engine, text
 
 from stonks_agent.adapters.postgres.outbox import PostgresOutbox
@@ -11,6 +12,7 @@ from stonks_agent.domain.errors import ErrorCode, Failure, Success
 
 NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
 OUTBOX_ID = UUID("50000000-0000-4000-8000-000000000001")
+pytestmark = pytest.mark.postgres
 
 
 def test_skip_locked_outbox_claim_has_single_owner(clean_database: Engine) -> None:

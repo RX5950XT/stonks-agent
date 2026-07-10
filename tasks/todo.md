@@ -102,7 +102,7 @@
   - 完整區分`event_time/published_at/available_at/observed_at/as_of`。
   - `available_at > as_of`、unknown strict-PIT evidence、OHLC invariant失敗都fail closed。
 
-- [ ] **P1.3 PostgreSQL schema and migrations** — 建立`alembic.ini`、`migrations/env.py`、`migrations/versions/0001_core_data.py`、`src/stonks_agent/adapters/postgres/models/`。（Depends：P0.1、P1.2；Complexity：XL；Risk：High）
+- [x] **P1.3 PostgreSQL schema and migrations** — 建立`alembic.ini`、`migrations/env.py`、`migrations/versions/0001_core_data.py`、`src/stonks_agent/adapters/postgres/models/`。（Depends：P0.1、P1.2；Complexity：XL；Risk：High）
   - 建立instrument/alias、artifact/evidence/edge/snapshot、run/event/job/outbox/inbox/provider_health/usage_budget tables。
   - Append-only tables以DB trigger/permissions阻止update/delete；所有FK/index/unique idempotency constraints明確。
 
@@ -110,7 +110,7 @@
   - Transaction內同時寫domain event、job/outbox；optimistic run version做CAS transition。
   - Tests涵蓋rollback、concurrent claim、duplicate idempotency、append-only violations。
 
-- [ ] **P1.5 Artifact stores** — 實作`ports/artifact_store.py`、`adapters/artifacts/{local,memory}.py`、`tests/integration/test_artifact_store.py`。（Depends：P1.2；Complexity：M；Risk：Medium）
+- [x] **P1.5 Artifact stores** — 實作`ports/artifact_store.py`、`adapters/artifacts/{local,memory}.py`、`tests/integration/test_artifact_store.py`。（Depends：P1.2；Complexity：M；Risk：Medium）
   - SHA-256 content address、atomic finalize、size/media/license/sensitivity metadata與hash驗證。
   - `.data/artifacts/`不進版控；DB event只能引用已finalize artifact。
 

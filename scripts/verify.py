@@ -14,23 +14,34 @@ from tempfile import TemporaryDirectory
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def commands() -> tuple[tuple[str, ...], ...]:
+def commands(*, with_postgres: bool) -> tuple[tuple[str, ...], ...]:
     python = sys.executable
+    pytest_command = (python, "-m", "pytest", "-q")
+    if not with_postgres:
+        pytest_command += ("-m", "not postgres")
     checks: list[tuple[str, ...]] = [
         (python, "-m", "ruff", "check", "."),
         (python, "-m", "mypy", "src", "packages"),
-        (python, "-m", "pytest", "-q"),
+        pytest_command,
         (python, "scripts/export_schemas.py", "--check"),
         (python, "scripts/check_upstream_policy.py"),
         (python, "scripts/check_secrets.py"),
     ]
+    if with_postgres:
+        checks.append((python, "-m", "alembic", "check"))
     return tuple(checks)
 
 
-def run(*, skip_audit: bool) -> int:
+def run(*, skip_audit: bool, with_postgres: bool) -> int:
     environment = os.environ.copy()
     environment.setdefault("PYTHONUTF8", "1")
-    for command in commands():
+    if with_postgres:
+        database_url = environment.get("STONKS_TEST_DATABASE_URL")
+        if not database_url:
+            print("[verify] failed: STONKS_TEST_DATABASE_URL is required")
+            return 2
+        environment["STONKS_DATABASE_URL"] = database_url
+    for command in commands(with_postgres=with_postgres):
         printable = " ".join(command[1:])
         print(f"\n[verify] {printable}", flush=True)
         result = subprocess.run(
@@ -93,8 +104,13 @@ def main() -> int:
         action="store_true",
         help="skip only the network-backed dependency vulnerability audit",
     )
+    parser.add_argument(
+        "--with-postgres",
+        action="store_true",
+        help="run real PostgreSQL integration tests and migration drift check",
+    )
     args = parser.parse_args()
-    return run(skip_audit=args.skip_audit)
+    return run(skip_audit=args.skip_audit, with_postgres=args.with_postgres)
 
 
 if __name__ == "__main__":

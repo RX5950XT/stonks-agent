@@ -6,8 +6,9 @@
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
 - P0 Foundation、contracts、fake/replay、paper-only/security/CI 已完成；完整 gate 為 100+ tests、branch coverage >90%、ruff、mypy、schema、license、secret 與 dependency audit 全通過。
-- P1.1 instrument/calendar/time domain 已完成；PIT timeline/OHLC property tests與memory/local content-addressed artifact stores已通過，artifact的DB finalized-reference gate將隨P1.3/P1.4完成。
-- 下一個實作目標是 P1 PostgreSQL durable workflow、provider policy、replay與HTTP adapters。
+- P1.1 instrument/calendar/time domain、P1.3 PostgreSQL 0001 schema與P1.5 memory/local content-addressed artifact stores已完成。
+- PostgreSQL 17實測 upgrade/downgrade/re-upgrade、Alembic drift、artifact FK、strict-PIT check、append-only trigger與least-privilege grants皆通過；Linux CI已有真實PostgreSQL service job。
+- 下一個實作目標是 P1 repositories/UoW、durable queue/outbox、provider policy、replay與HTTP adapters。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究

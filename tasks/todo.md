@@ -98,7 +98,7 @@
   - Instrument以UUID + MIC/currency/timezone為identity；provider symbols帶validity interval。
   - Calendar tests涵蓋休市、午休、DST、跨日session與symbol change。
 
-- [ ] **P1.2 Data quality/provenance domain** — 實作`src/stonks_agent/domain/{evidence,provenance,data_quality}.py`與property tests。（Depends：P0.4、P1.1；Complexity：L；Risk：High）
+- [x] **P1.2 Data quality/provenance domain** — 實作`src/stonks_agent/domain/{evidence,provenance,data_quality}.py`與property tests。（Depends：P0.4、P1.1；Complexity：L；Risk：High）
   - 完整區分`event_time/published_at/available_at/observed_at/as_of`。
   - `available_at > as_of`、unknown strict-PIT evidence、OHLC invariant失敗都fail closed。
 

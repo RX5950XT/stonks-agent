@@ -1,0 +1,58 @@
+version: 1
+policies:
+  - policy_id: us-prices/1
+    market: US
+    capability: prices
+    allow_stale: false
+    allow_partial: false
+    reconciliation_threshold: "0.01"
+    routes:
+      - provider: replay
+        origin: https://replay.local
+        endpoints: [/v1/prices]
+        freshness_seconds: 0
+        quota_floor: 0
+      - provider: financial_datasets
+        origin: https://api.financialdatasets.ai
+        endpoints: [/prices]
+        freshness_seconds: 300
+        quota_floor: 1
+      - provider: openbb_rest
+        origin: https://openbb.local
+        endpoints: [/api/v1/equity/price/historical]
+        freshness_seconds: 300
+        quota_floor: 0
+  - policy_id: hk-prices/1
+    market: HK
+    capability: prices
+    allow_stale: false
+    allow_partial: false
+    reconciliation_threshold: "0.01"
+    routes:
+      - provider: replay
+        origin: https://replay.local
+        endpoints: [/v1/prices]
+        freshness_seconds: 0
+        quota_floor: 0
+      - provider: openbb_rest
+        origin: https://openbb.local
+        endpoints: [/api/v1/equity/price/historical]
+        freshness_seconds: 300
+        quota_floor: 0
+  - policy_id: tw-prices/1
+    market: TW
+    capability: prices
+    allow_stale: false
+    allow_partial: false
+    reconciliation_threshold: "0.01"
+    routes:
+      - provider: replay
+        origin: https://replay.local
+        endpoints: [/v1/prices]
+        freshness_seconds: 0
+        quota_floor: 0
+      - provider: openbb_rest
+        origin: https://openbb.local
+        endpoints: [/api/v1/equity/price/historical]
+        freshness_seconds: 300
+        quota_floor: 0

@@ -118,7 +118,7 @@
   - `SKIP LOCKED` lease、not-before/deadline、attempt/max、lease expiry、dead letter、idempotent ack。
   - Crash-after-result-before-ack測試不得產生重複event/side effect。
 
-- [ ] **P1.7 Provider policy engine** — 建立`domain/provider_policy.py`、`application/data/fetch_evidence.py`、`config/providers/*.yaml`與`tests/domain/test_provider_policy.py`。（Depends：P1.2、P1.4；Complexity：L；Risk：High）
+- [x] **P1.7 Provider policy engine** — 建立`domain/provider_policy.py`、`application/data/fetch_evidence.py`、`config/providers/*.yaml`與`tests/domain/test_provider_policy.py`。（Depends：P1.2、P1.4；Complexity：L；Risk：High）
   - 每個market/capability設定allowlist、fallback、freshness、quota、stale acceptance與reconciliation threshold。
   - Empty、legitimate empty、not-supported、quota、stale、partial、conflict皆為不同typed state。
 

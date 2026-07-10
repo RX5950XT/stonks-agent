@@ -10,7 +10,8 @@
 - PostgreSQL 17實測 upgrade/downgrade/re-upgrade、Alembic drift、artifact FK、strict-PIT check、append-only trigger與least-privilege grants皆通過；Linux CI已有真實PostgreSQL service job。
 - P1.4 repositories/UoW與P1.6 durable queue/outbox已完成：rollback、run CAS、`SKIP LOCKED`、not-before/deadline、lease reclaim、generation/nonce fencing、dead letter、atomic result/event/outbox/ack、outbox retry與worker CLI均有真實PostgreSQL測試。
 - P1.2 provenance/data-quality已完成；available、legitimate-empty、not-supported、config-missing、quota、stale、partial、conflict與fetch-failed皆為互斥typed state，strict-PIT與unsafe source provenance fail closed。
-- 下一個實作目標是 P1 provider policy、replay與HTTP adapters。
+- P1.7 provider policy已完成：US/HK/TW capability allowlist、ordered fallback、freshness/quota metadata、stale/partial opt-in、reconciliation threshold與typed failure states皆有測試。
+- 下一個實作目標是 P1 replay、Financial Datasets/OpenBB/regional adapters與ingestion API/CLI。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究

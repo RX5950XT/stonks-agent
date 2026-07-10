@@ -1,0 +1,13 @@
+version: 1
+instruments:
+  - instrument_id: 60000000-0000-4000-8000-000000000003
+    asset_class: equity
+    primary_symbol: "2330"
+    exchange_mic: XTAI
+    currency: TWD
+    timezone: Asia/Taipei
+    supported_capabilities: [prices_daily, prices_intraday, corporate_actions]
+    provider_symbols:
+      - provider: replay
+        symbol: "2330"
+        valid_from: 1994-09-05T01:00:00Z

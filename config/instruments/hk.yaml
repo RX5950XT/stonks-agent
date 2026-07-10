@@ -1,0 +1,13 @@
+version: 1
+instruments:
+  - instrument_id: 60000000-0000-4000-8000-000000000002
+    asset_class: equity
+    primary_symbol: "0700"
+    exchange_mic: XHKG
+    currency: HKD
+    timezone: Asia/Hong_Kong
+    supported_capabilities: [prices_daily, prices_intraday, corporate_actions]
+    provider_symbols:
+      - provider: replay
+        symbol: "0700"
+        valid_from: 2004-06-16T01:30:00Z

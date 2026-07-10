@@ -1,0 +1,13 @@
+version: 1
+instruments:
+  - instrument_id: 60000000-0000-4000-8000-000000000001
+    asset_class: equity
+    primary_symbol: AAPL
+    exchange_mic: XNAS
+    currency: USD
+    timezone: America/New_York
+    supported_capabilities: [prices_daily, prices_intraday, corporate_actions]
+    provider_symbols:
+      - provider: replay
+        symbol: AAPL
+        valid_from: 1980-12-12T14:30:00Z

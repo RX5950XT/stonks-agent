@@ -40,3 +40,21 @@ def migrated_engine(
     command.upgrade(alembic_config, "head")
     yield engine
     engine.dispose()
+
+
+@pytest.fixture
+def clean_database(migrated_engine: Engine) -> Engine:
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                truncate table
+                    evidence_edge, run_event, job, outbox, inbox,
+                    evidence_item, dataset_snapshot, instrument_alias,
+                    instrument, trading_calendar_version, provider_health,
+                    usage_budget, run, artifact_manifest
+                cascade
+                """
+            )
+        )
+    return migrated_engine

@@ -106,7 +106,7 @@
   - 建立instrument/alias、artifact/evidence/edge/snapshot、run/event/job/outbox/inbox/provider_health/usage_budget tables。
   - Append-only tables以DB trigger/permissions阻止update/delete；所有FK/index/unique idempotency constraints明確。
 
-- [ ] **P1.4 Repository and unit-of-work adapters** — 實作`adapters/postgres/{repositories,unit_of_work}.py`、`ports/{evidence_repository,workflow_store,unit_of_work}.py`與integration tests。（Depends：P1.3；Complexity：L；Risk：High）
+- [x] **P1.4 Repository and unit-of-work adapters** — 實作`adapters/postgres/{repositories,unit_of_work}.py`、`ports/{evidence_repository,workflow_store,unit_of_work}.py`與integration tests。（Depends：P1.3；Complexity：L；Risk：High）
   - Transaction內同時寫domain event、job/outbox；optimistic run version做CAS transition。
   - Tests涵蓋rollback、concurrent claim、duplicate idempotency、append-only violations。
 
@@ -114,7 +114,7 @@
   - SHA-256 content address、atomic finalize、size/media/license/sensitivity metadata與hash驗證。
   - `.data/artifacts/`不進版控；DB event只能引用已finalize artifact。
 
-- [ ] **P1.6 Durable queue/outbox** — 實作`domain/job.py`、`ports/queue.py`、`adapters/postgres/{job_queue,outbox}.py`、`entrypoints/worker.py`、`tests/integration/test_job_leases.py`。（Depends：P1.3、P1.4；Complexity：XL；Risk：High）
+- [x] **P1.6 Durable queue/outbox** — 實作`domain/job.py`、`ports/queue.py`、`adapters/postgres/{job_queue,outbox}.py`、`entrypoints/worker.py`、`tests/integration/test_job_leases.py`。（Depends：P1.3、P1.4；Complexity：XL；Risk：High）
   - `SKIP LOCKED` lease、not-before/deadline、attempt/max、lease expiry、dead letter、idempotent ack。
   - Crash-after-result-before-ack測試不得產生重複event/side effect。
 

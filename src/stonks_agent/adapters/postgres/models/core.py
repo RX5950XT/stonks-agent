@@ -170,10 +170,16 @@ class EvidenceItemRow(Base):
         ForeignKey("artifact_manifest.content_hash", ondelete="RESTRICT"),
     )
     quality_state: Mapped[str] = mapped_column(String(32))
+    quality: Mapped[dict[str, object]] = mapped_column(JSONB)
     sensitivity: Mapped[str] = mapped_column(String(32))
     license_tag: Mapped[str] = mapped_column(String(128))
     redistribution_tag: Mapped[str] = mapped_column(String(128))
     payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    transformation_version: Mapped[str | None] = mapped_column(String(128))
+    untrusted_content: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
@@ -307,6 +313,8 @@ class OutboxRow(Base):
             name="uq_outbox_aggregate_sequence",
         ),
         Index("ix_outbox_delivery", "published_at", "not_before"),
+        CheckConstraint("attempts >= 0", name="outbox_attempts_nonnegative"),
+        CheckConstraint("max_attempts > 0", name="outbox_max_attempts_positive"),
     )
 
     outbox_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
@@ -320,6 +328,9 @@ class OutboxRow(Base):
     not_before: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    max_attempts: Mapped[int] = mapped_column(Integer, server_default=text("10"))
+    lease_owner: Mapped[str | None] = mapped_column(String(128))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[dict[str, object] | None] = mapped_column(JSONB)
 
 

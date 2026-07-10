@@ -156,12 +156,13 @@ def _insert_evidence(
                 (evidence_id, subject, kind, event_time, published_at,
                  available_at, observed_at, as_of, source, provider,
                  content_hash, raw_artifact_hash, quality_state, sensitivity,
-                 license_tag, redistribution_tag, payload)
+                 license_tag, redistribution_tag, payload, quality)
             values
                 (:id, 'AAPL', 'market_data', :now, :now,
                  :available_at, :observed_at, :now, 'fixture', 'replay',
                  :content_hash, :raw_hash, 'available', 'internal',
-                 'test-only', 'none', '{}'::jsonb)
+                 'test-only', 'none', '{}'::jsonb,
+                 '{"schema_version":"1.0.0","status":"available","completeness":"1","warnings":[],"fallback_chain":[]}'::jsonb)
             """
         ),
         {

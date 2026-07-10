@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "content_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Content Ref",
+      "type": "string"
+    },
+    "format": {
+      "minLength": 1,
+      "title": "Format",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "template_version": {
+      "minLength": 1,
+      "title": "Template Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "format",
+    "template_version",
+    "content_hash",
+    "content_ref"
+  ],
+  "title": "ReportRendering",
+  "type": "object"
+}

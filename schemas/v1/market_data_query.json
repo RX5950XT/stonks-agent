@@ -1,0 +1,87 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "adjustment": {
+      "minLength": 1,
+      "title": "Adjustment",
+      "type": "string"
+    },
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "capability": {
+      "minLength": 1,
+      "title": "Capability",
+      "type": "string"
+    },
+    "end": {
+      "title": "End",
+      "type": "string"
+    },
+    "freshness_seconds": {
+      "minimum": 0,
+      "title": "Freshness Seconds",
+      "type": "integer"
+    },
+    "instrument_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Instrument Ids",
+      "type": "array"
+    },
+    "interval": {
+      "minLength": 1,
+      "title": "Interval",
+      "type": "string"
+    },
+    "provider_policy_id": {
+      "minLength": 1,
+      "title": "Provider Policy Id",
+      "type": "string"
+    },
+    "query_id": {
+      "format": "uuid",
+      "title": "Query Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "session": {
+      "minLength": 1,
+      "title": "Session",
+      "type": "string"
+    },
+    "start": {
+      "title": "Start",
+      "type": "string"
+    },
+    "strict_point_in_time": {
+      "default": true,
+      "title": "Strict Point In Time",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "query_id",
+    "instrument_ids",
+    "capability",
+    "interval",
+    "start",
+    "end",
+    "as_of",
+    "adjustment",
+    "session",
+    "provider_policy_id",
+    "freshness_seconds"
+  ],
+  "title": "MarketDataQuery",
+  "type": "object"
+}

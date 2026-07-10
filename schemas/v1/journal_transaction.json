@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "JournalPosting": {
+      "additionalProperties": false,
+      "properties": {
+        "account": {
+          "minLength": 1,
+          "title": "Account",
+          "type": "string"
+        },
+        "amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "commodity": {
+          "minLength": 1,
+          "title": "Commodity",
+          "type": "string"
+        },
+        "memo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Memo"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "side": {
+          "$ref": "#/$defs/JournalSide"
+        }
+      },
+      "required": [
+        "account",
+        "commodity",
+        "side",
+        "amount"
+      ],
+      "title": "JournalPosting",
+      "type": "object"
+    },
+    "JournalSide": {
+      "enum": [
+        "debit",
+        "credit"
+      ],
+      "title": "JournalSide",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "occurred_at": {
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "postings": {
+      "items": {
+        "$ref": "#/$defs/JournalPosting"
+      },
+      "minItems": 2,
+      "title": "Postings",
+      "type": "array"
+    },
+    "previous_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Previous Hash"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "source_fill_id": {
+      "format": "uuid",
+      "title": "Source Fill Id",
+      "type": "string"
+    },
+    "source_order_intent_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Order Intent Id"
+    },
+    "transaction_id": {
+      "format": "uuid",
+      "title": "Transaction Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "transaction_id",
+    "sequence",
+    "occurred_at",
+    "source_fill_id",
+    "postings"
+  ],
+  "title": "JournalTransaction",
+  "type": "object"
+}

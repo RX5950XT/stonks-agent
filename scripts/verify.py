@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Run the reproducible P0 quality, security and governance gates."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def commands() -> tuple[tuple[str, ...], ...]:
+    python = sys.executable
+    checks: list[tuple[str, ...]] = [
+        (python, "-m", "ruff", "check", "."),
+        (python, "-m", "mypy", "src", "packages"),
+        (python, "-m", "pytest", "-q"),
+        (python, "scripts/export_schemas.py", "--check"),
+        (python, "scripts/check_upstream_policy.py"),
+        (python, "scripts/check_secrets.py"),
+    ]
+    return tuple(checks)
+
+
+def run(*, skip_audit: bool) -> int:
+    environment = os.environ.copy()
+    environment.setdefault("PYTHONUTF8", "1")
+    for command in commands():
+        printable = " ".join(command[1:])
+        print(f"\n[verify] {printable}", flush=True)
+        result = subprocess.run(
+            command,
+            cwd=ROOT,
+            env=environment,
+            check=False,
+        )
+        if result.returncode != 0:
+            print(f"[verify] failed ({result.returncode}): {printable}")
+            return result.returncode
+    if not skip_audit:
+        audit_result = _audit_dependencies(environment)
+        if audit_result != 0:
+            return audit_result
+    print("\n[verify] all gates passed")
+    return 0
+
+
+def _audit_dependencies(environment: dict[str, str]) -> int:
+    uv = shutil.which("uv")
+    if uv is None:
+        print("[verify] failed: uv executable not found")
+        return 1
+    with TemporaryDirectory(prefix="stonks-audit-") as directory:
+        requirements = Path(directory) / "requirements.txt"
+        export = (
+            uv,
+            "export",
+            "--quiet",
+            "--frozen",
+            "--no-dev",
+            "--no-emit-project",
+            "--no-emit-workspace",
+            "--format",
+            "requirements.txt",
+            "--output-file",
+            str(requirements),
+        )
+        print("\n[verify] export locked runtime dependencies", flush=True)
+        exported = subprocess.run(export, cwd=ROOT, env=environment, check=False)
+        if exported.returncode != 0:
+            return exported.returncode
+        audit = (
+            sys.executable,
+            "-m",
+            "pip_audit",
+            "--strict",
+            "--requirement",
+            str(requirements),
+        )
+        print("\n[verify] audit locked runtime dependencies", flush=True)
+        return subprocess.run(audit, cwd=ROOT, env=environment, check=False).returncode
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--skip-audit",
+        action="store_true",
+        help="skip only the network-backed dependency vulnerability audit",
+    )
+    args = parser.parse_args()
+    return run(skip_audit=args.skip_audit)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

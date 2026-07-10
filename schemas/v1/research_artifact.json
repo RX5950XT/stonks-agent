@@ -1,0 +1,286 @@
+{
+  "$defs": {
+    "Citation": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_index": {
+          "minimum": 0,
+          "title": "Claim Index",
+          "type": "integer"
+        },
+        "evidence_id": {
+          "format": "uuid",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "locator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locator"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_index",
+        "evidence_id"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "ModelUsage": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "input_tokens": {
+          "minimum": 0,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "latency_ms": {
+          "minimum": 0,
+          "title": "Latency Ms",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "minimum": 0,
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "output_tokens",
+        "latency_ms"
+      ],
+      "title": "ModelUsage",
+      "type": "object"
+    },
+    "Money": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "currency",
+        "amount"
+      ],
+      "title": "Money",
+      "type": "object"
+    },
+    "ResearchClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "hypothesis": {
+          "default": false,
+          "title": "Hypothesis",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "ResearchClaim",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "format": "uuid",
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "citations": {
+      "items": {
+        "$ref": "#/$defs/Citation"
+      },
+      "title": "Citations",
+      "type": "array"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/ResearchClaim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "confidence": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Confidence",
+      "type": "string"
+    },
+    "counterarguments": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Counterarguments",
+      "type": "array"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "horizon": {
+      "minLength": 1,
+      "title": "Horizon",
+      "type": "string"
+    },
+    "instrument_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Instrument Id"
+    },
+    "model_version": {
+      "minLength": 1,
+      "title": "Model Version",
+      "type": "string"
+    },
+    "producer": {
+      "minLength": 1,
+      "title": "Producer",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "risks": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Risks",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "subject": {
+      "minLength": 1,
+      "title": "Subject",
+      "type": "string"
+    },
+    "tool_versions": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Tool Versions",
+      "type": "array"
+    },
+    "usage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModelUsage"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "warnings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "request_id",
+    "subject",
+    "as_of",
+    "horizon",
+    "claims",
+    "citations",
+    "confidence",
+    "producer",
+    "model_version",
+    "generated_at"
+  ],
+  "title": "ResearchArtifact",
+  "type": "object"
+}

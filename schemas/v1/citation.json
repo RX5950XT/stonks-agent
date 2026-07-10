@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "claim_index": {
+      "minimum": 0,
+      "title": "Claim Index",
+      "type": "integer"
+    },
+    "evidence_id": {
+      "format": "uuid",
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "locator": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Locator"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "claim_index",
+    "evidence_id"
+  ],
+  "title": "Citation",
+  "type": "object"
+}

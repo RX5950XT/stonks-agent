@@ -1,0 +1,81 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "artifact_hashes": {
+      "items": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "title": "Artifact Hashes",
+      "type": "array"
+    },
+    "calendar_version": {
+      "minLength": 1,
+      "title": "Calendar Version",
+      "type": "string"
+    },
+    "corporate_action_refs": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Corporate Action Refs",
+      "type": "array"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "cutoff": {
+      "title": "Cutoff",
+      "type": "string"
+    },
+    "instrument_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Instrument Ids",
+      "type": "array"
+    },
+    "provider_versions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Provider Versions",
+      "type": "array"
+    },
+    "query_refs": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Query Refs",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "instrument_ids",
+    "calendar_version",
+    "query_refs",
+    "artifact_hashes",
+    "provider_versions",
+    "cutoff",
+    "created_at"
+  ],
+  "title": "DatasetSnapshot",
+  "type": "object"
+}

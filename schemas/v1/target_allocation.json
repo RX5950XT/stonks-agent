@@ -1,0 +1,74 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "constraint_diagnostics": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Constraint Diagnostics",
+      "type": "array"
+    },
+    "current_quantity": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Current Quantity",
+      "type": "string"
+    },
+    "delta_quantity": {
+      "anyOf": [
+        {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Delta Quantity"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_quantity": {
+      "anyOf": [
+        {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Quantity"
+    },
+    "target_weight": {
+      "anyOf": [
+        {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Weight"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "current_quantity"
+  ],
+  "title": "TargetAllocation",
+  "type": "object"
+}

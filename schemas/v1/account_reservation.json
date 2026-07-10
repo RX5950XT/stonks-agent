@@ -1,0 +1,94 @@
+{
+  "$defs": {
+    "ReservationKind": {
+      "enum": [
+        "cash",
+        "position"
+      ],
+      "title": "ReservationKind",
+      "type": "string"
+    },
+    "ReservationState": {
+      "enum": [
+        "open",
+        "consumed",
+        "released",
+        "expired"
+      ],
+      "title": "ReservationState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "account_id": {
+      "minLength": 1,
+      "title": "Account Id",
+      "type": "string"
+    },
+    "amount": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Amount",
+      "type": "string"
+    },
+    "commodity": {
+      "minLength": 1,
+      "title": "Commodity",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "expires_at": {
+      "title": "Expires At",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ReservationKind"
+    },
+    "order_intent_id": {
+      "format": "uuid",
+      "title": "Order Intent Id",
+      "type": "string"
+    },
+    "portfolio_sequence": {
+      "title": "Portfolio Sequence",
+      "type": "integer"
+    },
+    "reservation_id": {
+      "format": "uuid",
+      "title": "Reservation Id",
+      "type": "string"
+    },
+    "risk_decision_id": {
+      "format": "uuid",
+      "title": "Risk Decision Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/ReservationState",
+      "default": "open"
+    }
+  },
+  "required": [
+    "reservation_id",
+    "account_id",
+    "kind",
+    "commodity",
+    "amount",
+    "risk_decision_id",
+    "portfolio_sequence",
+    "order_intent_id",
+    "created_at",
+    "expires_at"
+  ],
+  "title": "AccountReservation",
+  "type": "object"
+}

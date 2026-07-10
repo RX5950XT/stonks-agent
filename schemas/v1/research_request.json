@@ -1,0 +1,83 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allowed_evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Allowed Evidence Ids",
+      "type": "array"
+    },
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "budget_ref": {
+      "minLength": 1,
+      "title": "Budget Ref",
+      "type": "string"
+    },
+    "deadline": {
+      "title": "Deadline",
+      "type": "string"
+    },
+    "horizon": {
+      "minLength": 1,
+      "title": "Horizon",
+      "type": "string"
+    },
+    "instrument_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Instrument Id"
+    },
+    "model_policy_id": {
+      "minLength": 1,
+      "title": "Model Policy Id",
+      "type": "string"
+    },
+    "question": {
+      "minLength": 1,
+      "title": "Question",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tool_policy_id": {
+      "minLength": 1,
+      "title": "Tool Policy Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "question",
+    "as_of",
+    "horizon",
+    "allowed_evidence_ids",
+    "tool_policy_id",
+    "model_policy_id",
+    "budget_ref",
+    "deadline"
+  ],
+  "title": "ResearchRequest",
+  "type": "object"
+}

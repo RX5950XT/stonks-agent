@@ -1,0 +1,272 @@
+{
+  "$defs": {
+    "Fill": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "minLength": 1,
+          "title": "Account Id",
+          "type": "string"
+        },
+        "command_id": {
+          "format": "uuid",
+          "title": "Command Id",
+          "type": "string"
+        },
+        "external_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Ref"
+        },
+        "fee_currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Fee Currency",
+          "type": "string"
+        },
+        "fees": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Fees",
+          "type": "string"
+        },
+        "fill_id": {
+          "format": "uuid",
+          "title": "Fill Id",
+          "type": "string"
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "order_intent_id": {
+          "format": "uuid",
+          "title": "Order Intent Id",
+          "type": "string"
+        },
+        "previous_event_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Event Hash"
+        },
+        "price": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Price",
+          "type": "string"
+        },
+        "quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Quantity",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "simulator_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Simulator Ref"
+        },
+        "slippage": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Slippage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fill_id",
+        "command_id",
+        "order_intent_id",
+        "account_id",
+        "instrument_id",
+        "side",
+        "quantity",
+        "price",
+        "fee_currency",
+        "fees",
+        "slippage",
+        "occurred_at",
+        "sequence"
+      ],
+      "title": "Fill",
+      "type": "object"
+    },
+    "OrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "OrderSide",
+      "type": "string"
+    },
+    "OrderStatus": {
+      "enum": [
+        "accepted",
+        "partially_filled",
+        "filled",
+        "rejected",
+        "cancelled",
+        "expired"
+      ],
+      "title": "OrderStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "command_id": {
+      "format": "uuid",
+      "title": "Command Id",
+      "type": "string"
+    },
+    "command_quantity": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Command Quantity",
+      "type": "string"
+    },
+    "external_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "External Ref"
+    },
+    "filled_quantity": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Filled Quantity",
+      "type": "string"
+    },
+    "fills": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Fill"
+      },
+      "title": "Fills",
+      "type": "array"
+    },
+    "occurred_at": {
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "order_intent_id": {
+      "format": "uuid",
+      "title": "Order Intent Id",
+      "type": "string"
+    },
+    "previous_event_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Previous Event Hash"
+    },
+    "receipt_id": {
+      "format": "uuid",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "rejection_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rejection Reason"
+    },
+    "remaining_quantity": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Remaining Quantity",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "simulator_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Simulator Ref"
+    },
+    "status": {
+      "$ref": "#/$defs/OrderStatus"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "command_id",
+    "order_intent_id",
+    "status",
+    "occurred_at",
+    "sequence",
+    "filled_quantity",
+    "remaining_quantity",
+    "command_quantity"
+  ],
+  "title": "ExecutionReceipt",
+  "type": "object"
+}

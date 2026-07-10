@@ -1,0 +1,243 @@
+{
+  "$defs": {
+    "DataQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "completeness": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Completeness",
+          "type": "string"
+        },
+        "fallback_chain": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Fallback Chain",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/DataQualityStatus"
+        },
+        "warnings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "completeness"
+      ],
+      "title": "DataQuality",
+      "type": "object"
+    },
+    "DataQualityStatus": {
+      "enum": [
+        "available",
+        "missing",
+        "not_supported",
+        "fallback",
+        "stale",
+        "estimated",
+        "partial",
+        "fetch_failed",
+        "conflict"
+      ],
+      "title": "DataQualityStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "calibration_bucket": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Calibration Bucket"
+    },
+    "dataset_snapshot_id": {
+      "format": "uuid",
+      "title": "Dataset Snapshot Id",
+      "type": "string"
+    },
+    "device": {
+      "minLength": 1,
+      "title": "Device",
+      "type": "string"
+    },
+    "direction_probability": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Direction Probability",
+      "type": "string"
+    },
+    "dispersion": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Dispersion",
+      "type": "string"
+    },
+    "downside_quantile": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Downside Quantile",
+      "type": "string"
+    },
+    "expected_return": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Expected Return",
+      "type": "string"
+    },
+    "expected_volatility": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Expected Volatility",
+      "type": "string"
+    },
+    "forecast_id": {
+      "format": "uuid",
+      "title": "Forecast Id",
+      "type": "string"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "horizon_bars": {
+      "exclusiveMinimum": 0,
+      "title": "Horizon Bars",
+      "type": "integer"
+    },
+    "inference_code_version": {
+      "minLength": 1,
+      "title": "Inference Code Version",
+      "type": "string"
+    },
+    "input_quality": {
+      "$ref": "#/$defs/DataQuality"
+    },
+    "input_window_end": {
+      "title": "Input Window End",
+      "type": "string"
+    },
+    "input_window_start": {
+      "title": "Input Window Start",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "interval": {
+      "minLength": 1,
+      "title": "Interval",
+      "type": "string"
+    },
+    "latency_ms": {
+      "minimum": 0,
+      "title": "Latency Ms",
+      "type": "integer"
+    },
+    "max_drawdown_quantile": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Max Drawdown Quantile",
+      "type": "string"
+    },
+    "median_return": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Median Return",
+      "type": "string"
+    },
+    "model_id": {
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "minLength": 1,
+      "title": "Model Revision",
+      "type": "string"
+    },
+    "path_count": {
+      "exclusiveMinimum": 0,
+      "title": "Path Count",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "seed_policy": {
+      "minLength": 1,
+      "title": "Seed Policy",
+      "type": "string"
+    },
+    "tokenizer_id": {
+      "minLength": 1,
+      "title": "Tokenizer Id",
+      "type": "string"
+    },
+    "tokenizer_revision": {
+      "minLength": 1,
+      "title": "Tokenizer Revision",
+      "type": "string"
+    },
+    "validity_warnings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Validity Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "forecast_id",
+    "instrument_id",
+    "as_of",
+    "interval",
+    "horizon_bars",
+    "expected_return",
+    "median_return",
+    "direction_probability",
+    "expected_volatility",
+    "downside_quantile",
+    "max_drawdown_quantile",
+    "path_count",
+    "dispersion",
+    "input_quality",
+    "model_id",
+    "model_revision",
+    "tokenizer_id",
+    "tokenizer_revision",
+    "device",
+    "seed_policy",
+    "inference_code_version",
+    "dataset_snapshot_id",
+    "input_window_start",
+    "input_window_end",
+    "generated_at",
+    "latency_ms"
+  ],
+  "title": "ForecastSignal",
+  "type": "object"
+}

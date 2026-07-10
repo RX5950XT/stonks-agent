@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "currency": {
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "price": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Price",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "currency",
+    "price",
+    "as_of"
+  ],
+  "title": "MarketPrice",
+  "type": "object"
+}

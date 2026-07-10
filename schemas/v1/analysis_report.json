@@ -1,0 +1,213 @@
+{
+  "$defs": {
+    "ReportRendering": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "content_ref": {
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "title": "Content Ref",
+          "type": "string"
+        },
+        "format": {
+          "minLength": 1,
+          "title": "Format",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "template_version": {
+          "minLength": 1,
+          "title": "Template Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "format",
+        "template_version",
+        "content_hash",
+        "content_ref"
+      ],
+      "title": "ReportRendering",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action_guardrails": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Action Guardrails",
+      "type": "array"
+    },
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "catalysts": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Catalysts",
+      "type": "array"
+    },
+    "conclusion": {
+      "minLength": 1,
+      "title": "Conclusion",
+      "type": "string"
+    },
+    "confidence": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Confidence",
+      "type": "string"
+    },
+    "data_limitations": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Data Limitations",
+      "type": "array"
+    },
+    "evidence_refs": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "generator_version": {
+      "minLength": 1,
+      "title": "Generator Version",
+      "type": "string"
+    },
+    "language": {
+      "minLength": 1,
+      "title": "Language",
+      "type": "string"
+    },
+    "model_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Version"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "prompt_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Prompt Version"
+    },
+    "renderings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ReportRendering"
+      },
+      "title": "Renderings",
+      "type": "array"
+    },
+    "report_id": {
+      "format": "uuid",
+      "title": "Report Id",
+      "type": "string"
+    },
+    "report_type": {
+      "minLength": 1,
+      "title": "Report Type",
+      "type": "string"
+    },
+    "risks": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Risks",
+      "type": "array"
+    },
+    "scenarios": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Scenarios",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "score": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Score",
+      "type": "string"
+    },
+    "signal_attribution": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Signal Attribution",
+      "type": "array"
+    },
+    "signal_ids": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Signal Ids",
+      "type": "array"
+    },
+    "subject": {
+      "minLength": 1,
+      "title": "Subject",
+      "type": "string"
+    }
+  },
+  "required": [
+    "report_id",
+    "subject",
+    "as_of",
+    "language",
+    "report_type",
+    "conclusion",
+    "score",
+    "confidence",
+    "action_guardrails",
+    "evidence_refs",
+    "generator_version",
+    "policy_version"
+  ],
+  "title": "AnalysisReport",
+  "type": "object"
+}

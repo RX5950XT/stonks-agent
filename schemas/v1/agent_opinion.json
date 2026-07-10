@@ -1,0 +1,99 @@
+{
+  "$defs": {
+    "ConfidenceCalibration": {
+      "enum": [
+        "uncalibrated",
+        "calibrated"
+      ],
+      "title": "ConfidenceCalibration",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "calibration": {
+      "$ref": "#/$defs/ConfidenceCalibration"
+    },
+    "confidence": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Confidence",
+      "type": "string"
+    },
+    "evidence_refs": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "horizon": {
+      "minLength": 1,
+      "title": "Horizon",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "model_version": {
+      "minLength": 1,
+      "title": "Model Version",
+      "type": "string"
+    },
+    "opinion_id": {
+      "format": "uuid",
+      "title": "Opinion Id",
+      "type": "string"
+    },
+    "producer": {
+      "minLength": 1,
+      "title": "Producer",
+      "type": "string"
+    },
+    "recommendation": {
+      "minLength": 1,
+      "title": "Recommendation",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "thesis": {
+      "minLength": 1,
+      "title": "Thesis",
+      "type": "string"
+    },
+    "warnings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "opinion_id",
+    "instrument_id",
+    "as_of",
+    "horizon",
+    "recommendation",
+    "thesis",
+    "confidence",
+    "calibration",
+    "producer",
+    "model_version"
+  ],
+  "title": "AgentOpinion",
+  "type": "object"
+}

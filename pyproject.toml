@@ -1,0 +1,119 @@
+[build-system]
+requires = ["hatchling>=1.28,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stonks-agent"
+version = "0.1.0"
+description = "可稽核、paper-only 的投資研究與交易代理核心"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Stonks Agent contributors" }]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
+dependencies = [
+    "alembic>=1.17.2,<2",
+    "fastapi>=0.128,<1",
+    "httpx>=0.28.1,<1",
+    "opentelemetry-api>=1.39,<2",
+    "psycopg[binary]>=3.3.2,<4",
+    "pydantic>=2.12.5,<3",
+    "sqlalchemy>=2.0.45,<3",
+    "stonks-contracts",
+    "structlog>=25.5,<26",
+    "typer>=0.21,<1",
+]
+
+[project.scripts]
+stonks = "stonks_agent.entrypoints.cli:app"
+
+[project.urls]
+Repository = "https://github.com/stonks-agent/stonks-agent"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.148,<7",
+    "mypy>=1.19,<2",
+    "pip-audit>=2.9,<3",
+    "pytest>=9.0,<10",
+    "pytest-asyncio>=1.3,<2",
+    "pytest-cov>=7.0,<8",
+    "pyyaml>=6.0.3,<7",
+    "ruff>=0.14.10,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/stonks_agent"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+stonks-contracts = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/contracts"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--strict-config",
+    "--strict-markers",
+    "--cov=stonks_agent",
+    "--cov=stonks_contracts",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-fail-under=80",
+]
+asyncio_mode = "strict"
+testpaths = ["tests", "packages/contracts/tests"]
+markers = [
+    "contract: wire-contract tests",
+    "e2e: end-to-end workflow tests",
+    "integration: tests crossing infrastructure boundaries",
+    "policy: repository and security policy tests",
+    "unit: isolated unit tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["stonks_agent", "stonks_contracts"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+extend-exclude = [".research", ".data"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["stonks_agent", "stonks_contracts"]
+
+[tool.ruff.format]
+line-ending = "lf"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "packages"]
+exclude = ["^\\.research/", "^\\.data/"]
+plugins = ["pydantic.mypy"]
+pretty = true
+show_error_codes = true
+warn_unreachable = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true

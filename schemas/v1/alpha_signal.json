@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "PromotionState": {
+      "enum": [
+        "draft",
+        "evaluating",
+        "rejected",
+        "shadow",
+        "paper_eligible",
+        "retired"
+      ],
+      "title": "PromotionState",
+      "type": "string"
+    },
+    "SignalDirection": {
+      "enum": [
+        "long",
+        "short",
+        "neutral"
+      ],
+      "title": "SignalDirection",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "confidence": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Confidence",
+      "type": "string"
+    },
+    "direction": {
+      "$ref": "#/$defs/SignalDirection"
+    },
+    "evaluation_report_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evaluation Report Id"
+    },
+    "evidence_refs": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "expires_at": {
+      "title": "Expires At",
+      "type": "string"
+    },
+    "forecast_refs": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Forecast Refs",
+      "type": "array"
+    },
+    "horizon": {
+      "minLength": 1,
+      "title": "Horizon",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "promotion_state": {
+      "$ref": "#/$defs/PromotionState"
+    },
+    "reason_codes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Reason Codes",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "signal_id": {
+      "format": "uuid",
+      "title": "Signal Id",
+      "type": "string"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "strategy_version": {
+      "minLength": 1,
+      "title": "Strategy Version",
+      "type": "string"
+    },
+    "value": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Value",
+      "type": "string"
+    }
+  },
+  "required": [
+    "signal_id",
+    "strategy_id",
+    "strategy_version",
+    "instrument_id",
+    "as_of",
+    "horizon",
+    "value",
+    "confidence",
+    "expires_at",
+    "direction",
+    "promotion_state"
+  ],
+  "title": "AlphaSignal",
+  "type": "object"
+}

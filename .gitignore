@@ -1,0 +1,70 @@
+# Python / uv
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version.local
+.venv/
+venv/
+.tox/
+.nox/
+build/
+dist/
+*.egg-info/
+
+# Tests, type checking, lint and coverage
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local research and runtime data
+.research/
+.data/
+.cache/
+.model-cache/
+.models/
+.worker/
+.workers/
+worker-output/
+worker_outputs/
+
+# Model artifacts
+*.ckpt
+*.onnx
+*.pt
+*.pth
+*.safetensors
+
+# Databases and local state
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+.secrets/
+secret/
+secrets/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Logs, traces and OS/editor state
+*.log
+*.pid
+*.trace
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

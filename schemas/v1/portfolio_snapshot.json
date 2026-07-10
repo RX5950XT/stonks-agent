@@ -1,0 +1,240 @@
+{
+  "$defs": {
+    "CashBalance": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "available_amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Available Amount",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "currency",
+        "amount",
+        "available_amount"
+      ],
+      "title": "CashBalance",
+      "type": "object"
+    },
+    "MarketPrice": {
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "title": "As Of",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "price": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Price",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "currency",
+        "price",
+        "as_of"
+      ],
+      "title": "MarketPrice",
+      "type": "object"
+    },
+    "Money": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "currency",
+        "amount"
+      ],
+      "title": "Money",
+      "type": "object"
+    },
+    "Position": {
+      "additionalProperties": false,
+      "properties": {
+        "average_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Money"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Quantity",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sellable_quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Sellable Quantity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "quantity",
+        "sellable_quantity"
+      ],
+      "title": "Position",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "account_id": {
+      "title": "Account Id",
+      "type": "string"
+    },
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "cash": {
+      "items": {
+        "$ref": "#/$defs/CashBalance"
+      },
+      "title": "Cash",
+      "type": "array"
+    },
+    "fx_rates_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fx Rates Hash"
+    },
+    "ledger_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Ledger Hash",
+      "type": "string"
+    },
+    "ledger_sequence": {
+      "title": "Ledger Sequence",
+      "type": "integer"
+    },
+    "nav": {
+      "items": {
+        "$ref": "#/$defs/Money"
+      },
+      "title": "Nav",
+      "type": "array"
+    },
+    "pending_order_ids": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Pending Order Ids",
+      "type": "array"
+    },
+    "positions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Position"
+      },
+      "title": "Positions",
+      "type": "array"
+    },
+    "prices": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/MarketPrice"
+      },
+      "title": "Prices",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_id",
+    "account_id",
+    "as_of",
+    "cash",
+    "nav",
+    "ledger_sequence",
+    "ledger_hash"
+  ],
+  "title": "PortfolioSnapshot",
+  "type": "object"
+}

@@ -1,0 +1,202 @@
+schema_version: 1
+reviewed_at: "2026-07-10"
+policies:
+  required_gates:
+    - NO_VENDOR_DEXTER_CODE
+    - NO_VENDOR_AI_TRADER_CODE
+    - NO_OPENBB_IMPORT_IN_CORE
+  forbidden_core_dependencies:
+    - langgraph
+    - lean
+    - nautilus-trader
+    - openbb
+    - openbb-core
+    - openbb-platform
+    - openbb-terminal
+    - pyqlib
+    - pytorch
+    - qlib
+    - rd-agent
+    - rdagent
+    - torch
+  forbidden_vendor_roots:
+    - packages/dexter
+    - src/dexter
+    - third_party/dexter
+    - vendor/dexter
+    - workers/dexter
+    - packages/ai-trader
+    - packages/ai_trader
+    - src/ai-trader
+    - src/ai_trader
+    - third_party/ai-trader
+    - third_party/ai_trader
+    - vendor/ai-trader
+    - vendor/ai_trader
+    - workers/ai-trader
+    - workers/ai_trader
+
+upstreams:
+  - id: ai-hedge-fund
+    repository: https://github.com/virattt/ai-hedge-fund
+    local_path: .research/upstreams/ai-hedge-fund
+    snapshot: 3a18702cb25777fb4bdb4b2527a0c868bc8297f4
+    license:
+      expression: MIT
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: 333d44bf52248cb54db5e8b2b767f1f02fe4df80483de01b8906b3e37e9eb830
+    adoption:
+      mode: selective-port
+      source_copy_allowed: true
+      in_core_allowed: true
+    notice:
+      required: false
+      id: null
+
+  - id: dexter
+    repository: https://github.com/virattt/dexter
+    local_path: .research/upstreams/dexter
+    snapshot: bae661670c3d77e909942777ac32ece21e8af35d
+    license:
+      expression: NOASSERTION
+      status: incomplete
+      evidence:
+        - path: README.md
+          sha256: 6dca39b958326fe3479c0d256b5ac37188992a9d33bc8b1794849d8c236d2d93
+    adoption:
+      mode: clean-room-only
+      source_copy_allowed: false
+      in_core_allowed: false
+    notice:
+      required: false
+      id: null
+
+  - id: tradingagents
+    repository: https://github.com/TauricResearch/TradingAgents
+    local_path: .research/upstreams/TradingAgents
+    snapshot: 01477f9afb7a47b849ed4c9259d3a9a4738d9fda
+    license:
+      expression: Apache-2.0
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: 1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6
+    adoption:
+      mode: isolated-worker
+      source_copy_allowed: true
+      in_core_allowed: false
+    notice:
+      required: false
+      id: null
+
+  - id: kronos
+    repository: https://github.com/shiyu-coder/Kronos
+    local_path: .research/upstreams/Kronos
+    snapshot: 67b630e67f6a18c9e9be918d9b4337c960db1e9a
+    license:
+      expression: MIT
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: 16fa0cc8736754b878132ef3181d7ff4d1ae28d20d7758f9b3c0f5c8e1056d69
+    adoption:
+      mode: isolated-worker
+      source_copy_allowed: true
+      in_core_allowed: false
+    notice:
+      required: false
+      id: null
+
+  - id: daily-stock-analysis
+    repository: https://github.com/ZhuLinsen/daily_stock_analysis
+    local_path: .research/upstreams/daily_stock_analysis
+    snapshot: aa513135d67425d2484cdc9c643402c0f4c3ae07
+    license:
+      expression: MIT
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: d06b0d1d2b6fbf6adda441b4d28abc4d04ea409e9804c49151e90d04b179928f
+    adoption:
+      mode: selective-port
+      source_copy_allowed: true
+      in_core_allowed: true
+    notice:
+      required: false
+      id: null
+
+  - id: ai-trader
+    repository: https://github.com/HKUDS/AI-Trader
+    local_path: .research/upstreams/AI-Trader
+    snapshot: d03ff6c056b32ced735adf7c19ed8175adb1c8df
+    license:
+      expression: NOASSERTION
+      status: conflicting
+      evidence:
+        - path: README.md
+          sha256: 13d60318cc564bad8fd566ae0810ec322086fd12eba4c83469fdfb179280ea86
+        - path: service/README.md
+          sha256: bba86c6eda31371aa117f202b4c4fe1b91920bd3b814d4d9031443bbe9329ad6
+    adoption:
+      mode: external-adapter-only
+      source_copy_allowed: false
+      in_core_allowed: false
+    notice:
+      required: false
+      id: null
+
+  - id: openbb
+    repository: https://github.com/OpenBB-finance/OpenBB
+    local_path: .research/upstreams/OpenBB
+    snapshot: 1c74893140292944e71ff5cdd9536edf12f05483
+    license:
+      expression: AGPL-3.0-only
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: 8ba759c7c4ca2ec63b556a008728f387f8f4562e4fd0c0125bad05a47c99b315
+    adoption:
+      mode: optional-sidecar
+      source_copy_allowed: false
+      in_core_allowed: false
+    notice:
+      required: false
+      id: null
+
+  - id: qlib
+    repository: https://github.com/microsoft/qlib
+    local_path: .research/upstreams/Qlib
+    snapshot: d5379c520f66a39953bad76234a7019a72796fd0
+    license:
+      expression: MIT
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: 9906940f61b1f0b533fa7d99baf55178b2808fbe113ea51dfbfad8572ccd5f2b
+    adoption:
+      mode: isolated-worker
+      source_copy_allowed: true
+      in_core_allowed: false
+    notice:
+      required: false
+      id: null
+
+  - id: rd-agent
+    repository: https://github.com/microsoft/RD-Agent
+    local_path: .research/upstreams/RD-Agent
+    snapshot: 4f9ecb005881cddc08df0124a2e894c018007679
+    license:
+      expression: MIT
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: 9906940f61b1f0b533fa7d99baf55178b2808fbe113ea51dfbfad8572ccd5f2b
+    adoption:
+      mode: isolated-worker
+      source_copy_allowed: true
+      in_core_allowed: false
+    notice:
+      required: false
+      id: null

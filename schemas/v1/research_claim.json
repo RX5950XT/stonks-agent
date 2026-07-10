@@ -1,0 +1,35 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "evidence_refs": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "hypothesis": {
+      "default": false,
+      "title": "Hypothesis",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "text": {
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ],
+  "title": "ResearchClaim",
+  "type": "object"
+}

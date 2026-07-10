@@ -1,0 +1,218 @@
+{
+  "$defs": {
+    "OrderIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "minLength": 1,
+          "title": "Account Id",
+          "type": "string"
+        },
+        "aggregate_sequence": {
+          "minimum": 0,
+          "title": "Aggregate Sequence",
+          "type": "integer"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "execution_model_version": {
+          "minLength": 1,
+          "title": "Execution Model Version",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "minLength": 1,
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "intent_id": {
+          "format": "uuid",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "limit_price": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit Price"
+        },
+        "notional": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notional"
+        },
+        "order_type": {
+          "$ref": "#/$defs/OrderType"
+        },
+        "portfolio_snapshot_id": {
+          "format": "uuid",
+          "title": "Portfolio Snapshot Id",
+          "type": "string"
+        },
+        "quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Quantity",
+          "type": "string"
+        },
+        "reservation_id": {
+          "format": "uuid",
+          "title": "Reservation Id",
+          "type": "string"
+        },
+        "risk_decision_id": {
+          "format": "uuid",
+          "title": "Risk Decision Id",
+          "type": "string"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "stop_price": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Price"
+        },
+        "time_in_force": {
+          "$ref": "#/$defs/TimeInForce"
+        },
+        "valid_from": {
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_until": {
+          "title": "Valid Until",
+          "type": "string"
+        }
+      },
+      "required": [
+        "intent_id",
+        "run_id",
+        "account_id",
+        "instrument_id",
+        "side",
+        "order_type",
+        "quantity",
+        "time_in_force",
+        "valid_from",
+        "valid_until",
+        "risk_decision_id",
+        "reservation_id",
+        "portfolio_snapshot_id",
+        "aggregate_sequence",
+        "idempotency_key",
+        "execution_model_version",
+        "created_at"
+      ],
+      "title": "OrderIntent",
+      "type": "object"
+    },
+    "OrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "OrderSide",
+      "type": "string"
+    },
+    "OrderType": {
+      "enum": [
+        "market",
+        "limit",
+        "stop",
+        "stop_limit"
+      ],
+      "title": "OrderType",
+      "type": "string"
+    },
+    "TimeInForce": {
+      "enum": [
+        "day",
+        "gtc",
+        "ioc"
+      ],
+      "title": "TimeInForce",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempt_generation": {
+      "minimum": 1,
+      "title": "Attempt Generation",
+      "type": "integer"
+    },
+    "attempt_nonce": {
+      "minLength": 1,
+      "title": "Attempt Nonce",
+      "type": "string"
+    },
+    "command_id": {
+      "format": "uuid",
+      "title": "Command Id",
+      "type": "string"
+    },
+    "intent": {
+      "$ref": "#/$defs/OrderIntent"
+    },
+    "issued_at": {
+      "title": "Issued At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "command_id",
+    "intent",
+    "attempt_generation",
+    "attempt_nonce",
+    "issued_at"
+  ],
+  "title": "ExecutionCommand",
+  "type": "object"
+}

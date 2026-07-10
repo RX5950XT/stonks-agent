@@ -1,0 +1,187 @@
+{
+  "$defs": {
+    "Money": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "currency",
+        "amount"
+      ],
+      "title": "Money",
+      "type": "object"
+    },
+    "TargetAllocation": {
+      "additionalProperties": false,
+      "properties": {
+        "constraint_diagnostics": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Constraint Diagnostics",
+          "type": "array"
+        },
+        "current_quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Current Quantity",
+          "type": "string"
+        },
+        "delta_quantity": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delta Quantity"
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "target_quantity": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Quantity"
+        },
+        "target_weight": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Weight"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "current_quantity"
+      ],
+      "title": "TargetAllocation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "account_id": {
+      "title": "Account Id",
+      "type": "string"
+    },
+    "allocations": {
+      "items": {
+        "$ref": "#/$defs/TargetAllocation"
+      },
+      "title": "Allocations",
+      "type": "array"
+    },
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "calculation_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Calculation Hash",
+      "type": "string"
+    },
+    "expected_cost": {
+      "$ref": "#/$defs/Money"
+    },
+    "expected_turnover": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Expected Turnover",
+      "type": "string"
+    },
+    "input_evidence_ids": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Input Evidence Ids",
+      "type": "array"
+    },
+    "input_signal_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Input Signal Ids",
+      "type": "array"
+    },
+    "policy_version": {
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "portfolio_snapshot_id": {
+      "format": "uuid",
+      "title": "Portfolio Snapshot Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target_id": {
+      "format": "uuid",
+      "title": "Target Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "target_id",
+    "account_id",
+    "portfolio_snapshot_id",
+    "as_of",
+    "allocations",
+    "input_signal_ids",
+    "policy_version",
+    "expected_turnover",
+    "expected_cost",
+    "calculation_hash"
+  ],
+  "title": "PortfolioTarget",
+  "type": "object"
+}

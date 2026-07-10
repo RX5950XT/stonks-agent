@@ -1,0 +1,245 @@
+{
+  "$defs": {
+    "DataQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "completeness": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Completeness",
+          "type": "string"
+        },
+        "fallback_chain": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Fallback Chain",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/DataQualityStatus"
+        },
+        "warnings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "completeness"
+      ],
+      "title": "DataQuality",
+      "type": "object"
+    },
+    "DataQualityStatus": {
+      "enum": [
+        "available",
+        "missing",
+        "not_supported",
+        "fallback",
+        "stale",
+        "estimated",
+        "partial",
+        "fetch_failed",
+        "conflict"
+      ],
+      "title": "DataQualityStatus",
+      "type": "string"
+    },
+    "EvidenceKind": {
+      "enum": [
+        "market_data",
+        "filing",
+        "news",
+        "fundamental",
+        "community",
+        "derived"
+      ],
+      "title": "EvidenceKind",
+      "type": "string"
+    },
+    "JsonValue": {},
+    "Sensitivity": {
+      "enum": [
+        "public",
+        "internal",
+        "restricted"
+      ],
+      "title": "Sensitivity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "available_at": {
+      "title": "Available At",
+      "type": "string"
+    },
+    "content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "derived_from": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Derived From",
+      "type": "array"
+    },
+    "event_time": {
+      "title": "Event Time",
+      "type": "string"
+    },
+    "evidence_id": {
+      "format": "uuid",
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    },
+    "kind": {
+      "$ref": "#/$defs/EvidenceKind"
+    },
+    "license_tag": {
+      "minLength": 1,
+      "title": "License Tag",
+      "type": "string"
+    },
+    "observed_at": {
+      "title": "Observed At",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Payload",
+      "type": "object"
+    },
+    "provider": {
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "published_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Published At"
+    },
+    "quality": {
+      "$ref": "#/$defs/DataQuality"
+    },
+    "raw_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Raw Artifact Ref",
+      "type": "string"
+    },
+    "redistribution_tag": {
+      "minLength": 1,
+      "title": "Redistribution Tag",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sensitivity": {
+      "$ref": "#/$defs/Sensitivity",
+      "default": "public"
+    },
+    "source": {
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
+    },
+    "subject": {
+      "minLength": 1,
+      "title": "Subject",
+      "type": "string"
+    },
+    "transformation_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Transformation Version"
+    },
+    "untrusted_content": {
+      "default": false,
+      "title": "Untrusted Content",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "subject",
+    "kind",
+    "payload",
+    "event_time",
+    "published_at",
+    "available_at",
+    "observed_at",
+    "as_of",
+    "source",
+    "provider",
+    "content_hash",
+    "raw_artifact_ref",
+    "quality",
+    "license_tag",
+    "redistribution_tag"
+  ],
+  "title": "EvidenceItem",
+  "type": "object"
+}

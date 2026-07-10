@@ -1,0 +1,260 @@
+{
+  "$defs": {
+    "Bar": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "available_at": {
+          "title": "Available At",
+          "type": "string"
+        },
+        "close": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Close",
+          "type": "string"
+        },
+        "event_time": {
+          "title": "Event Time",
+          "type": "string"
+        },
+        "high": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "High",
+          "type": "string"
+        },
+        "low": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Low",
+          "type": "string"
+        },
+        "observed_at": {
+          "title": "Observed At",
+          "type": "string"
+        },
+        "open": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Open",
+          "type": "string"
+        },
+        "published_at": {
+          "title": "Published At",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "volume": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Volume",
+          "type": "string"
+        },
+        "vwap": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vwap"
+        }
+      },
+      "required": [
+        "event_time",
+        "published_at",
+        "available_at",
+        "observed_at",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ],
+      "title": "Bar",
+      "type": "object"
+    },
+    "DataQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "completeness": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Completeness",
+          "type": "string"
+        },
+        "fallback_chain": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Fallback Chain",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/DataQualityStatus"
+        },
+        "warnings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "completeness"
+      ],
+      "title": "DataQuality",
+      "type": "object"
+    },
+    "DataQualityStatus": {
+      "enum": [
+        "available",
+        "missing",
+        "not_supported",
+        "fallback",
+        "stale",
+        "estimated",
+        "partial",
+        "fetch_failed",
+        "conflict"
+      ],
+      "title": "DataQualityStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adjustment": {
+      "minLength": 1,
+      "title": "Adjustment",
+      "type": "string"
+    },
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "bars": {
+      "items": {
+        "$ref": "#/$defs/Bar"
+      },
+      "title": "Bars",
+      "type": "array"
+    },
+    "endpoint": {
+      "minLength": 1,
+      "title": "Endpoint",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "interval": {
+      "minLength": 1,
+      "title": "Interval",
+      "type": "string"
+    },
+    "provider": {
+      "minLength": 1,
+      "title": "Provider",
+      "type": "string"
+    },
+    "quality": {
+      "$ref": "#/$defs/DataQuality",
+      "default": {
+        "completeness": "1",
+        "fallback_chain": [],
+        "schema_version": "1.0.0",
+        "status": "available",
+        "warnings": []
+      }
+    },
+    "raw_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Raw Artifact Ref",
+      "type": "string"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Id"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "series_id": {
+      "format": "uuid",
+      "title": "Series Id",
+      "type": "string"
+    },
+    "session": {
+      "minLength": 1,
+      "title": "Session",
+      "type": "string"
+    },
+    "source_payload_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Payload Hash"
+    }
+  },
+  "required": [
+    "series_id",
+    "instrument_id",
+    "interval",
+    "adjustment",
+    "session",
+    "as_of",
+    "provider",
+    "endpoint",
+    "raw_artifact_ref",
+    "bars"
+  ],
+  "title": "BarSeries",
+  "type": "object"
+}

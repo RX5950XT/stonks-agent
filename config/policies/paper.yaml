@@ -1,0 +1,12 @@
+version: 1
+execution:
+  mode: paper
+  fill_timing: next_tradable_bar
+  require_risk_approval: true
+  require_account_reservation: true
+  require_balanced_journal: true
+capabilities:
+  live_execution: false
+  network_egress: false
+  filesystem_write: false
+  process_spawn: false

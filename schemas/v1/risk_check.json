@@ -1,0 +1,64 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actual": {
+      "anyOf": [
+        {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Actual"
+    },
+    "code": {
+      "minLength": 1,
+      "title": "Code",
+      "type": "string"
+    },
+    "limit": {
+      "anyOf": [
+        {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Limit"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "passed"
+  ],
+  "title": "RiskCheck",
+  "type": "object"
+}

@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "DataQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "completeness": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Completeness",
+          "type": "string"
+        },
+        "fallback_chain": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Fallback Chain",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/DataQualityStatus"
+        },
+        "warnings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "completeness"
+      ],
+      "title": "DataQuality",
+      "type": "object"
+    },
+    "DataQualityStatus": {
+      "enum": [
+        "available",
+        "missing",
+        "not_supported",
+        "fallback",
+        "stale",
+        "estimated",
+        "partial",
+        "fetch_failed",
+        "conflict"
+      ],
+      "title": "DataQualityStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "missing_capabilities": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Capabilities",
+      "type": "array"
+    },
+    "pack_id": {
+      "format": "uuid",
+      "title": "Pack Id",
+      "type": "string"
+    },
+    "quality_summary": {
+      "items": {
+        "$ref": "#/$defs/DataQuality"
+      },
+      "title": "Quality Summary",
+      "type": "array"
+    },
+    "required_capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Capabilities",
+      "type": "array"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "pack_id",
+    "run_id",
+    "as_of",
+    "evidence_ids",
+    "required_capabilities",
+    "quality_summary"
+  ],
+  "title": "EvidencePack",
+  "type": "object"
+}

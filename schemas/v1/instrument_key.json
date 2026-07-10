@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "AssetClass": {
+      "enum": [
+        "equity",
+        "etf",
+        "fund",
+        "index",
+        "fx",
+        "crypto",
+        "future",
+        "option"
+      ],
+      "title": "AssetClass",
+      "type": "string"
+    },
+    "ProviderSymbol": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "symbol": {
+          "minLength": 1,
+          "title": "Symbol",
+          "type": "string"
+        },
+        "valid_from": {
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid To"
+        }
+      },
+      "required": [
+        "provider",
+        "symbol",
+        "valid_from"
+      ],
+      "title": "ProviderSymbol",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "asset_class": {
+      "$ref": "#/$defs/AssetClass"
+    },
+    "currency": {
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "type": "string"
+    },
+    "exchange_mic": {
+      "minLength": 1,
+      "title": "Exchange Mic",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "primary_symbol": {
+      "minLength": 1,
+      "title": "Primary Symbol",
+      "type": "string"
+    },
+    "provider_symbols": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ProviderSymbol"
+      },
+      "title": "Provider Symbols",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "timezone": {
+      "minLength": 1,
+      "title": "Timezone",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "asset_class",
+    "primary_symbol",
+    "exchange_mic",
+    "currency",
+    "timezone"
+  ],
+  "title": "InstrumentKey",
+  "type": "object"
+}

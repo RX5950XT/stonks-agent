@@ -1,0 +1,537 @@
+# Stonks Agent 實作計畫
+
+> 狀態：執行中（P0 gate 已通過，P1 進行中）  
+> Architecture source of truth：`docs/architecture/integration-blueprint.md`  
+> 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
+
+## 標記說明
+
+- Complexity：`S`（單一小模組）、`M`（數個模組）、`L`（跨層/跨程序）、`XL`（重大整合）。
+- Risk：`Low`、`Medium`、`High`；High 必須在同一項目列出 fail-closed gate。
+- `[ ]` 未開始、`[x]` 完成；只有驗證證據已落盤才能勾選。
+- 每個 task 的 `Depends` 指必要前置；可在不衝突時平行處理同 phase 項目。
+- 所有新增 Python 為 3.12，主核心使用 `uv`；optional workers/sidecars各自鎖定 environment。
+
+## 一次性確認
+
+- [x] **PLAN-AUTH** — 確認 `docs/architecture/integration-blueprint.md` 與本計畫，授權按 P0→P6 持續實作，不逐 phase 暫停。（Depends：None；Complexity：S；Risk：Low）
+
+---
+
+## P0 — Foundation、governance 與 canonical contracts
+
+### Outcome
+
+建立可安裝、可測試的 Python 3.12 + `uv` workspace、版本化 wire contracts、paper-only capability boundary，以及不連真實 provider/LLM/service 但語意完整的 in-memory fake/replay 閉環：evidence → signal → target → risk → account reservation → next-session paper fill → balanced journal → report → replay。最小 security、authorization、idempotency、late-result fencing與telemetry從本phase即為gate，不延後到P6。
+
+### Tasks
+
+- [x] **P0.1 Bootstrap uv workspace** — 建立 `pyproject.toml`、`uv.lock`、`.python-version`、`src/stonks_agent/__init__.py`、`tests/conftest.py`；鎖定core runtime與dev dependencies，設定`ruff`、`mypy`、`pytest`、coverage、Hypothesis。（Depends：PLAN-AUTH；Complexity：M；Risk：Low）
+  - Core只含Pydantic 2、Typer、FastAPI、HTTPX、SQLAlchemy/Alembic、psycopg、structlog與OpenTelemetry primitives；禁止PyTorch/OpenBB/LangGraph/Qlib進主lock。
+  - 驗證：`uv sync --frozen`、`uv run ruff check .`、`uv run mypy src packages`、`uv run pytest`。
+
+- [x] **P0.2 Repository conventions and docs** — 建立`.gitignore`、`.editorconfig`、`README.md`、`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`、`tasks/lessons.md`，將繁中、CLI-first、驗證、paper-only與文件同步規則落盤。（Depends：P0.1；Complexity：S；Risk：Low）
+  - `.research/`、`.data/`、model cache、secrets、coverage、DB、worker outputs全部排除版控。
+  - README先描述安全範圍與quick start，不宣稱尚未完成能力。
+
+- [x] **P0.3 License and upstream policy** — 建立`LICENSE`（一次性確認採Apache-2.0作自有core預設）、`THIRD_PARTY_NOTICES.md`、`docs/legal/license-policy.md`、`docs/legal/upstream-manifest.yaml`、`scripts/check_upstream_policy.py`。（Depends：PLAN-AUTH；Complexity：M；Risk：High）
+  - Manifest固定研究snapshot、license、允許的adoption mode與禁止路徑。
+  - CI gate明確設`NO_VENDOR_DEXTER_CODE`、`NO_VENDOR_AI_TRADER_CODE`與`NO_OPENBB_IMPORT_IN_CORE`。
+  - Fail-closed：未知/漂移license、缺notice或OpenBB package進core dependency graph即失敗。
+
+- [x] **P0.4 Contracts package skeleton** — 建立`packages/contracts/pyproject.toml`、`packages/contracts/src/stonks_contracts/{common,instrument,market_data,evidence,research,signal,portfolio,risk,execution,workflow,report}.py`與`packages/contracts/tests/`。（Depends：P0.1；Complexity：L；Risk：Medium）
+  - Models為frozen Pydantic、`extra='forbid'`、timezone-aware UTC、Decimal字串、explicit schema version。
+  - `research.py`明確定義`ResearchArtifact`、`AnalysisBundle`、`AgentOpinion`；`AgentOpinion`不得含order/qty/execution欄位。
+  - `risk.py`/`execution.py`明確定義`AccountReservation`、`OrderIntent`、`ExecutionReceipt`、`JournalTransaction/Posting`；journal每種currency/commodity必須debit/credit平衡。
+  - Canonical chain固定為`Evidence/ResearchArtifact -> AnalysisBundle/AgentOpinion/AlphaSignal/ForecastSignal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt`。
+
+- [x] **P0.5 Contract schema export and compatibility** — 建立`scripts/export_schemas.py`、`schemas/v1/*.json`、`schemas/README.md`、`tests/contracts/test_schema_snapshots.py`、`tests/contracts/test_round_trip.py`。（Depends：P0.4；Complexity：M；Risk：Medium）
+  - JSON Schema排序與輸出deterministic；breaking change必須新major schema directory。
+  - 驗證Pydantic↔JSON round-trip、unknown fields rejection、Decimal/time serialization、payload hash穩定。
+
+- [x] **P0.6 Domain/application/ports skeleton** — 建立`src/stonks_agent/domain/{errors,ids,time,quality}.py`、`application/`, `ports/`, `adapters/`, `entrypoints/`, `config/`與對應`__init__.py`；加入dependency-direction tests。（Depends：P0.4；Complexity：M；Risk：Medium）
+  - `domain`不得import`adapters`、FastAPI、SQLAlchemy或上游套件。
+  - Ports使用typed `Protocol`與structured error unions，不回傳ambiguous `None`。
+
+- [x] **P0.7 Validated configuration and paper-only boundary** — 建立`src/stonks_agent/config/settings.py`、`config/defaults.toml`、`config/policies/paper.yaml`、`tests/config/test_paper_only.py`。（Depends：P0.6；Complexity：M；Risk：High）
+  - `execution_mode`只接受`paper`；unknown/live值在startup fail fast。
+  - Secret欄位使用named refs，不可被序列化到logs/events/config snapshots。
+
+- [x] **P0.8 Complete in-memory fake/replay vertical slice** — 建立`src/stonks_agent/adapters/fakes/`、`application/workflows/run_cycle.py`、`entrypoints/cli.py`、in-memory event/job/outbox/account repositories與`tests/e2e/test_fake_cycle.py`。（Depends：P0.5、P0.6、P0.7；Complexity：XL；Risk：High）
+  - Flow必須完整經過deterministic target、hard risk、per-account serialized reservation、`OrderIntent`、command之後第一個可交易bar fill、reservation consume/release、balanced journal postings、report與projection replay；不得用已知同根close成交。
+  - Core runner是唯一transaction owner；fake remote result也帶`attempt_generation + attempt_nonce`，舊lease/late result不得commit。
+  - 同一frozen clock、IDs、archived artifacts與inputs連跑兩次，control-plane hashes相同且無duplicate side effects；stochastic inference不在P0重跑。
+
+- [x] **P0.9 Security/reliability baseline** — 建立統一API envelope/error mapping、local principal + minimal permission checks、secret redaction、process capability/egress deny、trace context、structured logs、in-memory metrics、idempotency/inbox/outbox與crash/duplicate/concurrent-run tests。（Depends：P0.6–P0.8；Complexity：L；Risk：High）
+  - 兩個同帳戶run並行時只能在serialized aggregate內建立reservation，不得雙花cash或超賣position。
+  - Same idempotency key/different payload、nonce/generation mismatch、journal不平、unknown execution state與unauthorized call全部fail closed。
+
+- [x] **P0.10 CI baseline** — 建立`.github/workflows/ci.yml`、`.github/dependabot.yml`、`scripts/verify.py`；CI執行frozen install、format check、lint、typecheck、unit/contract/E2E tests、license policy、secret scan、dependency audit。（Depends：P0.1、P0.3、P0.8、P0.9；Complexity：M；Risk：Medium）
+  - Windows與Linux至少各一個Python 3.12 job，避免encoding/path drift。
+
+### P0 Verification gate
+
+- [x] `uv sync --frozen`可由乾淨cache重建，core dependency tree無PyTorch/OpenBB/LangGraph/Qlib。（Depends：P0.1、P0.10）
+- [x] `uv run ruff check .`、`uv run mypy src packages`、`uv run pytest`全通過。（Depends：P0.10）
+- [x] Exported schemas與snapshot無未審核diff；非法time/Decimal/extra field會被拒絕。（Depends：P0.5）
+- [x] Fake E2E完成target/risk/reservation/next-session fill/balanced journal/report/replay；測試證明`AgentOpinion`、`ForecastSignal`無法直接呼叫`ExecutionPort`。（Depends：P0.8）
+- [x] Concurrent-run、crash/duplicate、late result、idempotency conflict、unauthorized call與unbalanced journal fixtures全部fail closed。（Depends：P0.9）
+- [x] License gate能阻擋Dexter/AI-Trader source與core OpenBB import。（Depends：P0.3、P0.10）
+
+### P0 Success criteria
+
+- [x] 新開發者只需Python 3.12 + `uv`即可完成core驗證。
+- [x] 不啟動任何optional service也可跑語意完整的fake paper cycle並重建相同projection。
+- [x] Contracts、paper-only、balanced journal、account reservation、security/reliability與CI成為後續phase不可繞過的基線。
+
+---
+
+## P1 — Canonical Data Hub、evidence 與 durable workflow
+
+### Outcome
+
+建立point-in-time資料/evidence真相、PostgreSQL state、content-addressed artifacts、durable jobs/outbox、explicit provider policy與optional OpenBB sidecar。
+
+### Tasks
+
+- [ ] **P1.1 Instrument and time domain** — 實作`src/stonks_agent/domain/{instrument,calendar,market_data}.py`、`ports/instrument_repository.py`、`ports/trading_calendar.py`、`tests/domain/test_instrument.py`。（Depends：P0 gate；Complexity：L；Risk：High）
+  - Instrument以UUID + MIC/currency/timezone為identity；provider symbols帶validity interval。
+  - Calendar tests涵蓋休市、午休、DST、跨日session與symbol change。
+
+- [ ] **P1.2 Data quality/provenance domain** — 實作`src/stonks_agent/domain/{evidence,provenance,data_quality}.py`與property tests。（Depends：P0.4、P1.1；Complexity：L；Risk：High）
+  - 完整區分`event_time/published_at/available_at/observed_at/as_of`。
+  - `available_at > as_of`、unknown strict-PIT evidence、OHLC invariant失敗都fail closed。
+
+- [ ] **P1.3 PostgreSQL schema and migrations** — 建立`alembic.ini`、`migrations/env.py`、`migrations/versions/0001_core_data.py`、`src/stonks_agent/adapters/postgres/models/`。（Depends：P0.1、P1.2；Complexity：XL；Risk：High）
+  - 建立instrument/alias、artifact/evidence/edge/snapshot、run/event/job/outbox/inbox/provider_health/usage_budget tables。
+  - Append-only tables以DB trigger/permissions阻止update/delete；所有FK/index/unique idempotency constraints明確。
+
+- [ ] **P1.4 Repository and unit-of-work adapters** — 實作`adapters/postgres/{repositories,unit_of_work}.py`、`ports/{evidence_repository,workflow_store,unit_of_work}.py`與integration tests。（Depends：P1.3；Complexity：L；Risk：High）
+  - Transaction內同時寫domain event、job/outbox；optimistic run version做CAS transition。
+  - Tests涵蓋rollback、concurrent claim、duplicate idempotency、append-only violations。
+
+- [ ] **P1.5 Artifact stores** — 實作`ports/artifact_store.py`、`adapters/artifacts/{local,memory}.py`、`tests/integration/test_artifact_store.py`。（Depends：P1.2；Complexity：M；Risk：Medium）
+  - SHA-256 content address、atomic finalize、size/media/license/sensitivity metadata與hash驗證。
+  - `.data/artifacts/`不進版控；DB event只能引用已finalize artifact。
+
+- [ ] **P1.6 Durable queue/outbox** — 實作`domain/job.py`、`ports/queue.py`、`adapters/postgres/{job_queue,outbox}.py`、`entrypoints/worker.py`、`tests/integration/test_job_leases.py`。（Depends：P1.3、P1.4；Complexity：XL；Risk：High）
+  - `SKIP LOCKED` lease、not-before/deadline、attempt/max、lease expiry、dead letter、idempotent ack。
+  - Crash-after-result-before-ack測試不得產生重複event/side effect。
+
+- [ ] **P1.7 Provider policy engine** — 建立`domain/provider_policy.py`、`application/data/fetch_evidence.py`、`config/providers/*.yaml`與`tests/domain/test_provider_policy.py`。（Depends：P1.2、P1.4；Complexity：L；Risk：High）
+  - 每個market/capability設定allowlist、fallback、freshness、quota、stale acceptance與reconciliation threshold。
+  - Empty、legitimate empty、not-supported、quota、stale、partial、conflict皆為不同typed state。
+
+- [ ] **P1.8 Replay and canonical fixture adapter** — 建立`adapters/market_data/replay.py`、`tests/fixtures/market_data/manifest.yaml`、`tests/golden/`。（Depends：P1.5、P1.7；Complexity：M；Risk：Medium）
+  - Golden set至少涵蓋US/HK/TW、daily/intraday、DST、拆股、股利、stale、partial、conflict。
+  - Fixture保存source/time/hash但不含secret或無權重散布資料。
+
+- [ ] **P1.9 Financial Datasets HTTP adapter** — 建立`adapters/market_data/financial_datasets.py`、`tests/contracts/providers/test_financial_datasets.py`。（Depends：P1.7；Complexity：M；Risk：Medium）
+  - 使用自有HTTP DTO，不import ai-hedge-fund/Dexter；明確rate budget、timeout與structured errors。
+  - 無API key時adapter標`config_missing`並由policy跳過，不使離線tests失敗。
+
+- [ ] **P1.10 OpenBB REST adapter** — 建立`adapters/market_data/openbb_rest.py`、`tests/contracts/providers/test_openbb_rest.py`。（Depends：P1.7；Complexity：L；Risk：High）
+  - 保存`provider/warnings/extra/id`，再正規化；fallback仍由本系統決定。
+  - Endpoint/provider allowlist固定，request不可注入arbitrary URL/provider。
+
+- [ ] **P1.11 Optional OpenBB sidecar** — 建立`sidecars/openbb/{pyproject.toml,uv.lock,Dockerfile,README.md,SOURCE_OFFER.md,provider-manifest.yaml}`與`infra/compose.openbb.yaml`。（Depends：P0.3、P1.10；Complexity：L；Risk：High）
+  - Pin已發布OpenBB與最小providers，不跟`develop`；保存exact source、patch/build recipe、AGPL notice。
+  - Core在sidecar未啟動時仍正常以replay/其他provider運作。
+
+- [ ] **P1.12 Regional adapter contract and initial mappings** — 建立`adapters/market_data/regional/base.py`、`config/instruments/{us,hk,tw}.yaml`與contract fixtures；只加入可合法、可穩定測試的首個A/H/TW provider。（Depends：P1.1、P1.7；Complexity：L；Risk：High）
+  - 不把Yahoo suffix當完整市場支援；unsupported capability必須明示。
+  - 新provider採HTTP adapter或獨立worker，不把DSA monolith拉入core。
+
+- [ ] **P1.13 Data ingestion API/CLI** — 建立`application/data/create_snapshot.py`、`entrypoints/api/routes/data.py`、`entrypoints/cli_commands/data.py`與E2E tests。（Depends：P1.4–P1.12；Complexity：L；Risk：Medium）
+  - API只回job/snapshot/evidence refs；大payload走artifact store。
+
+### P1 Verification gate
+
+- [ ] PostgreSQL migration可upgrade/downgrade/re-upgrade；schema與grants測試通過。（Depends：P1.3）
+- [ ] 併發jobs、worker crash、outbox retry與duplicate inbox測試無重複事件。（Depends：P1.6）
+- [ ] PIT property tests證明run無法引用future evidence；DST/calendar/corporate-action golden tests通過。（Depends：P1.1、P1.2、P1.8）
+- [ ] Provider outage/empty/stale/conflict皆產生正確quality或`DataUnavailable`，不產生empty success。（Depends：P1.7–P1.12）
+- [ ] OpenBB sidecar SBOM/license/source流程完整，core lock與imports仍無OpenBB。（Depends：P1.11）
+
+### P1 Success criteria
+
+- [ ] 相同query/as-of/policy可建立hash-identical snapshot manifest並離線重播。
+- [ ] 所有canonical datum/evidence均可追到raw artifact、provider、版本與時間語義。
+- [ ] 即使所有外部providers關閉，replay vertical slice與core測試仍完整通過。
+
+---
+
+## P2 — Research control plane、agent opinions、reporting 與 delivery
+
+### Outcome
+
+整合TradingAgents、ai-hedge-fund可用分析與DSA報告優點，同時clean-room建立Dexter-inspired bounded research orchestration；所有輸出停在`ResearchArtifact/AnalysisBundle/AgentOpinion`或經正式plugin產生的`AlphaSignal`，不觸碰order plane。
+
+### Tasks
+
+- [ ] **P2.1 Research domain and tool policy** — 實作`domain/{research,tool_policy,usage_budget}.py`、`ports/{research_worker,llm,tool}.py`、`tests/domain/test_tool_policy.py`。（Depends：P1 gate；Complexity：L；Risk：High）
+  - Tool具allowlist、typed args、instrument/evidence scope、read-only/mutation class、timeout、byte limit、redaction與audit。
+  - Research principals無filesystem write/shell/secret/queue/execution ports。
+
+- [ ] **P2.2 Clean-room bounded research orchestrator** — 建立`application/research/{orchestrate,tool_loop,context_builder}.py`、`adapters/research/deterministic.py`與測試。（Depends：P2.1；Complexity：XL；Risk：High）
+  - 只依公開概念重做planning/tool loop、bounded iterations、parallel read tools、budget與loop hard-stop；不複製Dexter source/prompt/assets。
+  - 外部內容包成untrusted blocks；無citation claim標hypothesis。
+
+- [ ] **P2.3 LLM structured-output adapters** — 建立`adapters/llm/{fake,openai_compatible,anthropic}.py`、`config/models.yaml`、`tests/contracts/llm/`。（Depends：P2.1；Complexity：L；Risk：High）
+  - Provider/model allowlist、schema validation、retry budget、token/cost accounting、secret redaction。
+  - Invalid output bounded repair後仍失敗即structured error，不回free-form success。
+
+- [ ] **P2.4 TradingAgents isolated worker** — 建立`workers/tradingagents/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,adapter.py}`與`tests/contracts/workers/test_tradingagents.py`。（Depends：P0.3、P2.1；Complexity：XL；Risk：High）
+  - Pin `01477f9a`/v0.3.1與Apache NOTICE；每種runtime profile獨立process，避免global config污染。
+  - 唯一response為`AnalysisBundle + AgentOpinion`；上游Trader/Portfolio/risk debate文字不能命名`TradeIntent`或帶execution authority。
+  - Production/paper/backtest profile只能讀`allowed_evidence_ids`對應的scoped artifacts，使用canonical tool facade且預設network egress deny；不得呼叫upstream current-news/social/data tools污染PIT run。
+  - Callback記錄model/tool latency、tokens、warnings與source refs。
+
+- [ ] **P2.5 TradingAgents core adapter** — 建立`adapters/research/tradingagents_http.py`、`config/workers/tradingagents.yaml`與timeout/retry/schema-drift tests。（Depends：P2.4；Complexity：M；Risk：High）
+  - Core只傳evidence refs/signed artifact URLs；worker不能自行寫DB。
+  - Request/response帶lease generation、attempt nonce與artifact hash；core job runner驗證後才在單一transaction寫metadata/event/outbox並ack，late result只進隔離audit。
+
+- [ ] **P2.6 ai-hedge-fund alpha/event-study adoption** — 建立`strategies/{pead.py,manifest.yaml}`、`analytics/event_study.py`、`tests/golden/{pead,event_study}/`並更新notice。（Depends：P1.2、P0.3；Complexity：L；Risk：High）
+  - 只移植MIT允許且有實作/測試的PEAD與pure stats；不採v1 LLM portfolio/risk或v2 scaffold。
+  - Filing date/freshness/duplicate filing與PIT tests必須通過；未完成evaluation前strategy state=`draft`。
+
+- [ ] **P2.7 Analysis context/evidence assembler** — 建立`application/reporting/evidence_assembler.py`、`domain/analysis_context.py`與tests。（Depends：P1.2、P2.1；Complexity：M；Risk：Medium）
+  - 吸收DSA quality vocabulary但使用自有versioned schema；assembler只讀canonical evidence，不自行抓資料。
+
+- [ ] **P2.8 Structured report generator and integrity policy** — 建立`application/reporting/{generate,integrity_policy}.py`、`domain/report.py`、`tests/reporting/test_integrity.py`。（Depends：P2.3、P2.7；Complexity：L；Risk：High）
+  - `AnalysisReport` JSON為truth；每個claim/evidence ref完整，estimated/stale/conflict不可寫成確定事實。
+  - LLM invalid JSON、missing citation、數值越界與decision guardrail均fail/retry bounded。
+
+- [ ] **P2.9 Jinja renderers and templates** — 建立`templates/{full.md.j2,brief.md.j2,email.html.j2}`、`adapters/reporting/jinja.py`、`tests/golden/reports/`。（Depends：P2.8、P0.3；Complexity：M；Risk：Medium）
+  - 若移植DSA模板片段，保留MIT notice與來源commit；否則clean implementation。
+  - Render snapshot涵蓋missing/stale/conflict、多語、long symbol/channel limit與escaping。
+
+- [ ] **P2.10 Delivery ports** — 建立`ports/delivery.py`、`adapters/delivery/{console,file,email,webhook}.py`、`application/reporting/deliver.py`與idempotency tests。（Depends：P1.6、P2.9；Complexity：L；Risk：High）
+  - Chunking、rate limit、retry/outbox、receipt與redacted errors一致；console/file為default。
+  - Email/webhook未配置時不阻擋報告產生。
+
+- [ ] **P2.11 Research/report API and CLI** — 建立`entrypoints/api/routes/{research,reports}.py`、`entrypoints/cli_commands/{research,report}.py`與SSE run-event projection。（Depends：P2.2–P2.10；Complexity：L；Risk：Medium）
+  - API不直接執行長任務，只建立job並stream/read canonical events。
+
+### P2 Verification gate
+
+- [ ] Fake LLM、prompt-injection fixtures、tool scope/timeout/output-limit與budget exhaustion tests全部通過。（Depends：P2.1–P2.3）
+- [ ] TradingAgents pinned worker contract測試證明只回`AnalysisBundle/AgentOpinion`，且worker無execution/DB credentials、無任意data egress、無late-result commit能力。（Depends：P2.4、P2.5）
+- [ ] PEAD/event-study golden與PIT tests通過，notice完整。（Depends：P2.6）
+- [ ] 每個report claim都能解析到evidence；所有channel render可由同一report重建且hash穩定。（Depends：P2.7–P2.10）
+- [ ] Provider/LLM/TradingAgents outage時run能degrade/fail/report，不產生偽造success或order。（Depends：P2.11）
+
+### P2 Success criteria
+
+- [ ] 單一instrument可從snapshot完成deterministic + TradingAgents research並產生可稽核report。
+- [ ] Agent opinion與community-like文字沒有任何直接execution path。
+- [ ] Dexter與AI-Trader source/prompt/assets未進repository；DSA/ai-hedge-fund採用均有notice。
+
+---
+
+## P3 — Forecast、alpha evaluation、Qlib 與 strategy promotion
+
+### Outcome
+
+建立模型/策略registry、嚴格point-in-time evaluation與promotion gates；Kronos/AgentOpinion只能在通過evaluation後以版本化`AlphaSignal`參與後續portfolio。
+
+### Tasks
+
+- [ ] **P3.1 Strategy/signal/evaluation domain** — 實作`domain/{strategy,signal,evaluation}.py`、`ports/{forecast,strategy_lab}.py`與property tests。（Depends：P2 gate；Complexity：L；Risk：High）
+  - Promotion state固定`draft -> evaluating -> rejected|shadow -> paper_eligible -> suspended|retired`。
+  - 未註冊evaluation report、expired/stale/un-calibrated signal預設權重0。
+
+- [ ] **P3.2 Strategy registry persistence** — 新增`migrations/versions/0002_strategy_registry.py`、`adapters/postgres/strategy_repository.py`與concurrency tests。（Depends：P3.1、P1.4；Complexity：L；Risk：High）
+  - Artifact/runtime/data/evaluation hashes不可變；promotion用CAS與audit event。
+
+- [ ] **P3.3 Deterministic baselines** — 建立`strategies/baselines/{last_value,moving_average,linear}.py`、manifests與golden tests。（Depends：P3.1；Complexity：M；Risk：Medium）
+  - Kronos、LLM opinions與complex models必須和相同dataset/cost下baselines比較。
+
+- [ ] **P3.4 Evaluation engine** — 建立`application/evaluation/{walk_forward,leakage,costs,metrics,calibration,promotion}.py`與`tests/evaluation/`。（Depends：P3.1、P3.3；Complexity：XL；Risk：High）
+  - 涵蓋historical universe、publication lag、purged splits/embargo、walk-forward、CPCV/PBO（適用時）、fees/slippage/turnover sensitivity、benchmark alpha、drawdown、calibration。
+  - 同snapshot/strategy/runtime必須輸出相同evaluation hash。
+
+- [ ] **P3.5 Opinion-to-alpha policy** — 建立`application/signals/opinion_to_alpha.py`、`config/policies/opinion_mappers.yaml`與tests。（Depends：P3.1、P3.4；Complexity：L；Risk：High）
+  - Default disabled；只有mapper本身有evaluation、opinion confidence有校準且strategy=`paper_eligible`時才產`AlphaSignal`。
+  - 無法把rating字串或LLM quantity直接映射為order/target。
+
+- [ ] **P3.6 Kronos isolated worker environment** — 建立`workers/kronos/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,model_loader.py,adapter.py}`、pinned model manifest/checksums。（Depends：P0.3、P3.1；Complexity：XL；Risk：High）
+  - Pin code、tokenizer、model revisions/hash；模型warm一次，禁止request-time任意下載。
+  - CPU與CUDA profiles分開；核心不安裝torch。
+
+- [ ] **P3.7 Kronos canonical input/output adapter** — 實作calendar-aware input、sample path retention、seed policy、OHLC/volume invariant與`ForecastSignal` mapping；建立`tests/golden/kronos/`。（Depends：P1.1、P1.2、P3.6；Complexity：XL；Risk：High）
+  - Missing/estimated volume降低quality；future timestamps來自exchange calendar。
+  - Invalid output、length mismatch、extreme jump、model revision mismatch不產signal。
+  - 每次raw sampled paths與runtime/model metadata先封存為immutable artifact；deterministic replay從該artifact開始，不宣稱fresh stochastic re-inference可bit-identical。
+
+- [ ] **P3.8 Kronos evaluation and promotion** — 以golden跨市場snapshots執行walk-forward、baseline、成本與calibration報告；建立`config/strategies/kronos.yaml`。（Depends：P3.4、P3.7；Complexity：XL；Risk：High）
+  - 未達預先固定門檻時保持`shadow`/weight 0，不能為了整合而降低門檻。
+
+- [ ] **P3.9 Qlib quant-lab worker** — 建立`workers/quant_lab/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,qlib_adapter.py}`與`tests/contracts/workers/test_qlib.py`。（Depends：P3.1、P3.4；Complexity：XL；Risk：High）
+  - `QuantResearchJob`只收immutable snapshot、feature/label/universe/cost/split specs；回傳predictions/positions/metrics/artifact hashes/provenance。
+  - 不依賴已暫停的官方dataset；由canonical snapshot converter供應資料。
+
+- [ ] **P3.10 Forecast/signal/evaluation API and CLI** — 建立`entrypoints/api/routes/{strategies,signals,evaluations}.py`、`entrypoints/cli_commands/strategy.py`。（Depends：P3.2–P3.9；Complexity：L；Risk：Medium）
+  - Promotion endpoint需`strategy_reviewer`權限，且不能建立live state。
+
+### P3 Verification gate
+
+- [ ] Leakage/PIT/survivorship fixtures故意污染時evaluation必須失敗。（Depends：P3.4）
+- [ ] Opinion mapper default disabled；未評估opinion、Kronos或PEAD signal權重必為0。（Depends：P3.5、P3.8）
+- [ ] Kronos archived-artifact replay、CPU smoke、可用時GPU schema/tolerance smoke、model checksum與calendar/validity tests通過；fresh stochastic inference不作bit-identical gate。（Depends：P3.6–P3.8）
+- [ ] Qlib deterministic job同snapshot/runtime可重播相同artifact hashes；任何stochastic model則重播封存output artifact，worker無core DB/execution credentials。（Depends：P3.9）
+- [ ] Strategy promotion/suspend/retire均有immutable audit event與CAS conflict tests。（Depends：P3.2、P3.10）
+
+### P3 Success criteria
+
+- [ ] 每個可參與paper portfolio的signal都有strategy/evaluation/data/runtime provenance。
+- [ ] Forecast與agent opinion只能經明確promotion path影響target。
+- [ ] 重型ML/quant dependencies完全留在各自worker environment。
+
+---
+
+## P4 — Deterministic portfolio、risk、paper execution 與 ledger
+
+### Outcome
+
+把P0已驗證的in-memory閉環升級為唯一PostgreSQL-backed canonical paper fund；portfolio/risk/account reservation/execution/balanced journal全部deterministic、idempotent、可重播，且與LLM/AI-Trader/OpenBB權限隔離。
+
+### Tasks
+
+- [ ] **P4.1 Portfolio/risk/reservation/execution domain** — 將P0 primitives升級為`domain/{portfolio,risk,reservations,orders,fills,journal}.py`、`ports/{portfolio_policy,risk_policy,execution,ledger}.py`與property tests。（Depends：P3 gate；Complexity：XL；Risk：High）
+  - Decimal、rounding、order state transitions、sequence/hash與accounting invariants明確。
+  - `RiskDecision`綁account aggregate/portfolio sequence並有expiry；sequence變更必須重評。Risk approval本身不保留資金，必須建立reservation才可形成command。
+
+- [ ] **P4.2 Trading persistence** — 新增`migrations/versions/0003_paper_trading.py`、repositories與DB permissions。（Depends：P4.1、P1.4；Complexity：XL；Risk：High）
+  - 建立account aggregate、cash/position reservations與projections、risk decisions、order intents/events、fills、balanced journal transactions/postings、kill switch。
+  - Order idempotency、event sequence與append-only由DB constraint保護。
+
+- [ ] **P4.3 Deterministic portfolio baseline** — 建立`application/portfolio/build_target.py`、`config/policies/portfolio_v1.yaml`與golden/property tests。（Depends：P3.1、P4.1；Complexity：L；Risk：High）
+  - Fixed ensemble weights、confidence calibration、deadband、shrinkage、turnover penalty、position bounds與stable ordering。
+  - Missing signal不重新正規化造成過曝；輸出calculation hash與cost diagnostics。
+
+- [ ] **P4.4 Hard risk gate** — 建立`application/risk/evaluate.py`、`config/policies/risk_v1.yaml`與boundary tests。（Depends：P4.1、P4.3；Complexity：XL；Risk：High）
+  - 檢查data/signal freshness、cash、pending orders、single/sector/asset/gross/net、turnover、ADV、market session、drawdown/daily loss、kill switch。
+  - Unknown/conflict/stale required state、unsupported asset/order或ledger mismatch一律reject。
+  - Risk核准到`OrderIntent`建立必須在per-account serialized transaction/advisory lock內重新確認sequence並原子reserve cash/sellable position；所有open reservations納入available state。
+
+- [ ] **P4.5 Reference paper broker** — 建立`adapters/execution/paper.py`、`domain/execution_model.py`、`config/execution/paper_v1.yaml`與golden fill tests。（Depends：P4.1、P4.4；Complexity：XL；Risk：High）
+  - Market/limit/expiry/partial fill、fees/slippage/spread/volume participation語義版本化。
+  - 只用command後第一個可交易bar；無future bar不製造fill。
+  - 同idempotency key + same payload回同receipt；same key + different payload fail closed。
+  - 每個accepted command必須帶有效reservation；fill/cancel/reject/expire按account序列化並原子consume/release。
+
+- [ ] **P4.6 Balanced journal and projections** — 建立`application/ledger/{post,replay,reconcile}.py`、`adapters/postgres/ledger_repository.py`與property tests。（Depends：P4.2、P4.5；Complexity：XL；Risk：High）
+  - 每筆transaction至少兩個postings；每種currency/commodity經Decimal quantization後debit/credit sum為零，明確使用cash/inventory/fee/PnL/clearing accounts。
+  - Cash/positions/fees/P&L只由journal推導；daily replay hash與DB projection一致。不平、gap、unknown order state觸發rollback與global paper kill switch。
+
+- [ ] **P4.7 End-to-end workflow state machine** — 完成`application/workflows/run_cycle.py`各transition/retry/cancel/dead-letter；建立`tests/e2e/test_paper_fund_cycle.py`。（Depends：P1.6、P2.11、P3.10、P4.3–P4.6；Complexity：XL；Risk：High）
+  - Flow固定`Evidence -> Research/Opinion/Signal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt -> Ledger -> Report`。
+  - Execution retry先query idempotency receipt；crash injection不得重複下單。
+
+- [ ] **P4.8 Outcome monitoring and reflection evidence** — 建立`application/monitoring/{mark_to_market,outcomes,reflection_context}.py`與tests。（Depends：P4.6、P2.8；Complexity：L；Risk：Medium）
+  - 保存raw return、benchmark alpha、drawdown、fees、fills與outcome evidence；LLM reflection只是新ResearchArtifact，不改歷史decision。
+
+- [ ] **P4.9 Kill-switch and operator use cases** — 建立`application/operations/{activate_kill_switch,reconcile,resume}.py`、CLI/API routes與audit tests。（Depends：P4.4–P4.7；Complexity：L；Risk：High）
+  - 啟動後拒絕新commands並取消可取消pending orders；不刪ledger或隱藏fills。
+  - Resume必須reconciliation通過且由`paper_operator`/`admin` audited action完成。
+
+- [ ] **P4.10 Portfolio/report projections** — 更新`AnalysisReport`加入target/risk/order/fill/outcome refs；建立portfolio/NAV/risk CLI/API projections。（Depends：P4.7、P4.8；Complexity：M；Risk：Medium）
+
+### P4 Verification gate
+
+- [ ] Property tests覆蓋position/cash、open reservations、concurrent double-spend/oversell、risk bounds、Decimal rounding、order transition與每資產journal平衡。（Depends：P4.1–P4.6）
+- [ ] 同snapshot/config重跑得到相同target/risk/order/fill/ledger hashes。（Depends：P4.7）
+- [ ] Crash/retry/duplicate/concurrent-account tests無重複paper order/fill、雙花或超賣；late worker result無法commit。（Depends：P4.4–P4.7）
+- [ ] Stale/conflict/unknown/kill-switch/ledger mismatch fixtures全部reject並留下reason/audit。（Depends：P4.4、P4.9）
+- [ ] E2E small portfolio完成report、replay、reconciliation，且AI-Trader/LLM/Kronos無execution credential/path。（Depends：P4.7–P4.10）
+
+### P4 Success criteria
+
+- [ ] Paper fund從schedule/API到ledger/report形成可重播閉環。
+- [ ] 零重複paper orders、零future-data fills、零LLM risk override。
+- [ ] 所有portfolio與report projection可由immutable events/artifacts重建。
+
+---
+
+## P5 — Optional ecosystem integrations 與 advanced evaluation
+
+### Outcome
+
+在不改canonical semantics與paper-only邊界下，接入AI-Trader external community/control API、Nautilus/LEAN simulation backends與sandboxed RD-Agent strategy lab。所有integration可關閉、可替換、各自獨立lock/image。
+
+### Tasks
+
+- [ ] **P5.1 External platform contracts** — 擴充`packages/contracts/src/stonks_contracts/platform.py`、`ports/platform.py`與schemas；定義publish thesis、poll feedback、challenge/experiment與external evidence。（Depends：P4 gate；Complexity：M；Risk：High）
+  - 不定義submit order/copy trade為canonical operation；remote positions只能是external evidence。
+
+- [ ] **P5.2 AI-Trader public HTTP adapter** — 建立`adapters/platform/ai_trader.py`、`config/platforms/ai_trader.yaml`、runtime-schema cassettes與contract tests。（Depends：P0.3、P5.1；Complexity：L；Risk：High）
+  - 只使用external control/community endpoints：publish去敏thesis、discussion/reply、challenge/team/experiment、heartbeat/events。
+  - 不import/vendor/clean-room重做其server/frontend，不呼叫paper/copy execution作canonical order path。
+  - Typed tolerant reader、heartbeat cursor/inbox dedup、scoped token、schema/authz anomaly kill switch。
+
+- [ ] **P5.3 Community feedback policy** — 建立`application/research/community_feedback.py`、reputation/deadline/prompt-injection fixtures。（Depends：P5.2、P2.2；Complexity：L；Risk：High）
+  - Feedback轉`ExternalEvidence`，policy只可ignore、降低confidence或建立new research job；不可直接升成signal/order。
+
+- [ ] **P5.4 Backtest engine contract** — 擴充`BacktestJob/Result` schemas與`ports/backtest_engine.py`；建立canonical orders/fills/positions/calendar/cost parity suite。（Depends：P4.1、P4.6；Complexity：L；Risk：High）
+
+- [ ] **P5.5 NautilusTrader adapter** — 建立`sidecars/nautilus/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py}`與contract/replay tests。（Depends：P0.3、P5.4；Complexity：XL；Risk：High）
+  - LGPL runtime/types不滲入core；記錄engine/runtime/license/version與完整fills。
+
+- [ ] **P5.6 LEAN adapter** — 建立`sidecars/lean/{Dockerfile,README.md,appsettings.template.json,adapter/}`與job/result contract tests。（Depends：P0.3、P5.4；Complexity：XL；Risk：High）
+  - C#/Docker保持external sidecar；calendar/corporate action/fees/slippage mapping明確。
+
+- [ ] **P5.7 Cross-engine parity evaluation** — 建立`tests/parity/{paper_nautilus_lean.py,fixtures/}`與`application/evaluation/engine_parity.py`。（Depends：P4.5、P5.5、P5.6；Complexity：XL；Risk：High）
+  - 差異超預設threshold時標engine-specific，不能把結果平均或宣稱等價。
+
+- [ ] **P5.8 RD-Agent sandbox worker** — 建立`workers/quant_lab/rd_agent/{Dockerfile,uv.lock,README.md,sandbox_policy.yaml,adapter.py}`與escape/reproducibility tests。（Depends：P0.3、P3.4、P3.9；Complexity：XL；Risk：High）
+  - Linux-only、ephemeral、read-only dataset、no core secrets、default no egress、CPU/RAM/time限制。
+  - 只輸出draft source/artifacts/evaluation request；核心重新靜態掃描與完整evaluation，絕不auto-promote。
+
+- [ ] **P5.9 Optional integration manifests and feature flags** — 建立`config/features.yaml`、`infra/compose.optional.yaml`、`docs/runbooks/optional-integrations.md`。（Depends：P5.2、P5.5、P5.6、P5.8；Complexity：M；Risk：Medium）
+  - 所有optional integration default off；未配置不影響core readiness。
+  - Freqtrade、FinRL、vectorbt只保留future RFC條目，不在本phase安裝。
+
+### P5 Verification gate
+
+- [ ] AI-Trader adapter測試無order/copy endpoint且不在execution dependency graph；duplicate heartbeat/events去重。（Depends：P5.2）
+- [ ] Community prompt injection/reputation/deadline tests證明feedback不能直接成signal/order。（Depends：P5.3）
+- [ ] Nautilus/LEAN parity fixtures產生可解釋差異與完整provenance；任一sidecar關閉時core仍通過。（Depends：P5.7）
+- [ ] RD-Agent sandbox escape、network、resource、malicious candidate與non-reproducible artifact fixtures全部fail closed。（Depends：P5.8）
+- [ ] 每個image有獨立lock、SBOM、license notice/source manifest，core lock無新增重型依賴。（Depends：P5.9）
+
+### P5 Success criteria
+
+- [ ] External community、quant lab與simulation engines能增加evidence/evaluation能力但無法改寫canonical control plane。
+- [ ] Optional services可單獨部署、升級、停用，不改domain contracts或paper safety。
+- [ ] 授權不清/strong-copyleft元件均維持正確external boundary與release流程。
+
+---
+
+## P6 — Security、observability、resilience 與 release hardening
+
+### Outcome
+
+把P0起即存在的permission checks、redaction、telemetry、idempotency/fencing與failure tests替換/擴充為production-grade OIDC、secret manager、exporters、fault drills、deployment與supply-chain gates；仍不開live trading。此phase不得成為前面各phase缺少基本security/reliability的藉口。
+
+### Tasks
+
+- [ ] **P6.1 Production OIDC/RBAC and service identities** — 將P0 local principal/permission port接到`adapters/auth/oidc.py`、`entrypoints/api/dependencies/auth.py`、`config/rbac.yaml`並擴充authn/authz tests。（Depends：P0.9、P4 gate；Complexity：XL；Risk：High）
+  - Roles：viewer/researcher/strategy_reviewer/paper_operator/admin；worker/executor service accounts最小權限。
+  - Object/target ownership與route-level authz完整，不能重現AI-Trader任意target agent問題。
+
+- [ ] **P6.2 Secret provider and redaction** — 實作`ports/secret_provider.py`、`adapters/secrets/{env,cloud}.py`、structured log/event/report redaction tests。（Depends：P6.1；Complexity：L；Risk：High）
+  - Local env只存named refs；正式deployment使用secret manager、rotation與scoped identities。
+
+- [ ] **P6.3 API security controls** — 實作request size/rate limit、CORS allowlist、SSRF endpoint allowlist、XSS-safe rendering、cookie模式CSRF與structured error sanitization。（Depends：P6.1、P6.2；Complexity：L；Risk：High）
+  - 建立`tests/security/`涵蓋auth bypass、IDOR、prompt injection、SSRF、XSS、CSRF、secret leakage。
+
+- [ ] **P6.4 Production OpenTelemetry exporters and metrics** — 將P0 trace/log/metric ports接到`adapters/observability/{logging,tracing,metrics}.py`、`infra/observability/{otel-collector,prometheus,grafana}/`。（Depends：P0.9、P1.6、P4.7；Complexity：L；Risk：Medium）
+  - Correlation IDs、provider/queue/worker/LLM/model/signal/risk/execution/reconciliation/delivery metrics完整。
+  - Logs不得包含raw secrets、tokens、unredacted sensitive evidence或完整prompts。
+
+- [ ] **P6.5 Alerts, budgets and SLOs** — 建立`config/{budgets,slo}.yaml`、`docs/operations/slo.md`、alert rules。（Depends：P6.4；Complexity：M；Risk：Medium）
+  - Correctness SLO：zero duplicate paper order、zero future evidence、100% claim provenance、100% replayable risk decision。
+  - Cost/latency budget超限轉degraded/failed，不追單。
+
+- [ ] **P6.6 S3-compatible artifact adapter and retention** — 實作`adapters/artifacts/s3.py`、retention/encryption/GC use cases與integration tests。（Depends：P1.5、P6.2；Complexity：L；Risk：High）
+  - Object finalize/hash、signed scoped URLs、orphan GC、legal/data retention與restore測試。
+
+- [ ] **P6.7 Deployment manifests** — 建立`infra/compose.yaml`、core `Dockerfile`、worker/sidecar profiles、health/readiness probes與non-root/read-only filesystem settings。（Depends：P5.9、P6.1–P6.6；Complexity：XL；Risk：High）
+  - Default profile只啟動core/PostgreSQL；optional services顯式profile，OpenBB source流程一併發布。
+  - `execution_mode=live`在任何manifest/schema都不存在。
+
+- [ ] **P6.8 Supply-chain release gates** — 建立`.github/workflows/{security,release}.yml`、`scripts/{generate_sbom,verify_release}.py`、container signing與license/CVE policies。（Depends：P0.3、P6.7；Complexity：L；Risk：High）
+  - Critical CVE、license drift、missing notice/source、unlocked dependency、secret scan failure阻擋release。
+
+- [ ] **P6.9 Failure-injection and disaster drills** — 建立`tests/resilience/`、`docs/runbooks/{provider-outage,worker-crash,db-restore,ledger-mismatch,kill-switch,dead-letter}.md`。（Depends：P6.4–P6.7；Complexity：XL；Risk：High）
+  - 演練provider/LLM/model/sidecar outage、DB restart、lease expiry、duplicate event、artifact corruption、ledger mismatch與restore/replay。
+
+- [ ] **P6.10 Performance and resource budgets** — 建立`tests/performance/`與`docs/operations/capacity.md`，量測API、queue、snapshot、research、forecast、paper cycle；設定per-process CPU/RAM/concurrency budget。（Depends：P6.4、P6.7；Complexity：L；Risk：Medium）
+  - 重型workers不能飢餓risk/execution；LLM/forecast queues獨立限流。
+
+- [ ] **P6.11 Final docs and handoff sync** — 完成`README.md`、`docs/architecture/` ADRs、`docs/api/`、`docs/runbooks/`、`THIRD_PARTY_NOTICES.md`，同步精簡`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`、`tasks/todo.md`、`tasks/lessons.md`。（Depends：P6.1–P6.10；Complexity：L；Risk：Medium）
+  - 文件只列實際驗證能力與限制；所有command由CI/本機重跑確認。
+
+### P6 Verification gate
+
+- [ ] Full CI：frozen builds、lint/type/unit/contract/integration/E2E/security/resilience、SBOM/license/CVE/secret scans全部通過。（Depends：P6.8、P6.9）
+- [ ] Default compose由乾淨環境啟動、migrate、readiness、fake/replay E2E、shutdown/restart/replay全部通過。（Depends：P6.7）
+- [ ] Optional profiles逐一smoke；缺任何optional service時core readiness與paper safety不受影響。（Depends：P5 gate、P6.7）
+- [ ] Kill switch、ledger mismatch、duplicate execution、future evidence與auth bypass drills全部fail closed並告警。（Depends：P6.1–P6.9）
+- [ ] Release bundle含lockfiles、schemas/OpenAPI、SBOM、signatures、notices、OpenBB對應source流程與驗證報告。（Depends：P6.8、P6.11）
+
+### P6 Success criteria
+
+- [ ] Staff-level review可由tests、traces、audit與replay證明paper platform正確性。
+- [ ] 任一LLM/model/provider/optional ecosystem失效不會製造錯誤交易或破壞ledger。
+- [ ] 發布物仍為paper-only，且所有第三方code/data/model授權與provenance可稽核。
+
+---
+
+## Cross-phase invariants
+
+- [ ] Core dependency graph永遠不含OpenBB、PyTorch、TradingAgents、Qlib、RD-Agent、Nautilus或LEAN runtime packages。
+- [ ] AI-Trader永遠只作external control/community adapter，不是research worker、executor或ledger。
+- [ ] Canonical flow永遠使用`AgentOpinion/AlphaSignal/ForecastSignal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt`，不引入模糊`TradeIntent`。
+- [ ] 所有external side effect均有idempotency key、outbox、receipt與audit event。
+- [ ] Core job runner永遠是DB/event/outbox transaction owner；remote workers無DB credentials，generation/nonce不符或lease失效的late results只能隔離，不能commit。
+- [ ] 同帳戶mutation永遠經serialized aggregate與reservation；balanced journal每種currency/commodity的postings必須平衡。
+- [ ] Stochastic LLM/Kronos重播永遠從封存immutable output artifact開始；不以fresh re-inference bit-identical作正確性宣稱。
+- [ ] 所有歷史研究/evaluation只讀`available_at <= as_of` evidence。
+- [ ] 所有修改完成後同步精簡`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`與本todo review；使用者修正另記`tasks/lessons.md`。
+
+## Review（實作時持續維護）
+
+### Phase review template
+
+每個phase gate通過時，在下方新增一段，不以口頭宣告取代證據：
+
+```markdown
+### Pn Review — YYYY-MM-DD
+
+- Scope completed:
+- Files / migrations / contracts changed:
+- Verification commands and exact results:
+- Replay / security / license evidence:
+- Deviations from blueprint and ADR links:
+- Remaining risks accepted for next phase:
+- `AGENTS.md` / `CLAUDE.md` / `CONTEXT.md` sync status:
+```
+
+### Final review checklist
+
+- [ ] P0–P6所有mandatory tasks與gates均有可重跑證據；optional service若因外部授權/credential不可live測試，已有cassette/contract test及明確限制。
+- [ ] `git diff`只含有意變更；generated/cache/model/secrets/research clones未被提交。
+- [ ] 主要branch與最終行為差異已有E2E/replay證明，不只通過單元測試。
+- [ ] 所有schema/migration能向前升級；rollback/recovery限制已寫入runbook。
+- [ ] 所有報告claim、signal、risk、order、fill與outcome可沿provenance/audit chain追溯。
+- [ ] Security、license、CVE、SBOM、secret、source-offer gates通過。
+- [ ] 專案文件與實際commands/ports/defaults一致，且README只宣稱已驗證能力。
+- [ ] 確認沒有live broker adapter、live credential schema或可繞過paper-only boundary的設定。
+
+### Review log
+
+### Planning Review — 2026-07-10
+
+- Scope completed：指定7案與Qlib/RD-Agent的snapshot、license、架構、public interface、風險與本機測試研究；完成blueprint與P0–P6計畫。
+- Verification：9/9 snapshot identity與tracked worktree clean；82個GitHub evidence refs固定commit；cross-report authority/PIT/execution semantics最終PASS，詳見`docs/research/verification.md`。
+- Safety decisions：P0完整fake/replay閉環、account reservation、balanced journal、core transaction ownership/late-result fencing、stochastic artifact replay、security/reliability shift-left。
+- Files synchronized：`README.md`、`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`、`tasks/lessons.md`與研究索引已更新。
+- Runtime implementation：尚未開始；`PLAN-AUTH`等待一次性確認，不能把研究clone或規格文件誤報成可執行產品。
+
+### Plan Authorization — 2026-07-10
+
+- 使用者已明確要求「依照計畫完成」；`PLAN-AUTH`成立，從P0開始連續實作。
+- 核心預設授權採Apache-2.0，唯一execution mode為paper；live trading仍需另立RFC。
+
+### P0 Review — 2026-07-11
+
+- Scope completed：Python 3.12/uv foundation、versioned contracts/schemas、paper-only boundary、完整in-memory fake/replay、security/reliability baseline與Windows/Linux CI。
+- Files / contracts changed：新增core與contracts packages、39個v1 schema snapshots、license/upstream manifest、quality/security scripts、CI及103個unit/contract/E2E tests。
+- Verification：`uv sync --frozen --no-cache`可在全新venv安裝68 packages；`scripts/verify.py`為103 passed、branch coverage 91.73%、ruff/mypy/schema/license/secret/CVE全通過；actionlint 1.7.12通過。
+- Replay / security / license evidence：獨立同seed run的control/projection hash一致；future evidence、並行雙花、late result、idempotency conflict、unknown execution state、未授權/非command execution與unbalanced journal全部fail closed；upstream violation與secret findings皆為0。
+- Runtime smoke：`stonks fake-cycle`回傳HTTP-style status 200、`execution_mode=paper`、next-session fill 101.00與可重播projection hash。
+- Deviations：contracts使用workspace根`uv.lock`，不保留容易漂移的nested lock；P0未啟動PostgreSQL/provider/LLM/sidecar，符合phase boundary。
+- Remaining P1 risks：真實PostgreSQL migration/lease併發、PIT calendar、provider state taxonomy與artifact atomicity尚待P1 gate驗證。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`規範無需改動且SHA-256一致。

@@ -1,0 +1,73 @@
+{
+  "$defs": {
+    "Money": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "currency",
+        "amount"
+      ],
+      "title": "Money",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "estimated_cost": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Money"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "input_tokens": {
+      "minimum": 0,
+      "title": "Input Tokens",
+      "type": "integer"
+    },
+    "latency_ms": {
+      "minimum": 0,
+      "title": "Latency Ms",
+      "type": "integer"
+    },
+    "output_tokens": {
+      "minimum": 0,
+      "title": "Output Tokens",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "input_tokens",
+    "output_tokens",
+    "latency_ms"
+  ],
+  "title": "ModelUsage",
+  "type": "object"
+}

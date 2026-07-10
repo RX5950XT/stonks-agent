@@ -1,0 +1,4 @@
+service_name = "stonks-agent"
+environment = "local"
+execution_mode = "paper"
+

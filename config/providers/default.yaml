@@ -18,7 +18,7 @@ policies:
         freshness_seconds: 300
         quota_floor: 1
       - provider: openbb_rest
-        origin: https://openbb.local
+        origin: http://127.0.0.1:6900
         endpoints: [/api/v1/equity/price/historical]
         freshness_seconds: 300
         quota_floor: 0
@@ -35,7 +35,7 @@ policies:
         freshness_seconds: 0
         quota_floor: 0
       - provider: openbb_rest
-        origin: https://openbb.local
+        origin: http://127.0.0.1:6900
         endpoints: [/api/v1/equity/price/historical]
         freshness_seconds: 300
         quota_floor: 0
@@ -52,7 +52,7 @@ policies:
         freshness_seconds: 0
         quota_floor: 0
       - provider: openbb_rest
-        origin: https://openbb.local
+        origin: http://127.0.0.1:6900
         endpoints: [/api/v1/equity/price/historical]
         freshness_seconds: 300
         quota_floor: 0

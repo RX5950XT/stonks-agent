@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Self
+from typing import Protocol, Self
 from urllib.parse import urlsplit
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from stonks_agent.domain.data_quality import ProviderDataState
-from stonks_contracts.common import NonEmptyString, UnitDecimal
+from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
+from stonks_contracts.common import DecimalString, NonEmptyString, UnitDecimal
 
 
 class ProviderRoute(BaseModel):
@@ -26,17 +26,37 @@ class ProviderRoute(BaseModel):
     @field_validator("origin")
     @classmethod
     def validate_origin(cls, value: str) -> str:
-        parsed = urlsplit(value)
+        if value.strip() != value or any(ord(character) < 32 for character in value):
+            raise ValueError("provider origin must not contain whitespace or controls")
+        try:
+            parsed = urlsplit(value)
+            port = parsed.port
+        except ValueError as error:
+            raise ValueError(
+                "provider origin must contain a valid host and port"
+            ) from error
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("provider origin must contain a valid host and port")
+        secure_origin = parsed.scheme == "https"
+        loopback_origin = parsed.scheme == "http" and hostname in {
+            "127.0.0.1",
+            "::1",
+        }
+        host_literal = f"[{hostname}]" if ":" in hostname else hostname
+        canonical_netloc = host_literal if port is None else f"{host_literal}:{port}"
         if (
-            parsed.scheme != "https"
-            or not parsed.hostname
+            not (secure_origin or loopback_origin)
             or parsed.username is not None
             or parsed.password is not None
+            or parsed.netloc.lower() != canonical_netloc.lower()
             or parsed.path not in {"", "/"}
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("provider origin must be a credential-free HTTPS origin")
+            raise ValueError(
+                "provider origin must be credential-free HTTPS or exact loopback HTTP"
+            )
         return value.rstrip("/")
 
     @field_validator("endpoints")
@@ -81,6 +101,32 @@ class ReconciliationDecision(BaseModel):
     reasons: tuple[str, ...] = ()
 
 
+class ReconciliationValue(BaseModel):
+    """A provider-independent scalar with an explicit comparison dimension."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    metric: str = Field(min_length=1, max_length=128)
+    value: DecimalString
+
+    @field_validator("metric")
+    @classmethod
+    def validate_metric(cls, value: str) -> str:
+        if value.strip() != value:
+            raise ValueError("reconciliation metric must not contain edge whitespace")
+        return value
+
+
+class ReconciliationStrategy[T](Protocol):
+    """Extract a comparable scalar without exposing raw provider payloads."""
+
+    def extract(
+        self,
+        provider: str,
+        observation: ProviderObservation[T],
+    ) -> ReconciliationValue | None: ...
+
+
 def reconcile_values(
     primary: Decimal,
     secondary: Decimal,
@@ -98,6 +144,20 @@ def reconcile_values(
         state=ProviderDataState.AVAILABLE,
         relative_difference=difference,
     )
+
+
+def reconcile_comparable_values(
+    primary: ReconciliationValue,
+    secondary: ReconciliationValue,
+    policy: ProviderPolicy,
+) -> ReconciliationDecision:
+    if primary.metric != secondary.metric:
+        return ReconciliationDecision(
+            state=ProviderDataState.CONFLICT,
+            relative_difference=Decimal("1"),
+            reasons=("reconciliation_metric_mismatch",),
+        )
+    return reconcile_values(primary.value, secondary.value, policy)
 
 
 def load_provider_policies(path: Path) -> tuple[ProviderPolicy, ...]:

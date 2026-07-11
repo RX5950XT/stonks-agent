@@ -12,12 +12,14 @@ import typer
 
 from stonks_agent.adapters.fakes.platform import build_fake_run_service
 from stonks_agent.application.workflows.run_cycle import RunCycleRequest
+from stonks_agent.entrypoints.cli_commands.data import app as data_app
 
 app = typer.Typer(
     add_completion=False,
     help="Evidence-first、paper-only 的投資研究代理。",
     no_args_is_help=True,
 )
+app.add_typer(data_app, name="data", help="Canonical data ingestion commands.")
 
 
 @app.callback()

@@ -90,3 +90,75 @@ jobs:
 
       - name: Run PostgreSQL integration and all core gates
         run: uv run python scripts/verify.py --with-postgres
+
+  openbb-sidecar:
+    name: Optional OpenBB sidecar / ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+      UV_FROZEN: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          version: "0.9.27"
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Install frozen core verification environment
+        run: uv sync --frozen
+
+      - name: Verify static policy, sidecar lock and Compose model
+        run: |
+          uv run python scripts/verify_openbb_sidecar.py
+          uv lock --check --project sidecars/openbb
+          docker compose -f infra/compose.openbb.yaml config --quiet
+
+      - name: Build exact optional sidecar image
+        run: docker compose -f infra/compose.openbb.yaml build --pull openbb
+
+      - name: Start healthy optional sidecar
+        run: >-
+          docker compose -f infra/compose.openbb.yaml up --detach --wait
+          --wait-timeout 240 openbb
+
+      - name: Verify health and deployed corresponding source
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            --retry 10 --retry-delay 2 --retry-all-errors \
+            http://127.0.0.1:6900/healthz \
+            | python -c 'import json,sys; p=json.load(sys.stdin); assert p == {"status":"ok","provider":"yfinance","source":"/source"}'
+          curl --fail --silent --show-error \
+            --dump-header /tmp/openbb-source.headers \
+            --output /tmp/stonks-openbb-sidecar-source.tar.gz \
+            http://127.0.0.1:6900/source
+          grep --fixed-strings --ignore-case \
+            'Link: </source>; rel="source"' /tmp/openbb-source.headers
+          tar -tzf /tmp/stonks-openbb-sidecar-source.tar.gz \
+            > /tmp/openbb-source-members.txt
+          for member in \
+            Dockerfile NOTICE.md OPENBB_LICENSE.txt SOURCE_OFFER.md \
+            provider-manifest.yaml pyproject.toml sbom.cdx.json uv.lock \
+            upstream/openbb_core-1.6.13.tar.gz \
+            upstream/openbb_equity-1.6.2.tar.gz \
+            upstream/openbb_platform_api-1.3.6.tar.gz \
+            upstream/openbb_yfinance-1.6.3.tar.gz; do
+            grep --fixed-strings --line-regexp "./${member}" \
+              /tmp/openbb-source-members.txt
+          done
+
+      - name: Stop optional sidecar
+        if: always()
+        run: >-
+          docker compose -f infra/compose.openbb.yaml down
+          --volumes --remove-orphans

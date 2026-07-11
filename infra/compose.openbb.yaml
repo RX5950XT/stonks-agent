@@ -1,0 +1,50 @@
+name: stonks-openbb
+
+services:
+  openbb:
+    build:
+      context: ../sidecars/openbb
+      dockerfile: Dockerfile
+    image: stonks-openbb-sidecar:local
+    init: true
+    restart: unless-stopped
+    read_only: true
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HOME: /tmp/openbb
+      OPENBB_AUTO_BUILD: "false"
+    labels:
+      stonks.transport.canonical-origin: http://127.0.0.1:6900
+      stonks.transport.sidecar-listen-origin: http://openbb:6900
+      stonks.transport.rest-endpoint: /api/v1/equity/price/historical
+      stonks.transport.provider: yfinance
+      stonks.transport.plaintext-scope: loopback-only
+    ports:
+      - "127.0.0.1:6900:6900"
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:6900/healthz', timeout=5).read(1)
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      openbb_internal:
+        aliases: [openbb]
+
+networks:
+  openbb_internal:
+    driver: bridge

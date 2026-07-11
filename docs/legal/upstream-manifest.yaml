@@ -162,8 +162,8 @@ upstreams:
       source_copy_allowed: false
       in_core_allowed: false
     notice:
-      required: false
-      id: null
+      required: true
+      id: OPENBB-AGPL-3.0-SIDECAR
 
   - id: qlib
     repository: https://github.com/microsoft/qlib

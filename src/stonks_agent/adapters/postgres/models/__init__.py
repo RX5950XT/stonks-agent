@@ -3,6 +3,7 @@
 from stonks_agent.adapters.postgres.models.core import (
     ArtifactManifestRow,
     Base,
+    DatasetSnapshotEvidenceRow,
     DatasetSnapshotRow,
     EvidenceEdgeRow,
     EvidenceItemRow,
@@ -12,6 +13,7 @@ from stonks_agent.adapters.postgres.models.core import (
     JobRow,
     OutboxRow,
     ProviderHealthRow,
+    RunDatasetSnapshotRow,
     RunEventRow,
     TradingCalendarVersionRow,
     UsageBudgetRow,
@@ -21,6 +23,7 @@ from stonks_agent.adapters.postgres.models.core import (
 __all__ = [
     "ArtifactManifestRow",
     "Base",
+    "DatasetSnapshotEvidenceRow",
     "DatasetSnapshotRow",
     "EvidenceEdgeRow",
     "EvidenceItemRow",
@@ -30,6 +33,7 @@ __all__ = [
     "JobRow",
     "OutboxRow",
     "ProviderHealthRow",
+    "RunDatasetSnapshotRow",
     "RunEventRow",
     "TradingCalendarVersionRow",
     "UsageBudgetRow",

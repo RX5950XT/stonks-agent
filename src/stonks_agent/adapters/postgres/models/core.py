@@ -210,6 +210,12 @@ class EvidenceEdgeRow(Base):
 
 class DatasetSnapshotRow(Base):
     __tablename__ = "dataset_snapshot"
+    __table_args__ = (
+        CheckConstraint(
+            "cutoff_at <= as_of",
+            name="dataset_snapshot_cutoff_by_as_of",
+        ),
+    )
 
     snapshot_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
@@ -221,6 +227,24 @@ class DatasetSnapshotRow(Base):
     )
     content_hash: Mapped[str] = mapped_column(String(64), unique=True)
     manifest: Mapped[dict[str, object]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class DatasetSnapshotEvidenceRow(Base):
+    __tablename__ = "dataset_snapshot_evidence"
+    __table_args__ = (
+        PrimaryKeyConstraint("snapshot_id", "evidence_id"),
+    )
+
+    snapshot_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("dataset_snapshot.snapshot_id", ondelete="RESTRICT"),
+    )
+    evidence_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("evidence_item.evidence_id", ondelete="RESTRICT"),
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -241,6 +265,22 @@ class WorkflowRunRow(Base):
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class RunDatasetSnapshotRow(Base):
+    __tablename__ = "run_dataset_snapshot"
+
+    run_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("run.run_id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    snapshot_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("dataset_snapshot.snapshot_id", ondelete="RESTRICT"),
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class RunEventRow(Base):

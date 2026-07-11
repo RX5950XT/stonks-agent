@@ -49,7 +49,8 @@ def clean_database(migrated_engine: Engine) -> Engine:
             text(
                 """
                 truncate table
-                    evidence_edge, run_event, job, outbox, inbox,
+                    evidence_edge, dataset_snapshot_evidence,
+                    run_dataset_snapshot, run_event, job, outbox, inbox,
                     evidence_item, dataset_snapshot, instrument_alias,
                     instrument, trading_calendar_version, provider_health,
                     usage_budget, run, artifact_manifest

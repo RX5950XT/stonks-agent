@@ -1,0 +1,80 @@
+{
+  "fixture_id": "us-daily-dst-actions",
+  "market": "US",
+  "capability": "prices",
+  "instrument_id": "60000000-0000-4000-8000-000000000001",
+  "symbol": "AAPL",
+  "interval": "1d",
+  "timezone": "America/New_York",
+  "as_of": "2026-03-10T22:00:00Z",
+  "bars": [
+    {
+      "timeline": {
+        "event_time": "2026-03-06T21:00:00Z",
+        "published_at": "2026-03-06T21:00:05Z",
+        "available_at": "2026-03-06T21:00:10Z",
+        "observed_at": "2026-03-10T21:30:00Z",
+        "as_of": "2026-03-10T22:00:00Z",
+        "availability_certainty": "proven",
+        "strict_point_in_time": true
+      },
+      "open": "100.00",
+      "high": "104.00",
+      "low": "99.50",
+      "close": "103.25",
+      "volume": "1200000",
+      "amount": "122700000.00"
+    },
+    {
+      "timeline": {
+        "event_time": "2026-03-09T20:00:00Z",
+        "published_at": "2026-03-09T20:00:05Z",
+        "available_at": "2026-03-09T20:00:10Z",
+        "observed_at": "2026-03-10T21:30:00Z",
+        "as_of": "2026-03-10T22:00:00Z",
+        "availability_certainty": "proven",
+        "strict_point_in_time": true
+      },
+      "open": "51.70",
+      "high": "52.25",
+      "low": "51.20",
+      "close": "52.00",
+      "volume": "2400000",
+      "amount": "124320000.00"
+    }
+  ],
+  "corporate_actions": [
+    {
+      "action_id": "71000000-0000-4000-8000-000000000001",
+      "kind": "split",
+      "timeline": {
+        "event_time": "2026-03-02T14:30:00Z",
+        "published_at": "2026-02-20T13:00:00Z",
+        "available_at": "2026-02-20T13:00:01Z",
+        "observed_at": "2026-03-10T21:30:00Z",
+        "as_of": "2026-03-10T22:00:00Z",
+        "availability_certainty": "proven",
+        "strict_point_in_time": true
+      },
+      "effective_at": "2026-03-02T14:30:00Z",
+      "ratio": "2"
+    },
+    {
+      "action_id": "71000000-0000-4000-8000-000000000002",
+      "kind": "dividend",
+      "timeline": {
+        "event_time": "2026-03-05T14:30:00Z",
+        "published_at": "2026-03-01T13:00:00Z",
+        "available_at": "2026-03-01T13:00:01Z",
+        "observed_at": "2026-03-10T21:30:00Z",
+        "as_of": "2026-03-10T22:00:00Z",
+        "availability_certainty": "proven",
+        "strict_point_in_time": true
+      },
+      "effective_at": "2026-03-05T14:30:00Z",
+      "cash_amount": "0.25",
+      "currency": "USD"
+    }
+  ],
+  "conflicts": []
+}

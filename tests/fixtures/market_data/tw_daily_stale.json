@@ -1,0 +1,31 @@
+{
+  "fixture_id": "tw-daily-stale",
+  "market": "TW",
+  "capability": "prices",
+  "instrument_id": "60000000-0000-4000-8000-000000000003",
+  "symbol": "2330",
+  "interval": "1d",
+  "timezone": "Asia/Taipei",
+  "as_of": "2026-04-02T08:00:00Z",
+  "bars": [
+    {
+      "timeline": {
+        "event_time": "2026-03-30T05:30:00Z",
+        "published_at": "2026-03-30T05:30:05Z",
+        "available_at": "2026-03-30T05:30:10Z",
+        "observed_at": "2026-03-30T06:00:00Z",
+        "as_of": "2026-04-02T08:00:00Z",
+        "availability_certainty": "proven",
+        "strict_point_in_time": true
+      },
+      "open": "980.00",
+      "high": "992.00",
+      "low": "975.00",
+      "close": "988.00",
+      "volume": "18000000",
+      "amount": "17730000000.00"
+    }
+  ],
+  "corporate_actions": [],
+  "conflicts": []
+}

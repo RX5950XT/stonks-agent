@@ -1,0 +1,44 @@
+{
+  "hk-intraday-partial": {
+    "state": "partial",
+    "completeness": "0.5",
+    "observation_items": 1,
+    "bar_times": [
+      "2026-04-01T01:35:00+00:00",
+      "2026-04-01T01:40:00+00:00"
+    ],
+    "corporate_actions": [],
+    "conflict_fields": [],
+    "reasons": ["missing_intraday_bars"]
+  },
+  "tw-daily-stale": {
+    "state": "stale",
+    "completeness": "1",
+    "observation_items": 1,
+    "bar_times": ["2026-03-30T05:30:00+00:00"],
+    "corporate_actions": [],
+    "conflict_fields": [],
+    "reasons": ["freshness_threshold_exceeded"]
+  },
+  "us-daily-dst-actions": {
+    "state": "available",
+    "completeness": "1",
+    "observation_items": 1,
+    "bar_times": [
+      "2026-03-06T21:00:00+00:00",
+      "2026-03-09T20:00:00+00:00"
+    ],
+    "corporate_actions": ["split", "dividend"],
+    "conflict_fields": [],
+    "reasons": []
+  },
+  "us-intraday-conflict": {
+    "state": "conflict",
+    "completeness": "0",
+    "observation_items": 0,
+    "bar_times": ["2026-03-10T14:35:00+00:00"],
+    "corporate_actions": [],
+    "conflict_fields": ["close"],
+    "reasons": ["reconciliation_threshold_exceeded"]
+  }
+}

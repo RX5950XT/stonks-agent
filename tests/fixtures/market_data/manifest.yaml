@@ -1,0 +1,75 @@
+version: 1
+generated_at: 2026-01-01T00:00:00Z
+fixtures:
+  - fixture_id: us-daily-dst-actions
+    path: us_daily_dst_actions.json
+    market: US
+    capability: prices
+    symbol: AAPL
+    interval: 1d
+    scenario: canonical
+    state: available
+    completeness: "1"
+    reasons: []
+    as_of: 2026-03-10T22:00:00Z
+    observed_at: 2026-03-10T22:00:00Z
+    source: stonks-agent-synthetic
+    source_time: 2026-01-01T00:00:00Z
+    sha256: "356830ea30799e321f33ffc56611a26a55a9a3b05ed97d90b35329809a03fd2a"
+    license_tag: CC0-1.0
+    redistribution_tag: synthetic-unrestricted
+    tags: [US, daily, dst, split, dividend]
+  - fixture_id: hk-intraday-partial
+    path: hk_intraday_partial.json
+    market: HK
+    capability: prices
+    symbol: "0700"
+    interval: 5m
+    scenario: partial
+    state: partial
+    completeness: "0.5"
+    reasons: [missing_intraday_bars]
+    as_of: 2026-04-01T08:30:00Z
+    observed_at: 2026-04-01T08:30:00Z
+    source: stonks-agent-synthetic
+    source_time: 2026-01-01T00:00:00Z
+    sha256: "9dee8f0cbaa9824a2250f93de86c2c6ce466cb852da96f6fc89060293010202f"
+    license_tag: CC0-1.0
+    redistribution_tag: synthetic-unrestricted
+    tags: [HK, intraday, partial]
+  - fixture_id: tw-daily-stale
+    path: tw_daily_stale.json
+    market: TW
+    capability: prices
+    symbol: "2330"
+    interval: 1d
+    scenario: stale
+    state: stale
+    completeness: "1"
+    reasons: [freshness_threshold_exceeded]
+    as_of: 2026-04-02T08:00:00Z
+    observed_at: 2026-04-02T08:00:00Z
+    source: stonks-agent-synthetic
+    source_time: 2026-01-01T00:00:00Z
+    sha256: "dc21c7967674324a483ccf3f3049bc75b147a1ff43c8ebfc784c50a51112547f"
+    license_tag: CC0-1.0
+    redistribution_tag: synthetic-unrestricted
+    tags: [TW, daily, stale]
+  - fixture_id: us-intraday-conflict
+    path: us_intraday_conflict.json
+    market: US
+    capability: prices
+    symbol: AAPL
+    interval: 5m
+    scenario: conflict
+    state: conflict
+    completeness: "0"
+    reasons: [reconciliation_threshold_exceeded]
+    as_of: 2026-03-10T15:00:00Z
+    observed_at: 2026-03-10T15:00:00Z
+    source: stonks-agent-synthetic
+    source_time: 2026-01-01T00:00:00Z
+    sha256: "937a886ec2c2ec9ccbe93ef8564a88dd9d58dadfe8df358c18316ec06687ef94"
+    license_tag: CC0-1.0
+    redistribution_tag: synthetic-unrestricted
+    tags: [US, intraday, conflict]

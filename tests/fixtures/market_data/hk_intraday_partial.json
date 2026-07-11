@@ -1,0 +1,48 @@
+{
+  "fixture_id": "hk-intraday-partial",
+  "market": "HK",
+  "capability": "prices",
+  "instrument_id": "60000000-0000-4000-8000-000000000002",
+  "symbol": "0700",
+  "interval": "5m",
+  "timezone": "Asia/Hong_Kong",
+  "as_of": "2026-04-01T08:30:00Z",
+  "bars": [
+    {
+      "timeline": {
+        "event_time": "2026-04-01T01:35:00Z",
+        "published_at": "2026-04-01T01:35:02Z",
+        "available_at": "2026-04-01T01:35:05Z",
+        "observed_at": "2026-04-01T08:20:00Z",
+        "as_of": "2026-04-01T08:30:00Z",
+        "availability_certainty": "proven",
+        "strict_point_in_time": true
+      },
+      "open": "321.00",
+      "high": "322.20",
+      "low": "320.80",
+      "close": "321.80",
+      "volume": "12000",
+      "amount": "3859200.00"
+    },
+    {
+      "timeline": {
+        "event_time": "2026-04-01T01:40:00Z",
+        "published_at": "2026-04-01T01:40:02Z",
+        "available_at": "2026-04-01T01:40:05Z",
+        "observed_at": "2026-04-01T08:20:00Z",
+        "as_of": "2026-04-01T08:30:00Z",
+        "availability_certainty": "proven",
+        "strict_point_in_time": true
+      },
+      "open": "321.80",
+      "high": "323.00",
+      "low": "321.50",
+      "close": "322.60",
+      "volume": "9800",
+      "amount": "3161480.00"
+    }
+  ],
+  "corporate_actions": [],
+  "conflicts": []
+}

@@ -1,0 +1,39 @@
+{
+  "fixture_id": "us-intraday-conflict",
+  "market": "US",
+  "capability": "prices",
+  "instrument_id": "60000000-0000-4000-8000-000000000001",
+  "symbol": "AAPL",
+  "interval": "5m",
+  "timezone": "America/New_York",
+  "as_of": "2026-03-10T15:00:00Z",
+  "bars": [
+    {
+      "timeline": {
+        "event_time": "2026-03-10T14:35:00Z",
+        "published_at": "2026-03-10T14:35:02Z",
+        "available_at": "2026-03-10T14:35:05Z",
+        "observed_at": "2026-03-10T14:59:00Z",
+        "as_of": "2026-03-10T15:00:00Z",
+        "availability_certainty": "proven",
+        "strict_point_in_time": true
+      },
+      "open": "100.00",
+      "high": "103.20",
+      "low": "99.80",
+      "close": "101.00",
+      "volume": "45000",
+      "amount": "4554000.00"
+    }
+  ],
+  "corporate_actions": [],
+  "conflicts": [
+    {
+      "field": "close",
+      "primary_source": "synthetic-feed-a",
+      "primary_value": "101.00",
+      "secondary_source": "synthetic-feed-b",
+      "secondary_value": "103.00"
+    }
+  ]
+}

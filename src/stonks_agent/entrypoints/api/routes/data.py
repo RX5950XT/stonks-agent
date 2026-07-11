@@ -5,15 +5,16 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import FastAPI, Header
+from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from stonks_agent.adapters.auth.local_token import DenyAllAuthenticator
 from stonks_agent.application.data.create_snapshot import request_snapshot
-from stonks_agent.domain.auth import LocalPrincipal, Role
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError
 from stonks_agent.domain.snapshot import CreateSnapshotRequest
 from stonks_agent.entrypoints.api.envelope import error_envelope, success_envelope
+from stonks_agent.ports.authentication import AuthenticationRequest, Authenticator
 from stonks_agent.ports.snapshot_request import SnapshotRequestStore
 from stonks_contracts.common import UTCDateTime
 
@@ -29,22 +30,29 @@ class CreateSnapshotBody(BaseModel):
     idempotency_key: str = Field(min_length=1, max_length=128)
 
 
-def create_data_app(store: SnapshotRequestStore) -> FastAPI:
+def create_data_app(
+    store: SnapshotRequestStore,
+    authenticator: Authenticator | None = None,
+) -> FastAPI:
     app = FastAPI(title="Stonks Agent Data API", version="0.1.0")
+    identity = authenticator or DenyAllAuthenticator()
 
     @app.post("/v1/data/snapshots", status_code=202)
     def create_snapshot(
+        request_context: Request,
         body: CreateSnapshotBody,
-        subject: Annotated[
+        authorization: Annotated[
             str | None,
-            Header(alias="X-Local-Subject"),
-        ] = None,
-        roles: Annotated[
-            str | None,
-            Header(alias="X-Local-Roles"),
+            Header(alias="Authorization"),
         ] = None,
     ) -> JSONResponse:
-        principal = _local_principal(subject, roles)
+        client = request_context.client
+        principal = identity.authenticate(
+            AuthenticationRequest(
+                authorization=authorization,
+                client_host=client.host if client is not None else None,
+            )
+        )
         if isinstance(principal, Failure):
             return _error_response(principal)
         try:
@@ -61,7 +69,7 @@ def create_data_app(store: SnapshotRequestStore) -> FastAPI:
                     )
                 )
             )
-        result = request_snapshot(principal, request, store)
+        result = request_snapshot(principal.value, request, store)
         if isinstance(result, Failure):
             return _error_response(result)
         envelope = success_envelope(result.value, status=202)
@@ -71,26 +79,6 @@ def create_data_app(store: SnapshotRequestStore) -> FastAPI:
         )
 
     return app
-
-
-def _local_principal(subject: str | None, roles: str | None) -> LocalPrincipal | Failure:
-    if not subject or not roles:
-        return Failure(
-            StructuredError(
-                code=ErrorCode.UNAUTHORIZED,
-                message="Local identity is required",
-            )
-        )
-    try:
-        parsed_roles = frozenset(Role(item.strip()) for item in roles.split(","))
-        return LocalPrincipal(subject=subject, roles=parsed_roles)
-    except (ValueError, ValidationError):
-        return Failure(
-            StructuredError(
-                code=ErrorCode.UNAUTHORIZED,
-                message="Local identity is invalid",
-            )
-        )
 
 
 def _error_response(result: Failure) -> JSONResponse:

@@ -28,7 +28,12 @@ class ArtifactManifest(BaseModel):
 
 
 @runtime_checkable
-class ArtifactStore(Protocol):
+class ArtifactReaderPort(Protocol):
+    def read(self, content_hash: str) -> Result[bytes]: ...
+
+
+@runtime_checkable
+class ArtifactStore(ArtifactReaderPort, Protocol):
     def finalize(
         self,
         content: object,
@@ -36,8 +41,6 @@ class ArtifactStore(Protocol):
         metadata: object,
         finalized_at: object,
     ) -> Result[ArtifactManifest]: ...
-
-    def read(self, content_hash: str) -> Result[bytes]: ...
 
     def manifest(self, content_hash: str) -> Result[ArtifactManifest]: ...
 

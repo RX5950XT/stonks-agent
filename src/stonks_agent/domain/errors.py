@@ -22,6 +22,9 @@ class ErrorCode(StrEnum):
     DATA_UNAVAILABLE = "data_unavailable"
     RATE_LIMITED = "rate_limited"
     BUDGET_EXHAUSTED = "budget_exhausted"
+    DEADLINE_EXCEEDED = "deadline_exceeded"
+    MODEL_OUTPUT_INVALID = "model_output_invalid"
+    TOOL_FAILED = "tool_failed"
     PAYLOAD_TOO_LARGE = "payload_too_large"
     INTERNAL_ERROR = "internal_error"
 

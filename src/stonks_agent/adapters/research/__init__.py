@@ -1,0 +1,1 @@
+"""Core-safe research adapters."""

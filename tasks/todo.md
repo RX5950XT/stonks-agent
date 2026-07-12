@@ -193,7 +193,7 @@
   - Tool具allowlist、typed args、instrument/evidence scope、read-only/mutation class、timeout、byte limit、redaction與audit。
   - Research principals無filesystem write/shell/secret/queue/execution ports。
 
-- [ ] **P2.2 Clean-room bounded research orchestrator** — 建立`application/research/{orchestrate,tool_loop,context_builder}.py`、`adapters/research/deterministic.py`與測試。（Depends：P2.1；Complexity：XL；Risk：High）
+- [x] **P2.2 Clean-room bounded research orchestrator** — 建立`application/research/{orchestrate,tool_loop,context_builder}.py`、`adapters/research/deterministic.py`與測試。（Depends：P2.1；Complexity：XL；Risk：High）
   - 只依公開概念重做planning/tool loop、bounded iterations、parallel read tools、budget與loop hard-stop；不複製Dexter source/prompt/assets。
   - 外部內容包成untrusted blocks；無citation claim標hypothesis。
 
@@ -571,4 +571,12 @@
 - Security：research principal無ambient filesystem/process/network/secret/queue/execution capabilities；principal/profile/policy、tool allowlist、typed arguments、instrument/evidence scope、timeout/output cap、audit redaction、result call/hash/byte limit皆fail closed。
 - Verification：P2.1 focused為22 passed、branch coverage 92%；完整`scripts/verify.py`為486 passed、171 PostgreSQL tests deselected、branch coverage 87.50%，205 files format、ruff、mypy 119 source files、schema、upstream/license、secret與locked dependency audit全通過。
 - Phase status：P2 gate尚未完成；下一項為P2.2 clean-room bounded research orchestrator。P2.1無migration或DB行為變更，因此本次未重跑P1 PostgreSQL suite。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。
+
+### P2 Progress Review — P2.2 — 2026-07-12
+
+- Scope completed：clean-room context builder、structured planning/final turn parser、bounded tool loop、parallel read-only batch與deterministic artifact builder；未複製Dexter source/prompt/assets。
+- Security：context只讀request allowlist內且`available_at <= as_of`的immutable artifacts並一律標untrusted；tool batch先完成request/policy雙層scope authorization與usage reservation才執行，LLM/tool exception、deadline、invalid schema、oversize、out-of-scope citation皆structured fail closed。
+- Verification：P2 research focused為31 passed、application/adapters branch coverage 88%；完整`scripts/verify.py`為500 passed、171 PostgreSQL tests deselected、branch coverage 87.62%，216 files format、ruff、mypy 125 source files、schema、upstream/license、secret與locked dependency audit全通過；Barrier test證明兩個read tools確實平行啟動。
+- Phase status：P2 gate尚未完成；下一項為P2.3 LLM structured-output adapters。P2.2無migration或DB行為變更，因此本次未重跑P1 PostgreSQL suite。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。

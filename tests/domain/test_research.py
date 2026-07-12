@@ -137,6 +137,7 @@ def test_artifact_rejects_citations_outside_the_request_scope() -> None:
                 ),
             ),
             raw_output_artifact_ref=ARTIFACT_REF,
+            confidence=Decimal("0.5"),
             producer="fake-researcher",
             producer_version="1.0.0",
             model_versions=("fake:model-v1",),

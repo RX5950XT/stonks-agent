@@ -219,6 +219,7 @@ def test_tool_result_must_match_call_identity_hash_and_output_limit() -> None:
         "content_hash": "a" * 64,
         "content_type": "application/json",
         "byte_count": 2_048,
+        "tool_version": "fixture/1",
         "observed_at": datetime(2026, 7, 12, tzinfo=UTC),
     }
 

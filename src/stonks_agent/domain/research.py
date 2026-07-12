@@ -86,7 +86,12 @@ class ResearchArtifact(BaseModel):
     counterarguments: tuple[str, ...] = Field(default_factory=tuple, max_length=64)
     risks: tuple[str, ...] = Field(default_factory=tuple, max_length=64)
     warnings: tuple[str, ...] = Field(default_factory=tuple, max_length=64)
+    confidence: UnitDecimal
     raw_output_artifact_ref: ArtifactRef
+    tool_output_artifact_refs: tuple[ArtifactRef, ...] = Field(
+        default_factory=tuple,
+        max_length=256,
+    )
     producer: str = Field(min_length=1, max_length=128)
     producer_version: str = Field(min_length=1, max_length=128)
     model_versions: tuple[str, ...] = Field(default_factory=tuple, max_length=32)

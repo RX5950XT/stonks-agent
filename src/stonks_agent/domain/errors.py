@@ -21,6 +21,7 @@ class ErrorCode(StrEnum):
     EGRESS_DENIED = "egress_denied"
     DATA_UNAVAILABLE = "data_unavailable"
     RATE_LIMITED = "rate_limited"
+    PAYLOAD_TOO_LARGE = "payload_too_large"
     INTERNAL_ERROR = "internal_error"
 
 

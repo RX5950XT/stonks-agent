@@ -94,9 +94,7 @@ def test_same_idempotency_key_with_different_payload_fails_closed() -> None:
 def test_future_evidence_is_rejected_without_reservation_or_fill() -> None:
     service = build_fake_run_service(clock=AS_OF, seed="future-evidence")
 
-    result = service.run(
-        request("future", available_at=AS_OF + timedelta(seconds=1))
-    )
+    result = service.run(request("future", available_at=AS_OF + timedelta(seconds=1)))
 
     assert result.status == "rejected"
     assert result.risk_decision.approved is False

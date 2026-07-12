@@ -32,7 +32,9 @@ class LocalTokenAuthenticator:
         allowed_hosts: frozenset[str] = _LOOPBACK_HOSTS,
     ) -> None:
         _validate_token(token)
-        if not allowed_hosts or any(not host or len(host) > 255 for host in allowed_hosts):
+        if not allowed_hosts or any(
+            not host or len(host) > 255 for host in allowed_hosts
+        ):
             raise ValueError("allowed_hosts must contain bounded host names")
         self._token_digest = _digest(token)
         self._principal = LocalPrincipal(subject=subject, roles=roles)

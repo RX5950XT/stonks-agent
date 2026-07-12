@@ -116,6 +116,32 @@ def test_replay_returns_explicit_typed_states(
         assert observation.data
 
 
+def test_replay_accepts_the_common_daily_policy_query_shape() -> None:
+    adapter = ReplayMarketDataAdapter(MANIFEST)
+    fixture = next(
+        item
+        for item in adapter.fixtures
+        if item.entry.fixture_id == "us-daily-dst-actions"
+    )
+    observation = adapter.fetch(
+        FetchDataRequest(
+            market="US",
+            capability="prices",
+            as_of=fixture.entry.as_of,
+            query={
+                "symbol": "AAPL",
+                "interval": "1d",
+                "scenario": "canonical",
+                "start_date": "2026-03-06",
+                "end_date": "2026-03-09",
+            },
+        )
+    )
+
+    assert observation.state is ProviderDataState.AVAILABLE
+    assert observation.data == (fixture.dataset,)
+
+
 def test_us_daily_fixture_proves_dst_shift_and_corporate_actions() -> None:
     fixture = next(
         item

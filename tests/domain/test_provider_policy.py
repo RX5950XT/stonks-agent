@@ -494,9 +494,7 @@ def test_unknown_provider_health_fails_closed_and_uses_fallback() -> None:
         ),
         policy=policy(),
         adapters={"primary": primary, "fallback": fallback},
-        runtime_health={
-            "primary": runtime_health(state=ProviderHealthState.UNKNOWN)
-        },
+        runtime_health={"primary": runtime_health(state=ProviderHealthState.UNKNOWN)},
     )
 
     assert isinstance(result, Success)

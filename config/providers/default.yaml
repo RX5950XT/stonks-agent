@@ -34,11 +34,6 @@ policies:
         endpoints: [/v1/prices]
         freshness_seconds: 0
         quota_floor: 0
-      - provider: openbb_rest
-        origin: http://127.0.0.1:6900
-        endpoints: [/api/v1/equity/price/historical]
-        freshness_seconds: 300
-        quota_floor: 0
   - policy_id: tw-prices/1
     market: TW
     capability: prices
@@ -50,9 +45,4 @@ policies:
         origin: https://replay.local
         endpoints: [/v1/prices]
         freshness_seconds: 0
-        quota_floor: 0
-      - provider: openbb_rest
-        origin: http://127.0.0.1:6900
-        endpoints: [/api/v1/equity/price/historical]
-        freshness_seconds: 300
         quota_floor: 0

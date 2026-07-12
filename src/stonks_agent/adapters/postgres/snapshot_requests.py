@@ -30,11 +30,12 @@ class PostgresSnapshotRequestStore:
     def submit(self, request: CreateSnapshotRequest) -> Result[SnapshotJobRefs]:
         identifiers = _identifiers(request.idempotency_key)
         run_key = f"snapshot:{request.idempotency_key}"
-        payload = request.model_dump(mode="json") | {
-            "snapshot_id": str(identifiers.snapshot_id)
-        }
+        payload = request.model_dump(mode="json")
         try:
-            with Session(self._engine, expire_on_commit=False) as session, session.begin():
+            with (
+                Session(self._engine, expire_on_commit=False) as session,
+                session.begin(),
+            ):
                 existing = session.scalar(
                     select(WorkflowRunRow).where(
                         WorkflowRunRow.idempotency_key == run_key
@@ -85,7 +86,9 @@ class PostgresSnapshotRequestStore:
                     )
                 )
                 if existing is None:
-                    return _failure(ErrorCode.CONFLICT, "Snapshot request already exists")
+                    return _failure(
+                        ErrorCode.CONFLICT, "Snapshot request already exists"
+                    )
                 return _existing_result(session, existing, request, identifiers)
 
 
@@ -95,12 +98,60 @@ def _existing_result(
     request: CreateSnapshotRequest,
     identifiers: SnapshotJobRefs,
 ) -> Result[SnapshotJobRefs]:
-    if run.input_hash != request.input_hash:
-        return _failure(ErrorCode.CONFLICT, "Snapshot idempotency payload mismatch")
-    job = session.scalar(select(JobRow).where(JobRow.run_id == run.run_id))
-    if job is None or job.job_id != identifiers.job_id:
-        return _failure(ErrorCode.CONFLICT, "Snapshot request job is missing")
+    run_key = f"snapshot:{request.idempotency_key}"
+    if not _run_identity_matches(run, request, identifiers, run_key):
+        return _identity_conflict()
+    jobs = tuple(session.scalars(select(JobRow).where(JobRow.run_id == run.run_id)))
+    if len(jobs) != 1 or not _job_identity_matches(
+        jobs[0], request, identifiers, run_key
+    ):
+        return _identity_conflict()
     return Success(identifiers)
+
+
+def _run_identity_matches(
+    run: WorkflowRunRow,
+    request: CreateSnapshotRequest,
+    identifiers: SnapshotJobRefs,
+    run_key: str,
+) -> bool:
+    return (
+        run.run_id == identifiers.run_id
+        and run.run_type == "data_snapshot"
+        and run.as_of == request.as_of
+        and run.policy_id == request.provider_policy_id
+        and run.idempotency_key == run_key
+        and run.input_hash == request.input_hash
+        and run.created_at == request.requested_at
+    )
+
+
+def _job_identity_matches(
+    job: JobRow,
+    request: CreateSnapshotRequest,
+    identifiers: SnapshotJobRefs,
+    run_key: str,
+) -> bool:
+    payload = request.model_dump(mode="json")
+    return (
+        job.job_id == identifiers.job_id
+        and job.run_id == identifiers.run_id
+        and job.job_type == "create_snapshot"
+        and job.payload == payload
+        and job.payload_hash == stable_payload_hash(payload)
+        and job.idempotency_key == f"{run_key}:job"
+        and job.not_before == request.requested_at
+        and job.deadline_at == request.requested_at + timedelta(minutes=15)
+        and job.max_attempts == 3
+        and job.created_at == request.requested_at
+    )
+
+
+def _identity_conflict() -> Failure:
+    return _failure(
+        ErrorCode.CONFLICT,
+        "Snapshot idempotency immutable identity mismatch",
+    )
 
 
 def _identifiers(idempotency_key: str) -> SnapshotJobRefs:
@@ -110,7 +161,7 @@ def _identifiers(idempotency_key: str) -> SnapshotJobRefs:
     return SnapshotJobRefs(
         run_id=identifier("run"),
         job_id=identifier("job"),
-        snapshot_id=identifier("snapshot"),
+        snapshot_id=None,
         evidence_refs=(),
     )
 

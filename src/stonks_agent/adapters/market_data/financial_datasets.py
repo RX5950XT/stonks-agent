@@ -8,7 +8,8 @@ from decimal import Decimal
 from enum import StrEnum
 from math import isfinite
 from threading import Lock
-from typing import Annotated, Final, Self
+from time import monotonic
+from typing import Annotated, Final, Literal, Self
 
 import httpx
 from pydantic import (
@@ -17,14 +18,31 @@ from pydantic import (
     Field,
     StringConstraints,
     ValidationError,
+    field_validator,
     model_validator,
 )
 
+from stonks_agent.adapters.market_data._http_response import (
+    ResponseBodyError,
+    read_bounded_raw,
+    response_deadline,
+)
+from stonks_agent.adapters.market_data.regional.base import RegionalProviderCapability
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
 from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
 
 FINANCIAL_DATASETS_ORIGIN: Final = "https://api.financialdatasets.ai"
 HISTORICAL_PRICES_ENDPOINT: Final = "/prices"
+FINANCIAL_DATASETS_SUPPORT: Final = frozenset(
+    {
+        RegionalProviderCapability(
+            provider="financial_datasets",
+            market="US",
+            capability="prices",
+            endpoint=HISTORICAL_PRICES_ENDPOINT,
+        )
+    }
+)
 _HISTORICAL_PRICES_URL: Final = (
     f"{FINANCIAL_DATASETS_ORIGIN}{HISTORICAL_PRICES_ENDPOINT}"
 )
@@ -55,6 +73,23 @@ class HistoricalPricesQuery(BaseModel):
     interval: PriceInterval
     start_date: date
     end_date: date
+    scenario: Literal["canonical"] = "canonical"
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_common_symbol(cls, value: object) -> object:
+        if not isinstance(value, dict) or "symbol" not in value:
+            return value
+        if "ticker" in value:
+            raise ValueError("ticker and symbol cannot both be provided")
+        normalized = dict(value)
+        normalized["ticker"] = normalized.pop("symbol")
+        return normalized
+
+    @field_validator("interval", mode="before")
+    @classmethod
+    def normalize_common_interval(cls, value: object) -> object:
+        return PriceInterval.DAY.value if value == "1d" else value
 
     @model_validator(mode="after")
     def validate_range(self) -> Self:
@@ -118,9 +153,11 @@ class FinancialDatasetsAdapter:
         "_client",
         "_clock",
         "_max_response_bytes",
+        "_monotonic_clock",
         "_request_budget",
         "_requests_used",
         "_timeout",
+        "_timeout_seconds",
     )
 
     def __init__(
@@ -132,6 +169,7 @@ class FinancialDatasetsAdapter:
         timeout_seconds: float = 10.0,
         max_response_bytes: int = 1_048_576,
         clock: Callable[[], datetime] | None = None,
+        monotonic_clock: Callable[[], float] | None = None,
     ) -> None:
         _validate_limits(request_budget, timeout_seconds, max_response_bytes)
         self._client = client
@@ -139,8 +177,10 @@ class FinancialDatasetsAdapter:
         self._request_budget = request_budget
         self._requests_used = 0
         self._timeout = httpx.Timeout(timeout_seconds)
+        self._timeout_seconds = float(timeout_seconds)
         self._max_response_bytes = max_response_bytes
         self._clock = clock or _utc_now
+        self._monotonic_clock = monotonic_clock or monotonic
         self._budget_lock = Lock()
 
     def __repr__(self) -> str:
@@ -159,7 +199,7 @@ class FinancialDatasetsAdapter:
         request: FetchDataRequest,
     ) -> ProviderObservation[FinancialDatasetsPrice]:
         observed_at = self._observed_at()
-        if request.market != "US" or request.capability != "prices":
+        if not _supports_request(request):
             return _failure(
                 ProviderDataState.NOT_SUPPORTED,
                 "capability_not_supported",
@@ -203,18 +243,36 @@ class FinancialDatasetsAdapter:
         api_key: str,
         observed_at: datetime,
     ) -> bytes | ProviderObservation[FinancialDatasetsPrice]:
+        deadline = response_deadline(
+            self._monotonic_clock,
+            self._timeout_seconds,
+        )
+        if deadline is None:
+            return _failure(ProviderDataState.FETCH_FAILED, "timeout", observed_at)
         try:
             with self._client.stream(
                 "GET",
                 _HISTORICAL_PRICES_URL,
                 params=query.http_params(),
-                headers={"Accept": "application/json", "X-API-KEY": api_key},
+                headers={
+                    "Accept": "application/json",
+                    "Accept-Encoding": "identity",
+                    "X-API-KEY": api_key,
+                },
                 timeout=self._timeout,
                 follow_redirects=False,
             ) as response:
                 if response.status_code != httpx.codes.OK:
                     return _http_failure(response.status_code, observed_at)
-                return self._bounded_body(response, observed_at)
+                body = read_bounded_raw(
+                    response,
+                    max_bytes=self._max_response_bytes,
+                    deadline=deadline,
+                    clock=self._monotonic_clock,
+                )
+                if isinstance(body, ResponseBodyError):
+                    return _response_body_failure(body, observed_at)
+                return body
         except httpx.TimeoutException:
             return _failure(
                 ProviderDataState.FETCH_FAILED,
@@ -227,38 +285,6 @@ class FinancialDatasetsAdapter:
                 "transport_error",
                 observed_at,
             )
-
-    def _bounded_body(
-        self,
-        response: httpx.Response,
-        observed_at: datetime,
-    ) -> bytes | ProviderObservation[FinancialDatasetsPrice]:
-        content_length = response.headers.get("Content-Length")
-        if content_length is not None:
-            try:
-                declared_length = int(content_length)
-            except ValueError:
-                return _failure(
-                    ProviderDataState.FETCH_FAILED,
-                    "invalid_content_length",
-                    observed_at,
-                )
-            if declared_length < 0 or declared_length > self._max_response_bytes:
-                return _failure(
-                    ProviderDataState.FETCH_FAILED,
-                    "response_too_large",
-                    observed_at,
-                )
-        body = bytearray()
-        for chunk in response.iter_bytes():
-            if len(body) + len(chunk) > self._max_response_bytes:
-                return _failure(
-                    ProviderDataState.FETCH_FAILED,
-                    "response_too_large",
-                    observed_at,
-                )
-            body.extend(chunk)
-        return bytes(body)
 
     def _observed_at(self) -> datetime:
         value = self._clock()
@@ -275,6 +301,21 @@ def _parse_query(request: FetchDataRequest) -> HistoricalPricesQuery | None:
     if query.end_date > request.as_of.date():
         return None
     return query
+
+
+def _response_body_failure(
+    error: ResponseBodyError,
+    observed_at: datetime,
+) -> ProviderObservation[FinancialDatasetsPrice]:
+    reason = {
+        ResponseBodyError.INVALID_CONTENT_LENGTH: "invalid_content_length",
+        ResponseBodyError.UNSUPPORTED_CONTENT_ENCODING: (
+            "unsupported_content_encoding"
+        ),
+        ResponseBodyError.RESPONSE_TOO_LARGE: "response_too_large",
+        ResponseBodyError.DEADLINE_EXCEEDED: "timeout",
+    }[error]
+    return _failure(ProviderDataState.FETCH_FAILED, reason, observed_at)
 
 
 def _parse_response(
@@ -304,26 +345,11 @@ def _parse_response(
             "ticker_mismatch",
             observed_at,
         )
-    times = tuple(item.time for item in normalized)
-    if len(times) != len(set(times)):
+    normalized_error = _normalized_prices_error(normalized, query, as_of)
+    if normalized_error is not None:
         return _failure(
             ProviderDataState.CONFLICT,
-            "duplicate_price_time",
-            observed_at,
-        )
-    if any(item.time > as_of.date() for item in normalized):
-        return _failure(
-            ProviderDataState.CONFLICT,
-            "future_data_returned",
-            observed_at,
-        )
-    if any(
-        item.time < query.start_date or item.time > query.end_date
-        for item in normalized
-    ):
-        return _failure(
-            ProviderDataState.CONFLICT,
-            "response_outside_requested_range",
+            normalized_error,
             observed_at,
         )
     if not normalized:
@@ -339,6 +365,24 @@ def _parse_response(
         completeness=Decimal("1"),
         observed_at=observed_at,
     )
+
+
+def _normalized_prices_error(
+    normalized: tuple[FinancialDatasetsPrice, ...],
+    query: HistoricalPricesQuery,
+    as_of: datetime,
+) -> str | None:
+    times = tuple(item.time for item in normalized)
+    if len(times) != len(set(times)):
+        return "duplicate_price_time"
+    if any(item.time > as_of.date() for item in normalized):
+        return "future_data_returned"
+    if any(
+        item.time < query.start_date or item.time > query.end_date
+        for item in normalized
+    ):
+        return "response_outside_requested_range"
+    return None
 
 
 def _normalize_prices(
@@ -435,3 +479,11 @@ def _validate_limits(
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def _supports_request(request: FetchDataRequest) -> bool:
+    return any(
+        declaration.market == request.market
+        and declaration.capability == request.capability
+        for declaration in FINANCIAL_DATASETS_SUPPORT
+    )

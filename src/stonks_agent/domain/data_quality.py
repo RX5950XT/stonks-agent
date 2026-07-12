@@ -90,11 +90,15 @@ class ProviderObservation[T](BaseModel):
             if self.data or self.completeness != 1:
                 raise ValueError("legitimate empty state requires complete empty data")
         elif self.state is ProviderDataState.PARTIAL:
-            if not self.data or not 0 < self.completeness < 1:
-                raise ValueError("partial state requires incomplete non-empty data")
+            if not self.data or not 0 < self.completeness < 1 or not self.reasons:
+                raise ValueError(
+                    "partial state requires incomplete non-empty data and a reason"
+                )
         elif self.state is ProviderDataState.STALE:
-            if not self.data or self.completeness <= 0:
-                raise ValueError("stale state requires non-empty data")
+            if not self.data or self.completeness != 1 or not self.reasons:
+                raise ValueError(
+                    "stale state requires complete non-empty data and a reason"
+                )
         elif self.state in _FAILURE_STATES and (
             self.data or self.completeness != 0 or not self.reasons
         ):

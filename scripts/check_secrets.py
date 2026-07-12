@@ -86,9 +86,7 @@ def scan(root: Path) -> tuple[Finding, ...]:
 def _files(root: Path) -> Iterator[Path]:
     for current, directories, files in os.walk(root, followlinks=False):
         directories[:] = sorted(
-            directory
-            for directory in directories
-            if directory not in SKIP_DIRECTORIES
+            directory for directory in directories if directory not in SKIP_DIRECTORIES
         )
         current_path = Path(current)
         for name in sorted(files):

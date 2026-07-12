@@ -131,8 +131,7 @@ class JournalTransactionRecord:
         totals: dict[str, Decimal] = {}
         for posting in self.postings:
             totals[posting.commodity] = (
-                totals.get(posting.commodity, Decimal("0"))
-                + posting.signed_amount
+                totals.get(posting.commodity, Decimal("0")) + posting.signed_amount
             )
         return bool(self.postings) and all(total == 0 for total in totals.values())
 
@@ -201,4 +200,3 @@ def _canonical(value: Any) -> Any:
     if isinstance(value, StrEnum):
         return value.value
     return value
-

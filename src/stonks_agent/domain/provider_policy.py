@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from enum import StrEnum
 from pathlib import Path
 from typing import Protocol, Self
 from urllib.parse import urlsplit
@@ -12,6 +13,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
 from stonks_contracts.common import DecimalString, NonEmptyString, UnitDecimal
+
+
+class ReconciliationOutcome(StrEnum):
+    """Core-owned immutable outcome recorded for dual-source decisions."""
+
+    SELECTED_WITHIN_THRESHOLD = "selected_within_threshold"
+    SELECTED_BOTH_EMPTY = "selected_both_empty"
+    REJECTED_THRESHOLD_EXCEEDED = "rejected_threshold_exceeded"
+    REJECTED_METRIC_MISMATCH = "rejected_metric_mismatch"
 
 
 class ProviderRoute(BaseModel):
@@ -85,6 +95,12 @@ class ProviderPolicy(BaseModel):
     allow_partial: bool = False
     reconciliation_threshold: UnitDecimal
 
+    @field_validator("reconciliation_threshold")
+    @classmethod
+    def validate_threshold_precision(cls, value: Decimal) -> Decimal:
+        _validate_bounded_decimal(value)
+        return value
+
     @model_validator(mode="after")
     def validate_routes(self) -> Self:
         providers = tuple(route.provider for route in self.routes)
@@ -112,8 +128,14 @@ class ReconciliationValue(BaseModel):
     @field_validator("metric")
     @classmethod
     def validate_metric(cls, value: str) -> str:
-        if value.strip() != value:
-            raise ValueError("reconciliation metric must not contain edge whitespace")
+        if value.strip() != value or any(ord(character) < 32 for character in value):
+            raise ValueError("reconciliation metric must contain safe bounded text")
+        return value
+
+    @field_validator("value")
+    @classmethod
+    def validate_value_precision(cls, value: Decimal) -> Decimal:
+        _validate_bounded_decimal(value)
         return value
 
 
@@ -158,6 +180,17 @@ def reconcile_comparable_values(
             reasons=("reconciliation_metric_mismatch",),
         )
     return reconcile_values(primary.value, secondary.value, policy)
+
+
+def _validate_bounded_decimal(value: Decimal) -> None:
+    decimal_tuple = value.as_tuple()
+    exponent = decimal_tuple.exponent
+    if (
+        len(decimal_tuple.digits) > 128
+        or not isinstance(exponent, int)
+        or abs(exponent) > 128
+    ):
+        raise ValueError("reconciliation decimal exceeds bounded precision")
 
 
 def load_provider_policies(path: Path) -> tuple[ProviderPolicy, ...]:

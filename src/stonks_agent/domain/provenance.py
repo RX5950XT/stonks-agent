@@ -34,6 +34,14 @@ class ProvenanceRecord(BaseModel):
     @field_validator("source_url")
     @classmethod
     def validate_source_url(cls, value: str) -> str:
+        has_forbidden_character = any(
+            character.isspace() or ord(character) < 32 or ord(character) == 127
+            for character in value
+        )
+        if has_forbidden_character:
+            raise ValueError(
+                "source_url must not contain whitespace or control characters"
+            )
         parsed = urlsplit(value)
         if (
             parsed.scheme != "https"

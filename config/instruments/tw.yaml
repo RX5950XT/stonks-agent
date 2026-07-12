@@ -6,7 +6,7 @@ instruments:
     exchange_mic: XTAI
     currency: TWD
     timezone: Asia/Taipei
-    supported_capabilities: [prices_daily, prices_intraday, corporate_actions]
+    supported_capabilities: [prices_daily]
     provider_symbols:
       - provider: replay
         symbol: "2330"

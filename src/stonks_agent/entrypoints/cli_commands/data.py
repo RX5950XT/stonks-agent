@@ -32,7 +32,9 @@ def request_snapshot_command(
     idempotency_key: Annotated[str, typer.Option()] = "cli-snapshot",
     database_url: Annotated[
         str,
-        typer.Option(envvar="STONKS_DATABASE_URL", help="PostgreSQL URL from environment"),
+        typer.Option(
+            envvar="STONKS_DATABASE_URL", help="PostgreSQL URL from environment"
+        ),
     ] = "",
 ) -> None:
     if not database_url:

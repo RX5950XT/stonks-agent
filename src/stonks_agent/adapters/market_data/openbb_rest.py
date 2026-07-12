@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from math import isfinite
+from time import monotonic
 from typing import Final, Literal, Self
 
 import httpx
@@ -17,6 +18,12 @@ from pydantic import (
     model_validator,
 )
 
+from stonks_agent.adapters.market_data._http_response import (
+    ResponseBodyError,
+    read_bounded_raw,
+    response_deadline,
+)
+from stonks_agent.adapters.market_data.regional.base import RegionalProviderCapability
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
 from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
 from stonks_agent.domain.evidence import AvailabilityCertainty, EvidenceTimeline
@@ -25,7 +32,19 @@ from stonks_agent.domain.market_data import OHLCBar
 OPENBB_ORIGIN: Final = "http://127.0.0.1:6900"
 OPENBB_HISTORICAL_ENDPOINT: Final = "/api/v1/equity/price/historical"
 OPENBB_PROVIDER: Final = "yfinance"
-_ALLOWED_QUERY_FIELDS: Final = frozenset({"symbol", "start_date", "end_date"})
+OPENBB_REST_SUPPORT: Final = frozenset(
+    {
+        RegionalProviderCapability(
+            provider="openbb_rest",
+            market="US",
+            capability="prices",
+            endpoint=OPENBB_HISTORICAL_ENDPOINT,
+        )
+    }
+)
+_ALLOWED_QUERY_FIELDS: Final = frozenset(
+    {"symbol", "start_date", "end_date", "interval", "scenario"}
+)
 
 
 class OpenBBHistoricalRecord(BaseModel):
@@ -104,6 +123,8 @@ class _OpenBBQuery(BaseModel):
     )
     start_date: date | None = None
     end_date: date | None = None
+    interval: Literal["1d"] = "1d"
+    scenario: Literal["canonical"] = "canonical"
 
     @model_validator(mode="after")
     def validate_range(self) -> Self:
@@ -128,7 +149,14 @@ class _OpenBBQuery(BaseModel):
 class OpenBBRestAdapter:
     """Fetch historical prices from one fixed sidecar route and provider."""
 
-    __slots__ = ("_client", "_clock", "_max_response_bytes", "_timeout")
+    __slots__ = (
+        "_client",
+        "_clock",
+        "_max_response_bytes",
+        "_monotonic_clock",
+        "_timeout",
+        "_timeout_seconds",
+    )
 
     def __init__(
         self,
@@ -140,17 +168,20 @@ class OpenBBRestAdapter:
         timeout_seconds: float = 10.0,
         max_response_bytes: int = 1_048_576,
         clock: Callable[[], datetime] | None = None,
+        monotonic_clock: Callable[[], float] | None = None,
     ) -> None:
         _validate_configuration(origin, endpoint, provider)
         _validate_limits(timeout_seconds, max_response_bytes)
         self._client = client
         self._timeout = httpx.Timeout(timeout_seconds)
+        self._timeout_seconds = float(timeout_seconds)
         self._max_response_bytes = max_response_bytes
         self._clock = clock or _utc_now
+        self._monotonic_clock = monotonic_clock or monotonic
 
     def fetch(self, request: FetchDataRequest) -> OpenBBObservation:
         observed_at = self._observed_at()
-        if request.market != "US" or request.capability != "prices":
+        if not _supports_request(request):
             return _failure(
                 "openbb_capability_not_supported",
                 observed_at,
@@ -175,12 +206,21 @@ class OpenBBRestAdapter:
         query: _OpenBBQuery,
         observed_at: datetime,
     ) -> bytes | OpenBBObservation:
+        deadline = response_deadline(
+            self._monotonic_clock,
+            self._timeout_seconds,
+        )
+        if deadline is None:
+            return _failure("openbb_unavailable", observed_at)
         try:
             with self._client.stream(
                 "GET",
                 f"{OPENBB_ORIGIN}{OPENBB_HISTORICAL_ENDPOINT}",
                 params=query.http_params(),
-                headers={"Accept": "application/json"},
+                headers={
+                    "Accept": "application/json",
+                    "Accept-Encoding": "identity",
+                },
                 timeout=self._timeout,
                 follow_redirects=False,
             ) as response:
@@ -189,17 +229,17 @@ class OpenBBRestAdapter:
                 content_type = response.headers.get("content-type", "")
                 if content_type.split(";", maxsplit=1)[0].strip() != "application/json":
                     return _failure("openbb_invalid_response", observed_at)
-                if _invalid_content_length(
-                    response.headers.get("content-length"),
-                    self._max_response_bytes,
-                ):
+                body = read_bounded_raw(
+                    response,
+                    max_bytes=self._max_response_bytes,
+                    deadline=deadline,
+                    clock=self._monotonic_clock,
+                )
+                if body is ResponseBodyError.DEADLINE_EXCEEDED:
+                    return _failure("openbb_unavailable", observed_at)
+                if isinstance(body, ResponseBodyError):
                     return _failure("openbb_invalid_response", observed_at)
-                body = bytearray()
-                for chunk in response.iter_bytes():
-                    if len(body) + len(chunk) > self._max_response_bytes:
-                        return _failure("openbb_invalid_response", observed_at)
-                    body.extend(chunk)
-                return bytes(body)
+                return body
         except httpx.HTTPError:
             return _failure("openbb_unavailable", observed_at)
 
@@ -225,6 +265,10 @@ def _parse_query(request: FetchDataRequest) -> _OpenBBQuery | str:
             return "invalid_start_date"
         if field == "end_date":
             return "invalid_end_date"
+        if field == "interval":
+            return "invalid_interval"
+        if field == "scenario":
+            return "invalid_scenario"
         return "invalid_date_range"
     if query.end_date is not None and query.end_date > request.as_of.date():
         return "invalid_end_date"
@@ -363,12 +407,6 @@ def _http_failure(status_code: int, observed_at: datetime) -> OpenBBObservation:
     )
 
 
-def _invalid_content_length(value: str | None, maximum: int) -> bool:
-    if value is None:
-        return False
-    return not value.isascii() or not value.isdecimal() or int(value) > maximum
-
-
 def _validate_configuration(origin: str, endpoint: str, provider: str) -> None:
     if origin != OPENBB_ORIGIN:
         raise ValueError("OpenBB origin is not allowlisted")
@@ -391,3 +429,11 @@ def _validate_limits(timeout_seconds: float, max_response_bytes: int) -> None:
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def _supports_request(request: FetchDataRequest) -> bool:
+    return any(
+        declaration.market == request.market
+        and declaration.capability == request.capability
+        for declaration in OPENBB_REST_SUPPORT
+    )

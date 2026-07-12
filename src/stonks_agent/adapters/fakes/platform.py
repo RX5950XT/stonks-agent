@@ -127,7 +127,9 @@ class FakeRunService:
         self._append_event(events, run_id, "run.completed", risk.approved)
         after = self._snapshot(account)
         status = "completed" if risk.approved else "rejected"
-        control_hash = stable_hash((target, risk, reservation, intent, receipt, journal))
+        control_hash = stable_hash(
+            (target, risk, reservation, intent, receipt, journal)
+        )
         result = RunCycleResult(
             run_id=run_id,
             status=status,
@@ -160,7 +162,9 @@ class FakeRunService:
         current_weight = (
             current_quantity * CURRENT_PRICE / nav if nav > 0 else Decimal("0")
         )
-        eligible = request.signal_value > 0 and request.signal_confidence >= Decimal("0.5")
+        eligible = request.signal_value > 0 and request.signal_confidence >= Decimal(
+            "0.5"
+        )
         if eligible and DEADBAND_LOW <= current_weight <= DEADBAND_HIGH:
             target_quantity = current_quantity
         elif eligible:
@@ -438,7 +442,7 @@ def _execution_events(
         OrderIntentRecord | None,
         ExecutionReceiptRecord | None,
         JournalTransactionRecord | None,
-    ]
+    ],
 ) -> tuple[tuple[str, Any], ...]:
     names = (
         "account.reservation_consumed",
@@ -476,4 +480,3 @@ def _apply_result(
         open_reservations=(),
         sequence=sequence,
     )
-

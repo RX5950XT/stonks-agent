@@ -55,7 +55,9 @@ def test_duplicate_inbox_message_runs_transactional_handler_once(
 
     inbox = PostgresInbox(clean_database)
     with ThreadPoolExecutor(max_workers=4) as executor:
-        results = tuple(executor.map(lambda _: inbox.consume(message(), handler), range(8)))
+        results = tuple(
+            executor.map(lambda _: inbox.consume(message(), handler), range(8))
+        )
 
     assert all(isinstance(result, Success) for result in results)
     receipts = tuple(result.value for result in results if isinstance(result, Success))
@@ -78,7 +80,9 @@ def test_duplicate_key_with_different_payload_fails_closed(
     assert isinstance(first, Success)
     assert isinstance(conflict, Failure)
     assert conflict.error.code is ErrorCode.CONFLICT
-    assert conflict.error.message == "Inbox message payload conflicts with prior receipt"
+    assert (
+        conflict.error.message == "Inbox message payload conflicts with prior receipt"
+    )
 
 
 def test_handler_failure_rolls_back_receipt_and_can_retry(

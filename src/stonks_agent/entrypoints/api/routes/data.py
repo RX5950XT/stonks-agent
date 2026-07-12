@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import FastAPI, Header, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -13,10 +15,17 @@ from stonks_agent.adapters.auth.local_token import DenyAllAuthenticator
 from stonks_agent.application.data.create_snapshot import request_snapshot
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError
 from stonks_agent.domain.snapshot import CreateSnapshotRequest
-from stonks_agent.entrypoints.api.envelope import error_envelope, success_envelope
+from stonks_agent.entrypoints.api.envelope import (
+    error_envelope,
+    success_envelope,
+    unexpected_error_envelope,
+)
+from stonks_agent.entrypoints.api.request_limits import RequestBodyLimitMiddleware
 from stonks_agent.ports.authentication import AuthenticationRequest, Authenticator
 from stonks_agent.ports.snapshot_request import SnapshotRequestStore
 from stonks_contracts.common import UTCDateTime
+
+MAX_SNAPSHOT_REQUEST_BYTES = 65_536
 
 
 class CreateSnapshotBody(BaseModel):
@@ -33,12 +42,66 @@ class CreateSnapshotBody(BaseModel):
 def create_data_app(
     store: SnapshotRequestStore,
     authenticator: Authenticator | None = None,
+    *,
+    clock: Callable[[], datetime] | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Stonks Agent Data API", version="0.1.0")
+    app.add_middleware(
+        RequestBodyLimitMiddleware,
+        max_bytes=MAX_SNAPSHOT_REQUEST_BYTES,
+    )
     identity = authenticator or DenyAllAuthenticator()
+    app.add_exception_handler(RequestValidationError, _validation_error)
+    app.add_exception_handler(Exception, _unexpected_error)
+    app.add_api_route(
+        "/v1/data/snapshots",
+        _CreateSnapshotEndpoint(store, identity, clock or _utc_now),
+        methods=["POST"],
+        status_code=202,
+    )
+    return app
 
-    @app.post("/v1/data/snapshots", status_code=202)
-    def create_snapshot(
+
+async def _validation_error(
+    request: Request,
+    error: Exception,
+) -> JSONResponse:
+    del request, error
+    return _error_response(
+        Failure(
+            StructuredError(
+                code=ErrorCode.INVALID_INPUT,
+                message="Request body is invalid",
+            )
+        )
+    )
+
+
+async def _unexpected_error(
+    request: Request,
+    error: Exception,
+) -> JSONResponse:
+    del request
+    envelope = unexpected_error_envelope(error)
+    return JSONResponse(
+        status_code=envelope.status,
+        content=envelope.model_dump(mode="json"),
+    )
+
+
+class _CreateSnapshotEndpoint:
+    def __init__(
+        self,
+        store: SnapshotRequestStore,
+        identity: Authenticator,
+        clock: Callable[[], datetime],
+    ) -> None:
+        self._store = store
+        self._identity = identity
+        self._clock = clock
+
+    def __call__(
+        self,
         request_context: Request,
         body: CreateSnapshotBody,
         authorization: Annotated[
@@ -47,18 +110,19 @@ def create_data_app(
         ] = None,
     ) -> JSONResponse:
         client = request_context.client
-        principal = identity.authenticate(
-            AuthenticationRequest(
-                authorization=authorization,
-                client_host=client.host if client is not None else None,
-            )
+        authentication = _authentication_request(
+            authorization,
+            client.host if client is not None else None,
         )
+        if isinstance(authentication, Failure):
+            return _error_response(authentication)
+        principal = self._identity.authenticate(authentication)
         if isinstance(principal, Failure):
             return _error_response(principal)
         try:
             request = CreateSnapshotRequest(
                 **body.model_dump(),
-                requested_at=datetime.now(UTC),
+                requested_at=self._clock(),
             )
         except ValidationError:
             return _error_response(
@@ -69,7 +133,7 @@ def create_data_app(
                     )
                 )
             )
-        result = request_snapshot(principal.value, request, store)
+        result = request_snapshot(principal.value, request, self._store)
         if isinstance(result, Failure):
             return _error_response(result)
         envelope = success_envelope(result.value, status=202)
@@ -78,7 +142,23 @@ def create_data_app(
             content=envelope.model_dump(mode="json"),
         )
 
-    return app
+
+def _authentication_request(
+    authorization: str | None,
+    client_host: str | None,
+) -> AuthenticationRequest | Failure:
+    try:
+        return AuthenticationRequest(
+            authorization=authorization,
+            client_host=client_host,
+        )
+    except ValidationError:
+        return Failure(
+            StructuredError(
+                code=ErrorCode.INVALID_INPUT,
+                message="Authentication request is invalid",
+            )
+        )
 
 
 def _error_response(result: Failure) -> JSONResponse:
@@ -87,3 +167,7 @@ def _error_response(result: Failure) -> JSONResponse:
         status_code=envelope.status,
         content=envelope.model_dump(mode="json"),
     )
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)

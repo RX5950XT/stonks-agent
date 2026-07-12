@@ -4,6 +4,7 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from threading import Barrier
 from typing import Protocol
 
 import pytest
@@ -45,9 +46,7 @@ def unwrap[T](result: Result[T]) -> T:
 
 
 def test_finalize_is_content_addressed_and_verified(store: ArtifactStore) -> None:
-    manifest = unwrap(
-        store.finalize(CONTENT, metadata=metadata(), finalized_at=NOW)
-    )
+    manifest = unwrap(store.finalize(CONTENT, metadata=metadata(), finalized_at=NOW))
 
     assert manifest.content_hash == hashlib.sha256(CONTENT).hexdigest()
     assert manifest.size_bytes == len(CONTENT)
@@ -115,6 +114,37 @@ def test_concurrent_finalize_has_one_immutable_manifest(store: ArtifactStore) ->
 
     manifests = tuple(unwrap(result) for result in results)
     assert len(set(manifests)) == 1
+
+
+def test_distinct_local_store_instances_cannot_overwrite_manifest_metadata(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "artifacts"
+    stores = (
+        LocalArtifactStore(root, max_size_bytes=5 * 1024 * 1024),
+        LocalArtifactStore(root, max_size_bytes=5 * 1024 * 1024),
+    )
+    payload = b"x" * (4 * 1024 * 1024)
+    start = Barrier(2)
+
+    def finalize(index: int) -> Result[ArtifactManifest]:
+        start.wait()
+        return stores[index].finalize(
+            payload,
+            metadata=metadata(license_tag=f"license-{index}"),
+            finalized_at=NOW,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = tuple(executor.map(finalize, range(2)))
+
+    successes = tuple(result for result in results if isinstance(result, Success))
+    conflicts = tuple(result for result in results if isinstance(result, Failure))
+    assert len(successes) == 1
+    assert len(conflicts) == 1
+    assert conflicts[0].error.code is ErrorCode.CONFLICT
+    stored = unwrap(stores[0].manifest(successes[0].value.content_hash))
+    assert stored == successes[0].value
 
 
 def test_local_store_detects_object_corruption(tmp_path: Path) -> None:

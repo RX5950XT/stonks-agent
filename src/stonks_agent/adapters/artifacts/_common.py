@@ -51,7 +51,10 @@ def prepare_manifest(
 
 
 def validate_hash(content_hash: object) -> bool:
-    return isinstance(content_hash, str) and HASH_PATTERN.fullmatch(content_hash) is not None
+    return (
+        isinstance(content_hash, str)
+        and HASH_PATTERN.fullmatch(content_hash) is not None
+    )
 
 
 def failure(code: ErrorCode, message: str) -> Failure:

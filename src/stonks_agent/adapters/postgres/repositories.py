@@ -81,7 +81,10 @@ class PostgresEvidenceRepository:
             .where(
                 EvidenceItemRow.subject == subject,
                 EvidenceItemRow.available_at <= as_of,
-                or_(EvidenceItemRow.expires_at.is_(None), EvidenceItemRow.expires_at > as_of),
+                or_(
+                    EvidenceItemRow.expires_at.is_(None),
+                    EvidenceItemRow.expires_at > as_of,
+                ),
             )
             .order_by(EvidenceItemRow.available_at, EvidenceItemRow.evidence_id)
         ).all()

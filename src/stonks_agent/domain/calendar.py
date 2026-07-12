@@ -151,7 +151,10 @@ class ExchangeCalendar(BaseModel):
         for item in self.overrides:
             if item.session_date == session_date:
                 return item.template
-        if session_date in self.holidays or session_date.weekday() not in self.default.weekdays:
+        if (
+            session_date in self.holidays
+            or session_date.weekday() not in self.default.weekdays
+        ):
             return None
         return self.default
 

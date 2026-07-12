@@ -13,7 +13,7 @@ from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.job import CompleteJob, EnqueueJob
 from stonks_agent.domain.workflow import CreateWorkflowRun
 
-NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
+AS_OF = datetime(2026, 1, 2, 21, tzinfo=UTC)
 RUN_ID = UUID("40000000-0000-4000-8000-000000000001")
 JOB_ID = UUID("40000000-0000-4000-8000-000000000002")
 RESULT_HASH = "9" * 64
@@ -21,16 +21,17 @@ pytestmark = pytest.mark.postgres
 
 
 def test_skip_locked_allows_only_one_claim_per_job(clean_database: Engine) -> None:
-    seed_run_and_artifact(clean_database)
+    now = database_now(clean_database)
+    seed_run_and_artifact(clean_database, now)
     queue = PostgresJobQueue(clean_database)
-    assert isinstance(queue.enqueue(enqueue()), Success)
+    assert isinstance(queue.enqueue(enqueue(now=now)), Success)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = tuple(
             executor.map(
                 lambda worker: queue.claim(
                     worker_id=worker,
-                    now=NOW,
+                    now=now,
                     lease_for=timedelta(seconds=30),
                 ),
                 ("worker-a", "worker-b"),
@@ -42,20 +43,26 @@ def test_skip_locked_allows_only_one_claim_per_job(clean_database: Engine) -> No
 
 
 def test_expired_attempt_is_fenced_and_reclaimed(clean_database: Engine) -> None:
-    seed_run_and_artifact(clean_database)
+    now = database_now(clean_database)
+    seed_run_and_artifact(clean_database, now)
     queue = PostgresJobQueue(clean_database)
-    queue.enqueue(enqueue())
+    queue.enqueue(enqueue(now=now))
     stale = unwrap(
         queue.claim(
             worker_id="worker-a",
-            now=NOW,
+            now=now,
             lease_for=timedelta(seconds=1),
         )
     )
+    with clean_database.begin() as connection:
+        connection.execute(
+            text("update job set lease_until = :expired where job_id = :job_id"),
+            {"expired": now - timedelta(seconds=1), "job_id": JOB_ID},
+        )
     current = unwrap(
         queue.claim(
             worker_id="worker-b",
-            now=NOW + timedelta(seconds=2),
+            now=now,
             lease_for=timedelta(seconds=30),
         )
     )
@@ -68,7 +75,7 @@ def test_expired_attempt_is_fenced_and_reclaimed(clean_database: Engine) -> None
             attempt_nonce=stale.attempt_nonce,
             result_artifact_hash=RESULT_HASH,
         ),
-        now=NOW + timedelta(seconds=3),
+        now=now,
     )
 
     assert current.attempt_generation == stale.attempt_generation + 1
@@ -82,13 +89,14 @@ def test_expired_attempt_is_fenced_and_reclaimed(clean_database: Engine) -> None
 def test_crash_after_commit_retry_does_not_duplicate_event_or_outbox(
     clean_database: Engine,
 ) -> None:
-    seed_run_and_artifact(clean_database)
+    now = database_now(clean_database)
+    seed_run_and_artifact(clean_database, now)
     queue = PostgresJobQueue(clean_database)
-    queue.enqueue(enqueue())
+    queue.enqueue(enqueue(now=now))
     lease = unwrap(
         queue.claim(
             worker_id="worker-a",
-            now=NOW,
+            now=now,
             lease_for=timedelta(seconds=30),
         )
     )
@@ -100,8 +108,8 @@ def test_crash_after_commit_retry_does_not_duplicate_event_or_outbox(
         result_artifact_hash=RESULT_HASH,
     )
 
-    first = unwrap(queue.complete(completion, now=NOW + timedelta(seconds=1)))
-    retried = unwrap(queue.complete(completion, now=NOW + timedelta(seconds=2)))
+    first = unwrap(queue.complete(completion, now=now))
+    retried = unwrap(queue.complete(completion, now=now))
 
     assert retried == first
     assert table_count(clean_database, "run_event") == 1
@@ -109,12 +117,13 @@ def test_crash_after_commit_retry_does_not_duplicate_event_or_outbox(
 
 
 def test_idempotency_key_rejects_different_job_payload(clean_database: Engine) -> None:
-    seed_run_and_artifact(clean_database)
+    now = database_now(clean_database)
+    seed_run_and_artifact(clean_database, now)
     queue = PostgresJobQueue(clean_database)
 
-    first = queue.enqueue(enqueue(payload={"snapshot_id": "one"}))
-    same = queue.enqueue(enqueue(payload={"snapshot_id": "one"}))
-    conflict = queue.enqueue(enqueue(payload={"snapshot_id": "two"}))
+    first = queue.enqueue(enqueue(now=now, payload={"snapshot_id": "one"}))
+    same = queue.enqueue(enqueue(now=now, payload={"snapshot_id": "one"}))
+    conflict = queue.enqueue(enqueue(now=now, payload={"snapshot_id": "two"}))
 
     assert isinstance(first, Success)
     assert isinstance(same, Success)
@@ -126,20 +135,26 @@ def test_idempotency_key_rejects_different_job_payload(clean_database: Engine) -
 def test_deadline_and_attempt_limit_move_job_to_dead_letter(
     clean_database: Engine,
 ) -> None:
-    seed_run_and_artifact(clean_database)
+    now = database_now(clean_database)
+    seed_run_and_artifact(clean_database, now)
     queue = PostgresJobQueue(clean_database)
-    queue.enqueue(enqueue(max_attempts=1))
+    queue.enqueue(enqueue(now=now, max_attempts=1))
     unwrap(
         queue.claim(
             worker_id="worker-a",
-            now=NOW,
+            now=now,
             lease_for=timedelta(seconds=1),
         )
     )
+    with clean_database.begin() as connection:
+        connection.execute(
+            text("update job set lease_until = :expired where job_id = :job_id"),
+            {"expired": now - timedelta(seconds=1), "job_id": JOB_ID},
+        )
 
     unavailable = queue.claim(
         worker_id="worker-b",
-        now=NOW + timedelta(seconds=2),
+        now=now,
         lease_for=timedelta(seconds=30),
     )
 
@@ -154,13 +169,14 @@ def test_deadline_and_attempt_limit_move_job_to_dead_letter(
 
 
 def test_completion_requires_finalized_result_artifact(clean_database: Engine) -> None:
-    seed_run_and_artifact(clean_database)
+    now = database_now(clean_database)
+    seed_run_and_artifact(clean_database, now)
     queue = PostgresJobQueue(clean_database)
-    queue.enqueue(enqueue())
+    queue.enqueue(enqueue(now=now))
     lease = unwrap(
         queue.claim(
             worker_id="worker-a",
-            now=NOW,
+            now=now,
             lease_for=timedelta(seconds=30),
         )
     )
@@ -173,7 +189,7 @@ def test_completion_requires_finalized_result_artifact(clean_database: Engine) -
             attempt_nonce=lease.attempt_nonce,
             result_artifact_hash="8" * 64,
         ),
-        now=NOW + timedelta(seconds=1),
+        now=now,
     )
 
     assert isinstance(result, Failure)
@@ -182,23 +198,30 @@ def test_completion_requires_finalized_result_artifact(clean_database: Engine) -
 
 
 def test_not_before_and_deadline_are_enforced(clean_database: Engine) -> None:
-    seed_run_and_artifact(clean_database)
+    now = database_now(clean_database)
+    seed_run_and_artifact(clean_database, now)
     queue = PostgresJobQueue(clean_database)
     queue.enqueue(
         enqueue(
-            not_before=NOW + timedelta(seconds=5),
-            deadline_at=NOW + timedelta(seconds=10),
+            now=now,
+            not_before=now + timedelta(minutes=5),
+            deadline_at=now + timedelta(minutes=10),
         )
     )
 
     early = queue.claim(
         worker_id="worker-a",
-        now=NOW,
+        now=now,
         lease_for=timedelta(seconds=1),
     )
+    with clean_database.begin() as connection:
+        connection.execute(
+            text("update job set not_before = :due where job_id = :job_id"),
+            {"due": now - timedelta(seconds=1), "job_id": JOB_ID},
+        )
     on_time = queue.claim(
         worker_id="worker-a",
-        now=NOW + timedelta(seconds=5),
+        now=now,
         lease_for=timedelta(seconds=1),
     )
 
@@ -207,8 +230,166 @@ def test_not_before_and_deadline_are_enforced(clean_database: Engine) -> None:
     assert isinstance(on_time, Success)
 
 
+def test_future_caller_cannot_claim_job_before_database_not_before(
+    clean_database: Engine,
+) -> None:
+    anchor = database_now(clean_database)
+    seed_run_and_artifact(clean_database, anchor)
+    queue = PostgresJobQueue(clean_database)
+    unwrap(
+        queue.enqueue(
+            enqueue(
+                now=anchor,
+                not_before=anchor + timedelta(minutes=10),
+                deadline_at=anchor + timedelta(minutes=20),
+            )
+        )
+    )
+
+    result = queue.claim(
+        worker_id="future-caller",
+        now=anchor + timedelta(minutes=15),
+        lease_for=timedelta(minutes=1),
+    )
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.NOT_FOUND
+
+
+def test_stale_caller_cannot_complete_database_expired_job_lease(
+    clean_database: Engine,
+) -> None:
+    anchor = database_now(clean_database)
+    seed_run_and_artifact(clean_database, anchor)
+    queue = PostgresJobQueue(clean_database)
+    unwrap(
+        queue.enqueue(
+            enqueue(
+                now=anchor,
+                not_before=anchor - timedelta(minutes=1),
+                deadline_at=anchor + timedelta(minutes=10),
+            )
+        )
+    )
+    lease = unwrap(
+        queue.claim(
+            worker_id="worker-a",
+            now=anchor,
+            lease_for=timedelta(minutes=5),
+        )
+    )
+    with clean_database.begin() as connection:
+        connection.execute(
+            text("update job set lease_until = :expired where job_id = :job_id"),
+            {"expired": anchor - timedelta(seconds=1), "job_id": JOB_ID},
+        )
+
+    result = queue.complete(
+        CompleteJob(
+            job_id=JOB_ID,
+            worker_id="worker-a",
+            attempt_generation=lease.attempt_generation,
+            attempt_nonce=lease.attempt_nonce,
+            result_artifact_hash=RESULT_HASH,
+        ),
+        now=anchor - timedelta(days=1),
+    )
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.CONFLICT
+    assert table_count(clean_database, "run_event") == 0
+
+
+def test_database_expired_job_is_dead_lettered_despite_stale_caller(
+    clean_database: Engine,
+) -> None:
+    anchor = database_now(clean_database)
+    seed_run_and_artifact(clean_database, anchor)
+    queue = PostgresJobQueue(clean_database)
+    unwrap(
+        queue.enqueue(
+            enqueue(
+                now=anchor,
+                not_before=anchor - timedelta(minutes=10),
+                deadline_at=anchor - timedelta(minutes=1),
+            )
+        )
+    )
+
+    result = queue.claim(
+        worker_id="stale-caller",
+        now=anchor - timedelta(minutes=5),
+        lease_for=timedelta(minutes=1),
+    )
+
+    assert isinstance(result, Failure)
+    with clean_database.connect() as connection:
+        state = connection.execute(
+            text(
+                "select j.status, e.occurred_at from job j "
+                "join run_event e using (run_id) where j.job_id = :job_id"
+            ),
+            {"job_id": JOB_ID},
+        ).one()
+    assert state[0] == "dead_letter"
+    assert state[1] >= anchor
+
+
+def test_claim_and_completion_commit_database_timestamps(
+    clean_database: Engine,
+) -> None:
+    anchor = database_now(clean_database)
+    seed_run_and_artifact(clean_database, anchor)
+    queue = PostgresJobQueue(clean_database)
+    unwrap(
+        queue.enqueue(
+            enqueue(
+                now=anchor,
+                not_before=anchor - timedelta(minutes=1),
+                deadline_at=anchor + timedelta(minutes=10),
+            )
+        )
+    )
+
+    lease = unwrap(
+        queue.claim(
+            worker_id="future-caller",
+            now=anchor + timedelta(days=1),
+            lease_for=timedelta(minutes=5),
+        )
+    )
+    receipt = unwrap(
+        queue.complete(
+            CompleteJob(
+                job_id=JOB_ID,
+                worker_id="future-caller",
+                attempt_generation=lease.attempt_generation,
+                attempt_nonce=lease.attempt_nonce,
+                result_artifact_hash=RESULT_HASH,
+            ),
+            now=anchor + timedelta(days=1),
+        )
+    )
+
+    assert anchor < lease.lease_until < anchor + timedelta(minutes=6)
+    assert anchor < receipt.completed_at < anchor + timedelta(minutes=1)
+    with clean_database.connect() as connection:
+        timestamps = connection.execute(
+            text(
+                "select j.updated_at, r.updated_at, e.occurred_at, "
+                "o.created_at, o.not_before from job j "
+                "join run r using (run_id) join run_event e using (run_id) "
+                "join outbox o on o.aggregate_id = r.run_id::text "
+                "where j.job_id = :job_id"
+            ),
+            {"job_id": JOB_ID},
+        ).one()
+    assert all(value == receipt.completed_at for value in timestamps)
+
+
 def enqueue(
     *,
+    now: datetime,
     payload: dict[str, object] | None = None,
     max_attempts: int = 3,
     not_before: datetime | None = None,
@@ -220,33 +401,33 @@ def enqueue(
         job_type="research",
         payload=payload or {"snapshot_id": "one"},
         idempotency_key="job-idempotency",
-        not_before=not_before or NOW,
-        deadline_at=deadline_at or NOW + timedelta(minutes=5),
+        not_before=not_before or now,
+        deadline_at=deadline_at or now + timedelta(minutes=5),
         max_attempts=max_attempts,
-        created_at=NOW,
+        created_at=now,
     )
 
 
-def seed_run_and_artifact(engine: Engine) -> None:
+def seed_run_and_artifact(engine: Engine, now: datetime) -> None:
     with PostgresUnitOfWork(engine) as uow:
         created = uow.workflows.create(
             CreateWorkflowRun(
                 run_id=RUN_ID,
                 run_type="ingestion",
-                as_of=NOW,
+                as_of=AS_OF,
                 policy_id="policy/1",
                 idempotency_key="run-for-job",
                 input_hash="7" * 64,
-                created_at=NOW,
+                created_at=now,
             )
         )
         assert isinstance(created, Success)
         uow.commit()
     with engine.begin() as connection:
-        insert_artifact(connection)
+        insert_artifact(connection, now)
 
 
-def insert_artifact(connection: Connection) -> None:
+def insert_artifact(connection: Connection, now: datetime) -> None:
     connection.execute(
         text(
             """
@@ -260,7 +441,7 @@ def insert_artifact(connection: Connection) -> None:
         ),
         {
             "hash": RESULT_HASH,
-            "now": NOW,
+            "now": now,
             "uri": f"artifact://sha256/{RESULT_HASH}",
         },
     )
@@ -275,3 +456,10 @@ def table_count(engine: Engine, table: str) -> int:
     assert table in {"run_event", "outbox"}
     with engine.connect() as connection:
         return int(connection.scalar(text(f"select count(*) from {table}")) or 0)
+
+
+def database_now(engine: Engine) -> datetime:
+    with engine.connect() as connection:
+        value = connection.scalar(text("select clock_timestamp()"))
+    assert isinstance(value, datetime)
+    return value

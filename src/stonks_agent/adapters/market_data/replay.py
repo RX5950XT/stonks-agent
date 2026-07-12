@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import json
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from itertools import pairwise
@@ -189,6 +189,18 @@ class ReplayQuery(BaseModel):
     symbol: NonEmptyString
     interval: str = Field(pattern=r"^(?:1d|[1-9][0-9]*m)$")
     scenario: str = Field(default="canonical", pattern=r"^[a-z][a-z0-9_-]{0,31}$")
+    start_date: date | None = None
+    end_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_range(self) -> Self:
+        if (
+            self.start_date is not None
+            and self.end_date is not None
+            and self.start_date > self.end_date
+        ):
+            raise ValueError("start_date must not be after end_date")
+        return self
 
 
 class ReplayMarketDataAdapter:
@@ -239,7 +251,27 @@ class ReplayMarketDataAdapter:
                 "replay_fixture_not_available_at_as_of",
                 request.as_of,
             )
+        if not _within_requested_dates(fixture.dataset, query):
+            return _failure_observation(
+                ProviderDataState.FETCH_FAILED,
+                "replay_fixture_outside_requested_range",
+                request.as_of,
+            )
         return _fixture_observation(fixture)
+
+
+def _within_requested_dates(dataset: ReplayDataset, query: ReplayQuery) -> bool:
+    timezone = ZoneInfo(dataset.timezone)
+    dates = tuple(
+        bar.timeline.event_time.astimezone(timezone).date() for bar in dataset.bars
+    )
+    return not (
+        (
+            query.start_date is not None
+            and any(item < query.start_date for item in dates)
+        )
+        or (query.end_date is not None and any(item > query.end_date for item in dates))
+    )
 
 
 def _load_manifest(path: Path) -> ReplayManifest:

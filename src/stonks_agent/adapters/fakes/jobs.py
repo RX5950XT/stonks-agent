@@ -161,9 +161,9 @@ class InMemoryJobRunner:
 
     def _new_attempt(self, job: _Job, lease_for: timedelta) -> JobAttempt:
         job.generation += 1
-        job.nonce = stable_hash(
-            (job.job_id, job.generation, self._clock.isoformat())
-        )[:32]
+        job.nonce = stable_hash((job.job_id, job.generation, self._clock.isoformat()))[
+            :32
+        ]
         job.lease_until = self._clock + lease_for
         return JobAttempt(
             job_id=job.job_id,
@@ -172,9 +172,7 @@ class InMemoryJobRunner:
             lease_until=job.lease_until,
         )
 
-    def _owns_active_attempt(
-        self, job: _Job, generation: int, nonce: str
-    ) -> bool:
+    def _owns_active_attempt(self, job: _Job, generation: int, nonce: str) -> bool:
         return (
             generation == job.generation
             and nonce == job.nonce
@@ -223,4 +221,3 @@ class InMemoryJobRunner:
             event=event,
             outbox_message=outbox,
         )
-

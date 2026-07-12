@@ -69,9 +69,7 @@ class Instrument(BaseModel):
             ordered = sorted(items, key=lambda item: item.valid_from)
             for previous, current in pairwise(ordered):
                 if previous.valid_to is None or current.valid_from < previous.valid_to:
-                    raise ValueError(
-                        f"provider symbol windows overlap for {provider}"
-                    )
+                    raise ValueError(f"provider symbol windows overlap for {provider}")
         return self
 
     def provider_symbol(self, provider: str, as_of: datetime) -> str:

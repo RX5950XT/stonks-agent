@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from collections import deque
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
@@ -87,6 +89,33 @@ def test_fetch_uses_fixed_route_and_preserves_openbb_metadata() -> None:
         "http://127.0.0.1:6900/api/v1/equity/price/historical"
         "?symbol=AAPL&start_date=2026-01-01&end_date=2026-01-02&provider=yfinance"
     )
+
+
+def test_common_daily_policy_query_ignores_non_openbb_routing_fields() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        seen.append(incoming)
+        return httpx.Response(200, json=response_payload(), request=incoming)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
+            request(
+                interval="1d",
+                scenario="canonical",
+                start_date="2026-01-01",
+                end_date="2026-01-02",
+            )
+        )
+
+    assert observation.state is ProviderDataState.AVAILABLE
+    assert len(seen) == 1
+    assert dict(seen[0].url.params) == {
+        "symbol": "AAPL",
+        "start_date": "2026-01-01",
+        "end_date": "2026-01-02",
+        "provider": "yfinance",
+    }
 
 
 def test_unsupported_capability_is_not_a_fetch_failure() -> None:
@@ -377,7 +406,10 @@ def test_redirects_and_http_errors_are_typed_failures(
     assert calls == 1
 
 
-@pytest.mark.parametrize("content_length", ["1048577", "invalid", "-1"])
+@pytest.mark.parametrize(
+    "content_length",
+    ["1048577", "invalid", "-1", "9" * 5000],
+)
 def test_invalid_or_oversized_content_length_fails_before_streaming(
     content_length: str,
 ) -> None:
@@ -403,6 +435,67 @@ def test_invalid_or_oversized_content_length_fails_before_streaming(
 
     assert observation.state is ProviderDataState.FETCH_FAILED
     assert observation.reasons == ("openbb_invalid_response",)
+
+
+def test_non_identity_content_encoding_is_rejected_without_decompression() -> None:
+    class NeverRead(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            raise AssertionError("encoded response body must not be consumed")
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        assert incoming.headers["Accept-Encoding"] == "identity"
+        return httpx.Response(
+            200,
+            headers={
+                "content-type": "application/json",
+                "content-encoding": "gzip",
+            },
+            stream=NeverRead(),
+            request=incoming,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
+            request()
+        )
+
+    assert observation.state is ProviderDataState.FETCH_FAILED
+    assert observation.reasons == ("openbb_invalid_response",)
+
+
+def test_total_response_deadline_stops_slow_chunk_stream() -> None:
+    payload = json.dumps(response_payload()).encode()
+
+    class ChunkedBody(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            midpoint = len(payload) // 2
+            yield payload[:midpoint]
+            yield payload[midpoint:]
+
+    ticks: deque[float] = deque([0.0, 0.25, 1.25])
+
+    def monotonic_clock() -> float:
+        return ticks.popleft() if len(ticks) > 1 else ticks[0]
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            stream=ChunkedBody(),
+            request=incoming,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        adapter = OpenBBRestAdapter(
+            client=client,
+            timeout_seconds=1.0,
+            clock=lambda: NOW,
+            monotonic_clock=monotonic_clock,
+        )
+        observation = adapter.fetch(request())
+
+    assert observation.state is ProviderDataState.FETCH_FAILED
+    assert observation.reasons == ("openbb_unavailable",)
 
 
 @pytest.mark.parametrize(

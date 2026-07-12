@@ -33,6 +33,30 @@ def test_future_evidence_is_rejected_in_strict_point_in_time_mode() -> None:
         timeline(available_at=AS_OF + timedelta(microseconds=1))
 
 
+@given(
+    offset_microseconds=st.integers(min_value=-86_400_000_000, max_value=86_400_000_000)
+)
+def test_strict_point_in_time_acceptance_is_exactly_bounded_by_as_of(
+    offset_microseconds: int,
+) -> None:
+    available_at = AS_OF + timedelta(microseconds=offset_microseconds)
+    payload = {
+        "event_time": min(available_at, AS_OF) - timedelta(seconds=2),
+        "published_at": min(available_at, AS_OF) - timedelta(seconds=1),
+        "available_at": available_at,
+        "observed_at": max(available_at, AS_OF),
+        "as_of": AS_OF,
+        "availability_certainty": AvailabilityCertainty.PROVEN,
+        "strict_point_in_time": True,
+    }
+
+    if available_at > AS_OF:
+        with pytest.raises(ValidationError, match="future evidence"):
+            EvidenceTimeline.model_validate(payload)
+    else:
+        assert EvidenceTimeline.model_validate(payload).available_at == available_at
+
+
 def test_unknown_availability_is_rejected_in_strict_mode() -> None:
     with pytest.raises(ValidationError, match="proven availability"):
         timeline(availability_certainty=AvailabilityCertainty.UNKNOWN)

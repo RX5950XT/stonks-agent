@@ -76,4 +76,3 @@ def test_wire_chain_serialization_contains_no_trade_intent_contract() -> None:
 
     assert "TradeIntent" not in serialized
     assert "trade_intent" not in serialized
-

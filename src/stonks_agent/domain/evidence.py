@@ -32,12 +32,16 @@ class EvidenceTimeline(BaseModel):
         if self.published_at is not None and self.available_at < self.published_at:
             raise ValueError("available_at cannot precede published_at")
         if self.strict_point_in_time and self.available_at > self.as_of:
-            raise ValueError("future evidence is forbidden in strict point-in-time mode")
+            raise ValueError(
+                "future evidence is forbidden in strict point-in-time mode"
+            )
         if self.available_at > self.observed_at:
             raise ValueError("available_at cannot be later than observed_at")
         if (
             self.strict_point_in_time
             and self.availability_certainty is not AvailabilityCertainty.PROVEN
         ):
-            raise ValueError("strict point-in-time evidence requires proven availability")
+            raise ValueError(
+                "strict point-in-time evidence requires proven availability"
+            )
         return self

@@ -16,6 +16,7 @@ from stonks_agent.adapters.artifacts._common import (
     prepare_manifest,
     validate_hash,
 )
+from stonks_agent.adapters.artifacts._file_lock import exclusive_file_lock
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, Success
 from stonks_agent.ports.artifact_store import ArtifactManifest
 
@@ -52,25 +53,33 @@ class LocalArtifactStore:
             return prepared
         payload, requested = prepared.value
         with self._lock:
-            existing = self.manifest(requested.content_hash)
-            if isinstance(existing, Success):
-                if existing.value.metadata != requested.metadata:
-                    return failure(
-                        ErrorCode.CONFLICT,
-                        "Artifact metadata conflicts with finalized manifest",
-                    )
-                return existing
-            if existing.error.code is not ErrorCode.NOT_FOUND:
-                return existing
             try:
-                self._atomic_write(self._object_path(requested.content_hash), payload)
-                self._atomic_write(
-                    self._manifest_path(requested.content_hash),
-                    _serialize_manifest(requested),
-                )
+                with exclusive_file_lock(self._lock_path(requested.content_hash)):
+                    return self._finalize_locked(payload, requested)
             except OSError:
                 return failure(ErrorCode.INTERNAL_ERROR, "Artifact finalize failed")
-            return Success(requested)
+
+    def _finalize_locked(
+        self,
+        payload: bytes,
+        requested: ArtifactManifest,
+    ) -> Result[ArtifactManifest]:
+        existing = self.manifest(requested.content_hash)
+        if isinstance(existing, Success):
+            if existing.value.metadata != requested.metadata:
+                return failure(
+                    ErrorCode.CONFLICT,
+                    "Artifact metadata conflicts with finalized manifest",
+                )
+            return existing
+        if existing.error.code is not ErrorCode.NOT_FOUND:
+            return existing
+        self._atomic_write(self._object_path(requested.content_hash), payload)
+        self._atomic_write(
+            self._manifest_path(requested.content_hash),
+            _serialize_manifest(requested),
+        )
+        return Success(requested)
 
     def read(self, content_hash: str) -> Result[bytes]:
         if not validate_hash(content_hash):
@@ -82,7 +91,9 @@ class LocalArtifactStore:
             try:
                 content = self._object_path(content_hash).read_bytes()
             except FileNotFoundError:
-                return failure(ErrorCode.CONFLICT, "Finalized artifact object is missing")
+                return failure(
+                    ErrorCode.CONFLICT, "Finalized artifact object is missing"
+                )
             except OSError:
                 return failure(ErrorCode.INTERNAL_ERROR, "Artifact read failed")
             if (
@@ -122,10 +133,15 @@ class LocalArtifactStore:
     def _manifest_path(self, content_hash: str) -> Path:
         return self._root / "manifests" / content_hash[:2] / f"{content_hash}.json"
 
+    def _lock_path(self, content_hash: str) -> Path:
+        return self._root / "locks" / content_hash[:2] / f"{content_hash}.lock"
+
     @staticmethod
     def _atomic_write(path: Path, content: bytes) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary_name = tempfile.mkstemp(prefix=".pending-", dir=path.parent)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=".pending-", dir=path.parent
+        )
         temporary = Path(temporary_name)
         try:
             with os.fdopen(descriptor, "wb") as stream:

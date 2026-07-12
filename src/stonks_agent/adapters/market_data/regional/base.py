@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -21,6 +22,16 @@ class RegionalCapability(StrEnum):
     PRICES_INTRADAY = "prices_intraday"
     CORPORATE_ACTIONS = "corporate_actions"
     FUNDAMENTALS = "fundamentals"
+
+
+@dataclass(frozen=True)
+class RegionalProviderCapability:
+    """One exact market/capability/endpoint implemented by an adapter."""
+
+    provider: str
+    market: str
+    capability: str
+    endpoint: str
 
 
 class RegionalInstrumentMapping(Instrument):

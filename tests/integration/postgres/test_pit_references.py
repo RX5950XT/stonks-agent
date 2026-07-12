@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 from sqlalchemy import Connection, Engine, text
 from sqlalchemy.exc import DBAPIError
 
@@ -48,6 +50,109 @@ def test_run_rejects_snapshot_later_than_run_as_of(clean_database: Engine) -> No
         clean_database.begin() as connection,
     ):
         _link_run_snapshot(connection)
+
+
+@settings(
+    max_examples=20,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+@given(
+    available_offset=st.integers(min_value=-3_600, max_value=3_600),
+    evidence_lag=st.integers(min_value=0, max_value=3_600),
+    snapshot_offset=st.integers(min_value=-3_600, max_value=3_600),
+)
+def test_snapshot_evidence_pit_trigger_matches_temporal_order_property(
+    clean_database: Engine,
+    available_offset: int,
+    evidence_lag: int,
+    snapshot_offset: int,
+) -> None:
+    available_at = NOW + timedelta(seconds=available_offset)
+    evidence_as_of = available_at + timedelta(seconds=evidence_lag)
+    snapshot_as_of = NOW + timedelta(seconds=snapshot_offset)
+    connection = clean_database.connect()
+    transaction = connection.begin()
+    try:
+        _insert_artifact(connection, ARTIFACT_HASH)
+        _insert_artifact(connection, MANIFEST_HASH)
+        _insert_evidence(
+            connection,
+            available_at=available_at,
+            evidence_as_of=evidence_as_of,
+        )
+        _insert_snapshot(connection, as_of=snapshot_as_of)
+
+        if available_at <= snapshot_as_of and evidence_as_of <= snapshot_as_of:
+            _link_snapshot_evidence(connection)
+        else:
+            with pytest.raises(
+                DBAPIError,
+                match="snapshot cannot reference future evidence",
+            ):
+                _link_snapshot_evidence(connection)
+    finally:
+        transaction.rollback()
+        connection.close()
+
+
+def test_snapshot_rejects_evidence_as_of_after_snapshot_cutoff(
+    clean_database: Engine,
+) -> None:
+    with clean_database.begin() as connection:
+        _insert_artifact(connection, ARTIFACT_HASH)
+        _insert_artifact(connection, MANIFEST_HASH)
+        _insert_evidence(
+            connection,
+            available_at=NOW,
+            evidence_as_of=NOW + timedelta(seconds=1),
+        )
+        _insert_snapshot(connection, as_of=NOW)
+
+    with (
+        pytest.raises(DBAPIError, match="snapshot cannot reference future evidence"),
+        clean_database.begin() as connection,
+    ):
+        _link_snapshot_evidence(connection)
+
+
+@settings(
+    max_examples=20,
+    deadline=None,
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
+@given(
+    snapshot_offset=st.integers(min_value=-3_600, max_value=3_600),
+    run_offset=st.integers(min_value=-3_600, max_value=3_600),
+)
+def test_run_snapshot_pit_trigger_matches_temporal_order_property(
+    clean_database: Engine,
+    snapshot_offset: int,
+    run_offset: int,
+) -> None:
+    snapshot_as_of = NOW + timedelta(seconds=snapshot_offset)
+    run_as_of = NOW + timedelta(seconds=run_offset)
+    connection = clean_database.connect()
+    transaction = connection.begin()
+    try:
+        _insert_artifact(connection, ARTIFACT_HASH)
+        _insert_artifact(connection, MANIFEST_HASH)
+        _insert_evidence(connection, available_at=NOW - timedelta(hours=2))
+        _insert_snapshot(connection, as_of=snapshot_as_of)
+        _link_snapshot_evidence(connection)
+        _insert_run(connection, as_of=run_as_of)
+
+        if snapshot_as_of <= run_as_of:
+            _link_run_snapshot(connection)
+        else:
+            with pytest.raises(
+                DBAPIError,
+                match="run cannot reference a future snapshot",
+            ):
+                _link_run_snapshot(connection)
+    finally:
+        transaction.rollback()
+        connection.close()
 
 
 def test_valid_run_snapshot_evidence_chain_is_inserted(clean_database: Engine) -> None:
@@ -123,6 +228,74 @@ def test_snapshot_links_are_append_only(clean_database: Engine) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "tamper_sql",
+    (
+        "update run set as_of = as_of + interval '1 second'",
+        "update run set input_hash = repeat('f', 64)",
+        "update run set policy_id = 'rogue/1'",
+        "update run set run_type = 'rogue'",
+        "update run set idempotency_key = 'rogue'",
+        "update run set created_at = created_at + interval '1 second'",
+    ),
+)
+def test_linked_run_authority_fields_are_immutable(
+    clean_database: Engine,
+    tamper_sql: str,
+) -> None:
+    with clean_database.begin() as connection:
+        _insert_valid_chain(connection)
+
+    with (
+        pytest.raises(DBAPIError, match="linked run authority is immutable"),
+        clean_database.begin() as connection,
+    ):
+        connection.execute(text(tamper_sql))
+
+
+def test_linked_run_allows_status_version_and_timestamp_transition(
+    clean_database: Engine,
+) -> None:
+    with clean_database.begin() as connection:
+        _insert_valid_chain(connection)
+        connection.execute(
+            text(
+                """
+                update run
+                set status = 'succeeded', version = version + 1,
+                    updated_at = updated_at + interval '1 second'
+                where run_id = :run_id
+                """
+            ),
+            {"run_id": RUN_ID},
+        )
+        row = connection.execute(
+            text("select status, version, updated_at from run where run_id = :run_id"),
+            {"run_id": RUN_ID},
+        ).one()
+
+    assert row.status == "succeeded"
+    assert row.version == 2
+    assert row.updated_at == NOW + timedelta(seconds=1)
+
+
+@pytest.mark.parametrize("table", ("evidence_item", "dataset_snapshot"))
+def test_snapshot_authority_rows_reject_as_of_mutation(
+    clean_database: Engine,
+    table: str,
+) -> None:
+    with clean_database.begin() as connection:
+        _insert_valid_chain(connection)
+
+    with (
+        pytest.raises(DBAPIError, match="append-only"),
+        clean_database.begin() as connection,
+    ):
+        connection.execute(
+            text(f"update {table} set as_of = as_of - interval '1 second'")
+        )
+
+
 def test_worker_has_only_required_snapshot_completion_grants(
     migrated_engine: Engine,
 ) -> None:
@@ -141,13 +314,28 @@ def test_worker_has_only_required_snapshot_completion_grants(
                 """
             )
         ).all()
+        run_updates = (
+            connection.execute(
+                text(
+                    """
+                select column_name
+                from information_schema.column_privileges
+                where table_schema = 'public' and table_name = 'run'
+                  and grantee = 'stonks_worker' and privilege_type = 'UPDATE'
+                """
+                )
+            )
+            .scalars()
+            .all()
+        )
 
     grants = {(row.table_name, row.privilege_type) for row in rows}
     assert ("evidence_item", "INSERT") in grants
     assert ("dataset_snapshot", "INSERT") in grants
     assert ("dataset_snapshot_evidence", "INSERT") in grants
     assert ("run_dataset_snapshot", "INSERT") in grants
-    assert ("run", "UPDATE") in grants
+    assert ("run", "UPDATE") not in grants
+    assert set(run_updates) == {"status", "updated_at", "version"}
     assert ("evidence_item", "UPDATE") not in grants
     assert ("dataset_snapshot", "UPDATE") not in grants
 
@@ -176,6 +364,7 @@ def _insert_evidence(
     connection: Connection,
     *,
     available_at: datetime,
+    evidence_as_of: datetime | None = None,
     certainty: str = "proven",
     strict: bool = True,
 ) -> None:
@@ -202,7 +391,7 @@ def _insert_evidence(
             "now": NOW,
             "available_at": available_at,
             "observed_at": available_at,
-            "evidence_as_of": available_at,
+            "evidence_as_of": evidence_as_of or available_at,
             "certainty": certainty,
             "strict": strict,
             "content_hash": EVIDENCE_HASH,
@@ -275,3 +464,13 @@ def _link_run_snapshot(connection: Connection) -> None:
         ),
         {"run_id": RUN_ID, "snapshot_id": SNAPSHOT_ID, "now": NOW},
     )
+
+
+def _insert_valid_chain(connection: Connection) -> None:
+    _insert_artifact(connection, ARTIFACT_HASH)
+    _insert_artifact(connection, MANIFEST_HASH)
+    _insert_evidence(connection, available_at=NOW)
+    _insert_snapshot(connection, as_of=NOW)
+    _link_snapshot_evidence(connection)
+    _insert_run(connection, as_of=NOW)
+    _link_run_snapshot(connection)

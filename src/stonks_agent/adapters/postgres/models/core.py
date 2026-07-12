@@ -232,9 +232,7 @@ class DatasetSnapshotRow(Base):
 
 class DatasetSnapshotEvidenceRow(Base):
     __tablename__ = "dataset_snapshot_evidence"
-    __table_args__ = (
-        PrimaryKeyConstraint("snapshot_id", "evidence_id"),
-    )
+    __table_args__ = (PrimaryKeyConstraint("snapshot_id", "evidence_id"),)
 
     snapshot_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
@@ -310,7 +308,7 @@ class JobRow(Base):
         CheckConstraint("attempts <= max_attempts", name="job_attempts_within_max"),
         CheckConstraint("attempt_generation >= 0", name="job_generation_nonnegative"),
         CheckConstraint(
-            "deadline_at is null or deadline_at > not_before",
+            "deadline_at > not_before",
             name="job_deadline_after_not_before",
         ),
         UniqueConstraint("idempotency_key", name="uq_job_idempotency_key"),
@@ -318,8 +316,10 @@ class JobRow(Base):
     )
 
     job_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
-    run_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("run.run_id", ondelete="RESTRICT")
+    run_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("run.run_id", ondelete="RESTRICT"),
+        nullable=False,
     )
     job_type: Mapped[str] = mapped_column(String(128), index=True)
     payload: Mapped[dict[str, object]] = mapped_column(JSONB)
@@ -327,7 +327,9 @@ class JobRow(Base):
     status: Mapped[str] = mapped_column(String(32), index=True)
     idempotency_key: Mapped[str] = mapped_column(String(256))
     not_before: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deadline_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     attempts: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     max_attempts: Mapped[int] = mapped_column(Integer)
     attempt_generation: Mapped[int] = mapped_column(Integer, server_default=text("0"))
@@ -355,6 +357,10 @@ class OutboxRow(Base):
         Index("ix_outbox_delivery", "published_at", "not_before"),
         CheckConstraint("attempts >= 0", name="outbox_attempts_nonnegative"),
         CheckConstraint("max_attempts > 0", name="outbox_max_attempts_positive"),
+        CheckConstraint(
+            "lease_generation >= 0",
+            name="outbox_lease_generation_nonnegative",
+        ),
     )
 
     outbox_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
@@ -371,6 +377,8 @@ class OutboxRow(Base):
     max_attempts: Mapped[int] = mapped_column(Integer, server_default=text("10"))
     lease_owner: Mapped[str | None] = mapped_column(String(128))
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lease_generation: Mapped[int] = mapped_column(Integer, server_default=text("0"))
+    lease_nonce: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     last_error: Mapped[dict[str, object] | None] = mapped_column(JSONB)
 
 

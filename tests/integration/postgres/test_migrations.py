@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from uuid import uuid4
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
@@ -30,6 +30,48 @@ EXPECTED_TABLES = {
     "inbox",
     "provider_health",
     "usage_budget",
+}
+ROLE_NAMES = {"stonks_app", "stonks_reader", "stonks_worker"}
+APP_MUTABLE_TABLES = {
+    "instrument",
+    "instrument_alias",
+    "trading_calendar_version",
+    "provider_health",
+    "usage_budget",
+}
+WORKER_APPEND_TABLES = {
+    "artifact_manifest",
+    "evidence_item",
+    "evidence_edge",
+    "dataset_snapshot",
+    "dataset_snapshot_evidence",
+    "run_dataset_snapshot",
+    "run_event",
+    "inbox",
+}
+QUEUE_UPDATE_COLUMNS = {
+    "job": {
+        "status",
+        "not_before",
+        "attempts",
+        "attempt_generation",
+        "attempt_nonce",
+        "lease_owner",
+        "lease_until",
+        "result_artifact_hash",
+        "last_error",
+        "updated_at",
+    },
+    "outbox": {
+        "not_before",
+        "published_at",
+        "attempts",
+        "lease_owner",
+        "lease_until",
+        "lease_generation",
+        "lease_nonce",
+        "last_error",
+    },
 }
 NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
 
@@ -64,7 +106,9 @@ def test_append_only_artifact_rejects_update_and_delete(
         migrated_engine.begin() as connection,
     ):
         connection.execute(
-            text("update artifact_manifest set size_bytes = 2 where content_hash = :hash"),
+            text(
+                "update artifact_manifest set size_bytes = 2 where content_hash = :hash"
+            ),
             {"hash": content_hash},
         )
 
@@ -108,21 +152,285 @@ def test_database_roles_have_least_privilege_grants(migrated_engine: Engine) -> 
         rows = connection.execute(
             text(
                 """
-                select grantee, privilege_type
-                from information_schema.role_table_grants
+                select table_name, grantee, privilege_type
+                from information_schema.table_privileges
                 where table_schema = 'public'
-                  and table_name = 'artifact_manifest'
-                  and grantee in ('stonks_app', 'stonks_worker', 'stonks_reader')
+                  and grantee in (
+                      'PUBLIC', 'stonks_app', 'stonks_worker', 'stonks_reader'
+                  )
                 """
             )
         ).all()
 
-    grants = {(row.grantee, row.privilege_type) for row in rows}
-    assert ("stonks_app", "SELECT") in grants
-    assert ("stonks_app", "INSERT") in grants
-    assert ("stonks_reader", "SELECT") in grants
-    assert ("stonks_app", "UPDATE") not in grants
-    assert ("stonks_app", "DELETE") not in grants
+    grants = {
+        (row.table_name, row.grantee, row.privilege_type)
+        for row in rows
+        if row.table_name in EXPECTED_TABLES
+    }
+    assert grants == _expected_table_grants()
+
+
+def test_database_roles_have_exact_schema_privileges(migrated_engine: Engine) -> None:
+    assert _schema_grants(migrated_engine) == {(role, "USAGE") for role in ROLE_NAMES}
+
+
+def test_run_updates_are_limited_to_transition_columns(
+    migrated_engine: Engine,
+) -> None:
+    with migrated_engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                """
+                select grantee, column_name, privilege_type
+                from information_schema.column_privileges
+                where table_schema = 'public' and table_name = 'run'
+                  and grantee in ('stonks_app', 'stonks_worker')
+                  and privilege_type = 'UPDATE'
+                """
+            )
+        ).all()
+
+    assert {(row.grantee, row.column_name, row.privilege_type) for row in rows} == {
+        (role, column, "UPDATE")
+        for role in ("stonks_app", "stonks_worker")
+        for column in ("status", "updated_at", "version")
+    }
+
+
+def test_queue_updates_are_limited_to_transition_columns(
+    migrated_engine: Engine,
+) -> None:
+    with migrated_engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                """
+                select table_name, grantee, column_name, privilege_type
+                from information_schema.column_privileges
+                where table_schema = 'public'
+                  and table_name in ('job', 'outbox')
+                  and grantee in ('stonks_app', 'stonks_worker')
+                  and privilege_type = 'UPDATE'
+                """
+            )
+        ).all()
+
+    assert {
+        (row.table_name, row.grantee, row.column_name, row.privilege_type)
+        for row in rows
+    } == {
+        (table, role, column, "UPDATE")
+        for table, columns in QUEUE_UPDATE_COLUMNS.items()
+        for role in ("stonks_app", "stonks_worker")
+        for column in columns
+    }
+
+
+@pytest.mark.parametrize("role", ("stonks_app", "stonks_worker"))
+@pytest.mark.parametrize(
+    ("table", "protected_column"),
+    (("job", "payload"), ("outbox", "payload")),
+)
+def test_queue_roles_cannot_update_canonical_payloads(
+    migrated_engine: Engine,
+    role: str,
+    table: str,
+    protected_column: str,
+) -> None:
+    with (
+        pytest.raises(DBAPIError, match="permission denied"),
+        migrated_engine.begin() as connection,
+    ):
+        connection.execute(text(f"set local role {role}"))
+        connection.execute(
+            text(f"update {table} set {protected_column} = {protected_column}")
+        )
+
+
+@pytest.mark.parametrize("role", ("stonks_app", "stonks_worker"))
+def test_queue_roles_can_apply_snapshot_retry_transition(
+    migrated_engine: Engine,
+    role: str,
+) -> None:
+    with migrated_engine.begin() as connection:
+        connection.execute(text(f"set local role {role}"))
+        connection.execute(
+            text(
+                """
+                update job
+                set status = 'queued', not_before = :now,
+                    attempt_nonce = null, lease_owner = null,
+                    lease_until = null, last_error = :last_error,
+                    updated_at = :now
+                where false
+                """
+            ),
+            {
+                "now": NOW,
+                "last_error": '{"code":"retry"}',
+            },
+        )
+
+
+def test_queue_column_grants_downgrade_and_reupgrade(
+    migrated_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    command.downgrade(alembic_config, "0007")
+    try:
+        assert _table_update_roles(migrated_engine, "job") == {
+            "stonks_app",
+            "stonks_worker",
+        }
+        assert _table_update_roles(migrated_engine, "outbox") == {
+            "stonks_app",
+            "stonks_worker",
+        }
+    finally:
+        command.upgrade(alembic_config, "head")
+
+    assert _table_update_roles(migrated_engine, "job") == set()
+    assert _table_update_roles(migrated_engine, "outbox") == set()
+
+
+def test_pit_authority_migration_downgrade_and_reupgrade(
+    migrated_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    command.downgrade(alembic_config, "0006")
+    try:
+        assert not _trigger_exists(
+            migrated_engine,
+            "trg_run_linked_authority_immutable",
+        )
+        assert _table_update_roles(migrated_engine, "run") == {
+            "stonks_app",
+            "stonks_worker",
+        }
+    finally:
+        command.upgrade(alembic_config, "head")
+
+    assert _trigger_exists(migrated_engine, "trg_run_linked_authority_immutable")
+    assert _table_update_roles(migrated_engine, "run") == set()
+
+
+def test_public_schema_acl_downgrade_and_reupgrade(
+    migrated_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    command.downgrade(alembic_config, "0005")
+    try:
+        assert _schema_grants(migrated_engine) == {
+            *((role, "USAGE") for role in ROLE_NAMES),
+            ("PUBLIC", "USAGE"),
+        }
+    finally:
+        command.upgrade(alembic_config, "head")
+
+    assert _schema_grants(migrated_engine) == {(role, "USAGE") for role in ROLE_NAMES}
+
+
+def test_job_requires_run_and_deadline(clean_database: Engine) -> None:
+    run_id = uuid4()
+    with clean_database.begin() as connection:
+        _insert_run(connection, run_id)
+
+    with pytest.raises(IntegrityError), clean_database.begin() as connection:
+        _insert_job(connection, run_id=None, deadline_at=NOW)
+
+    with pytest.raises(IntegrityError), clean_database.begin() as connection:
+        _insert_job(connection, run_id=run_id, deadline_at=None)
+
+
+def test_job_deadline_constraint_is_unconditional(migrated_engine: Engine) -> None:
+    constraints = inspect(migrated_engine).get_check_constraints("job")
+    deadline = next(
+        item for item in constraints if item["name"] == "job_deadline_after_not_before"
+    )
+    normalized = " ".join(str(deadline["sqltext"]).lower().split())
+
+    assert normalized == "deadline_at > not_before"
+
+
+def _expected_table_grants() -> set[tuple[str, str, str]]:
+    expected = {(table, "stonks_reader", "SELECT") for table in EXPECTED_TABLES}
+    expected.update(
+        (table, "stonks_app", privilege)
+        for table in EXPECTED_TABLES
+        for privilege in ("SELECT", "INSERT")
+    )
+    expected.update((table, "stonks_app", "UPDATE") for table in APP_MUTABLE_TABLES)
+    expected.update(
+        (table, "stonks_worker", privilege)
+        for table in WORKER_APPEND_TABLES
+        for privilege in ("SELECT", "INSERT")
+    )
+    expected.update(
+        (table, "stonks_worker", privilege)
+        for table in QUEUE_UPDATE_COLUMNS
+        for privilege in ("SELECT", "INSERT")
+    )
+    expected.update(
+        {
+            ("run", "stonks_worker", "SELECT"),
+        }
+    )
+    return expected
+
+
+def _schema_grants(engine: Engine) -> set[tuple[str, str]]:
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                """
+                select coalesce(role.rolname, 'PUBLIC') as grantee,
+                       acl.privilege_type
+                from pg_namespace namespace
+                cross join lateral aclexplode(
+                    coalesce(namespace.nspacl, acldefault('n', namespace.nspowner))
+                ) acl
+                left join pg_roles role on role.oid = acl.grantee
+                where namespace.nspname = 'public'
+                  and (acl.grantee = 0 or role.rolname in (
+                      'stonks_app', 'stonks_worker', 'stonks_reader'
+                  ))
+                """
+            )
+        ).all()
+    return {(row.grantee, row.privilege_type) for row in rows}
+
+
+def _trigger_exists(engine: Engine, trigger_name: str) -> bool:
+    with engine.connect() as connection:
+        return bool(
+            connection.execute(
+                text(
+                    """
+                    select exists(
+                        select 1 from pg_trigger
+                        where tgname = :trigger_name and not tgisinternal
+                    )
+                    """
+                ),
+                {"trigger_name": trigger_name},
+            ).scalar_one()
+        )
+
+
+def _table_update_roles(engine: Engine, table: str) -> set[str]:
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                """
+                select grantee
+                from information_schema.table_privileges
+                where table_schema = 'public' and table_name = :table
+                  and grantee in ('stonks_app', 'stonks_worker')
+                  and privilege_type = 'UPDATE'
+                """
+            ),
+            {"table": table},
+        ).all()
+    return {row.grantee for row in rows}
 
 
 def _insert_artifact(connection: Connection, content_hash: str) -> None:
@@ -174,5 +482,57 @@ def _insert_evidence(
             "observed_at": max(available_at, NOW),
             "content_hash": "d" * 64,
             "raw_hash": raw_artifact_hash,
+        },
+    )
+
+
+def _insert_run(connection: Connection, run_id: UUID) -> None:
+    connection.execute(
+        text(
+            """
+            insert into run
+                (run_id, run_type, status, as_of, policy_id, idempotency_key,
+                 input_hash, created_at, updated_at)
+            values
+                (:run_id, 'ingestion', 'queued', :now, 'policy/1',
+                 :idempotency_key, :input_hash, :now, :now)
+            """
+        ),
+        {
+            "run_id": run_id,
+            "now": NOW,
+            "idempotency_key": f"migration-run-{run_id}",
+            "input_hash": "e" * 64,
+        },
+    )
+
+
+def _insert_job(
+    connection: Connection,
+    *,
+    run_id: UUID | None,
+    deadline_at: datetime | None,
+) -> None:
+    connection.execute(
+        text(
+            """
+            insert into job
+                (job_id, run_id, job_type, payload, payload_hash, status,
+                 idempotency_key, not_before, deadline_at, max_attempts,
+                 created_at, updated_at)
+            values
+                (:job_id, :run_id, 'ingestion', '{}'::jsonb, :payload_hash,
+                 'queued', :idempotency_key, :not_before, :deadline_at, 3,
+                 :created_at, :created_at)
+            """
+        ),
+        {
+            "job_id": uuid4(),
+            "run_id": run_id,
+            "payload_hash": "f" * 64,
+            "idempotency_key": f"migration-job-{uuid4()}",
+            "not_before": NOW - timedelta(seconds=1),
+            "deadline_at": deadline_at,
+            "created_at": NOW,
         },
     )

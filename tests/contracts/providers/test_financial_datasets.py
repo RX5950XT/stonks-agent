@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+import json
+from collections import deque
+from collections.abc import Callable, Iterator
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -122,6 +124,35 @@ def test_valid_response_uses_fixed_endpoint_and_returns_frozen_dto() -> None:
     with pytest.raises(ValidationError):
         observation.data[0].open = Decimal("1")  # type: ignore[misc]
     assert API_KEY not in repr(adapter)
+
+
+def test_common_daily_policy_query_maps_to_financial_datasets_params() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert dict(request.url.params) == {
+            "ticker": "AAPL",
+            "interval": "day",
+            "start_date": "2026-01-01",
+            "end_date": "2026-01-02",
+        }
+        return httpx.Response(200, json=prices_payload(), request=request)
+
+    adapter, client = build_adapter(handler)
+    try:
+        observation = adapter.fetch(
+            fetch_request(
+                query={
+                    "symbol": "AAPL",
+                    "interval": "1d",
+                    "start_date": "2026-01-01",
+                    "end_date": "2026-01-02",
+                    "scenario": "canonical",
+                }
+            )
+        )
+    finally:
+        client.close()
+
+    assert observation.state is ProviderDataState.AVAILABLE
 
 
 @pytest.mark.parametrize("api_key", [None, "", "   "])
@@ -276,12 +307,13 @@ def test_declared_response_size_limit_fails_closed() -> None:
     assert observation.reasons == ("response_too_large",)
 
 
-def test_invalid_content_length_fails_closed() -> None:
+@pytest.mark.parametrize("content_length", ["not-an-integer", "9" * 5000])
+def test_invalid_content_length_fails_closed(content_length: str) -> None:
     adapter, client = build_adapter(
         lambda request: httpx.Response(
             200,
             content=b"{}",
-            headers={"Content-Length": "not-an-integer"},
+            headers={"Content-Length": content_length},
             request=request,
         )
     )
@@ -292,6 +324,61 @@ def test_invalid_content_length_fails_closed() -> None:
 
     assert observation.state is ProviderDataState.FETCH_FAILED
     assert observation.reasons == ("invalid_content_length",)
+
+
+def test_non_identity_content_encoding_is_rejected_without_decompression() -> None:
+    class NeverRead(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            raise AssertionError("encoded response body must not be consumed")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Accept-Encoding"] == "identity"
+        return httpx.Response(
+            200,
+            headers={"Content-Encoding": "gzip"},
+            stream=NeverRead(),
+            request=request,
+        )
+
+    adapter, client = build_adapter(handler)
+    try:
+        observation = adapter.fetch(fetch_request())
+    finally:
+        client.close()
+
+    assert observation.state is ProviderDataState.FETCH_FAILED
+    assert observation.reasons == ("unsupported_content_encoding",)
+
+
+def test_total_response_deadline_stops_slow_chunk_stream() -> None:
+    payload = json.dumps(prices_payload()).encode()
+
+    class ChunkedBody(httpx.SyncByteStream):
+        def __iter__(self) -> Iterator[bytes]:
+            midpoint = len(payload) // 2
+            yield payload[:midpoint]
+            yield payload[midpoint:]
+
+    ticks: deque[float] = deque([0.0, 0.25, 1.25])
+
+    def monotonic_clock() -> float:
+        return ticks.popleft() if len(ticks) > 1 else ticks[0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=ChunkedBody(), request=request)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        adapter = FinancialDatasetsAdapter(
+            client=client,
+            api_key=API_KEY,
+            timeout_seconds=1.0,
+            clock=lambda: NOW,
+            monotonic_clock=monotonic_clock,
+        )
+        observation = adapter.fetch(fetch_request())
+
+    assert observation.state is ProviderDataState.FETCH_FAILED
+    assert observation.reasons == ("timeout",)
 
 
 @pytest.mark.parametrize(
@@ -310,9 +397,12 @@ def test_invalid_limits_are_rejected_at_configuration_boundary(
     kwargs: dict[str, object],
     message: str,
 ) -> None:
-    with httpx.Client(
-        transport=httpx.MockTransport(lambda _: httpx.Response(200))
-    ) as client, pytest.raises(ValueError, match=message):
+    with (
+        httpx.Client(
+            transport=httpx.MockTransport(lambda _: httpx.Response(200))
+        ) as client,
+        pytest.raises(ValueError, match=message),
+    ):
         FinancialDatasetsAdapter(
             client=client,
             api_key=API_KEY,
@@ -424,9 +514,7 @@ def test_unsupported_market_or_capability_never_reaches_network(
 
     adapter, client = build_adapter(handler)
     try:
-        observation = adapter.fetch(
-            fetch_request(market=market, capability=capability)
-        )
+        observation = adapter.fetch(fetch_request(market=market, capability=capability))
     finally:
         client.close()
 

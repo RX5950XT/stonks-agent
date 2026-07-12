@@ -76,7 +76,9 @@ def export_completed_run(
 ) -> FakeWireBundle:
     """Export a successful fake cycle without leaking internal record types."""
     if result.status != "completed" or result.execution_receipt is None:
-        raise ValueError("only completed runs with an execution receipt can be exported")
+        raise ValueError(
+            "only completed runs with an execution receipt can be exported"
+        )
     if result.reservation is None or result.order_intent is None:
         raise ValueError("completed execution requires reservation and order intent")
     if result.journal_transaction is None or result.execution_receipt.fill is None:
@@ -164,9 +166,7 @@ def _evidence(
     result: RunCycleResult,
     identifiers: _Identifiers,
 ) -> EvidenceItem:
-    content_hash = stable_hash(
-        {"symbol": request.symbol, "fixture_price": "100.00"}
-    )
+    content_hash = stable_hash({"symbol": request.symbol, "fixture_price": "100.00"})
     return EvidenceItem(
         evidence_id=identifiers.evidence,
         subject=request.symbol,
@@ -374,9 +374,7 @@ def _journal(
             account=posting.account,
             commodity=posting.commodity,
             side=(
-                JournalSide.DEBIT
-                if posting.signed_amount > 0
-                else JournalSide.CREDIT
+                JournalSide.DEBIT if posting.signed_amount > 0 else JournalSide.CREDIT
             ),
             amount=abs(posting.signed_amount),
         )

@@ -69,4 +69,3 @@ def test_job_idempotency_key_rejects_different_payload() -> None:
 
     with pytest.raises(IdempotencyConflict):
         runner.enqueue("research", {"snapshot_id": "snapshot-2"}, "job-key")
-

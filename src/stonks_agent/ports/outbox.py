@@ -26,6 +26,8 @@ class OutboxPort(Protocol):
         outbox_id: UUID,
         *,
         worker_id: str,
+        lease_generation: int,
+        lease_nonce: UUID,
         now: datetime,
     ) -> Result[OutboxAckReceipt]: ...
 
@@ -34,6 +36,8 @@ class OutboxPort(Protocol):
         outbox_id: UUID,
         *,
         worker_id: str,
+        lease_generation: int,
+        lease_nonce: UUID,
         now: datetime,
         retry_at: datetime,
         error_code: str,

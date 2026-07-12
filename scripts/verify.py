@@ -24,6 +24,7 @@ def commands(*, with_postgres: bool) -> tuple[tuple[str, ...], ...]:
             "--cov-config=.coveragerc.core",
         )
     checks: list[tuple[str, ...]] = [
+        (python, "-m", "ruff", "format", "--check", "."),
         (python, "-m", "ruff", "check", "."),
         (python, "-m", "mypy", "src", "packages"),
         pytest_command,

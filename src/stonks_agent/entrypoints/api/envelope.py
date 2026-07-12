@@ -72,6 +72,7 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.NOT_FOUND: 404,
     ErrorCode.CONFLICT: 409,
     ErrorCode.RATE_LIMITED: 429,
+    ErrorCode.PAYLOAD_TOO_LARGE: 413,
     ErrorCode.DATA_UNAVAILABLE: 503,
     ErrorCode.CONFIGURATION_INVALID: 500,
     ErrorCode.INTERNAL_ERROR: 500,

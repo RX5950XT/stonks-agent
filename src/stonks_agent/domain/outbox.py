@@ -21,6 +21,8 @@ class OutboxLease(BaseModel):
     idempotency_key: NonEmptyString
     lease_owner: NonEmptyString
     lease_until: UTCDateTime
+    lease_generation: int = Field(ge=1)
+    lease_nonce: UUID
     attempts: int = Field(ge=1)
 
 
@@ -29,4 +31,6 @@ class OutboxAckReceipt(BaseModel):
 
     outbox_id: UUID
     worker_id: NonEmptyString
+    lease_generation: int = Field(ge=1)
+    lease_nonce: UUID
     published_at: UTCDateTime

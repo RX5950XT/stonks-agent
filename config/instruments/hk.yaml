@@ -6,7 +6,7 @@ instruments:
     exchange_mic: XHKG
     currency: HKD
     timezone: Asia/Hong_Kong
-    supported_capabilities: [prices_daily, prices_intraday, corporate_actions]
+    supported_capabilities: [prices_intraday]
     provider_symbols:
       - provider: replay
         symbol: "0700"

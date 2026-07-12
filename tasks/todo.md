@@ -201,7 +201,7 @@
   - Provider/model allowlist、schema validation、retry budget、token/cost accounting、secret redaction。
   - Invalid output bounded repair後仍失敗即structured error，不回free-form success。
 
-- [ ] **P2.4 TradingAgents isolated worker** — 建立`workers/tradingagents/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,adapter.py}`與`tests/contracts/workers/test_tradingagents.py`。（Depends：P0.3、P2.1；Complexity：XL；Risk：High）
+- [x] **P2.4 TradingAgents isolated worker** — 建立`workers/tradingagents/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,adapter.py}`與`tests/contracts/workers/test_tradingagents.py`。（Depends：P0.3、P2.1；Complexity：XL；Risk：High）
   - Pin `01477f9a`/v0.3.1與Apache NOTICE；每種runtime profile獨立process，避免global config污染。
   - 唯一response為`AnalysisBundle + AgentOpinion`；上游Trader/Portfolio/risk debate文字不能命名`TradeIntent`或帶execution authority。
   - Production/paper/backtest profile只能讀`allowed_evidence_ids`對應的scoped artifacts，使用canonical tool facade且預設network egress deny；不得呼叫upstream current-news/social/data tools污染PIT run。
@@ -235,7 +235,7 @@
 
 ### P2 Verification gate
 
-- [ ] Fake LLM、prompt-injection fixtures、tool scope/timeout/output-limit與budget exhaustion tests全部通過。（Depends：P2.1–P2.3）
+- [x] Fake LLM、prompt-injection fixtures、tool scope/timeout/output-limit與budget exhaustion tests全部通過。（Depends：P2.1–P2.3）
 - [ ] TradingAgents pinned worker contract測試證明只回`AnalysisBundle/AgentOpinion`，且worker無execution/DB credentials、無任意data egress、無late-result commit能力。（Depends：P2.4、P2.5）
 - [ ] PEAD/event-study golden與PIT tests通過，notice完整。（Depends：P2.6）
 - [ ] 每個report claim都能解析到evidence；所有channel render可由同一report重建且hash穩定。（Depends：P2.7–P2.10）
@@ -590,3 +590,13 @@
 - Verification：P2.3 focused為50 passed、branch coverage 92.55%；完整`scripts/verify.py`為550 passed、171 PostgreSQL tests deselected、branch coverage 88.08%，228 files format、ruff、mypy 134 source files、schema、upstream/license、secret與locked dependency audit全通過且無已知CVE。
 - Honest boundary：remote adapters使用official-wire mock transport，未使用真實OpenAI/Anthropic credentials做live smoke；P2 gate尚未完成，下一項為P2.4 TradingAgents isolated worker。P2.3無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。
+
+### P2 Progress Review — P2.4 — 2026-07-12
+
+- Scope completed：建立獨立`workers/tradingagents` runtime、HTTP app、frozen request/response/policy/telemetry contracts、canonical evidence facade、pinned source-archive lock、hardened Dockerfile、三個profile獨立process compose與Apache NOTICE；core不import worker或heavy runtime。
+- Upstream / authority：TradingAgents固定v0.3.1 commit `01477f9afb7a47b849ed4c9259d3a9a4738d9fda`；所有market/fundamental/news/social/macro/prediction tools在graph建構前替換為該request的PIT canonical evidence，pending yfinance outcome resolution停用。Trader、Portfolio Manager與risk debate只正規化為`AnalysisBundle + AgentOpinion`，response schema無target/risk/order/qty/execution authority，缺confidence明示為0且uncalibrated。
+- Isolation / security：paper/backtest/production各自一process並serialize graph run，避免process-global config污染；只允許fixed internal `http://model-proxy:8000/v1`，upstream vendor routes設為`canonical_facade` fail closed。request evidence IDs必須exact scope、unique且`available_at <= as_of`；body streaming byte cap、identity encoding、deadline、profile、source refs、symbol與output均驗證。worker環境拒絕DB/Postgres/broker/Redis/queue與direct provider keys。
+- Packaging / license：worker lock解析138 packages（runtime 114、其餘dev），TradingAgents使用同commit GitHub source archive避免image需Git；worker venv實際安裝與`TradingAgentsGraph` import成功。`TRADINGAGENTS-APACHE-2.0-WORKER` notice已登錄，完整Apache-2.0 license進image；worker dependency audit除本地`stonks-contracts`無PyPI條目而skip外無已知CVE。
+- Verification：focused contract/security為20 passed、worker branch coverage 95.77%；完整`scripts/verify.py`為570 passed、171 PostgreSQL tests deselected、core branch coverage 88.08%，235 files format、ruff、mypy 134 source files、schema、upstream/license、secret與core locked audit全通過。Docker image `stonks-tradingagents-worker:test`成功重建；UID 65532、read-only rootfs、cap-drop ALL、no-new-privileges、network none health smoke通過，無model-proxy時analyze明確回503 `runtime_failed`且不偽造success/order。
+- Phase status：P2 gate尚未完成；下一項為P2.5 TradingAgents core HTTP adapter與lease generation/attempt nonce late-result fencing。P2.4無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
+- 文件同步：`README.md`、`THIRD_PARTY_NOTICES.md`、legal manifest、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。

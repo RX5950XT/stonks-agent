@@ -1,0 +1,513 @@
+from __future__ import annotations
+
+import importlib
+import sys
+import tomllib
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from uuid import UUID
+
+import pytest
+import yaml
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+ROOT = Path(__file__).resolve().parents[3]
+WORKER = ROOT / "workers" / "tradingagents"
+sys.path.insert(0, str(ROOT))
+
+from stonks_contracts.common import ModelUsage  # noqa: E402
+from workers.tradingagents import runtime as runtime_module  # noqa: E402
+from workers.tradingagents.adapter import (  # noqa: E402
+    EvidenceCategory,
+    RuntimeAnalysis,
+    RuntimeTelemetry,
+    ScopedEvidence,
+    TradingAgentsRequest,
+    TradingAgentsWorker,
+    WorkerFailure,
+    WorkerPolicy,
+    WorkerProfile,
+    WorkerSuccess,
+    validate_worker_environment,
+)
+from workers.tradingagents.app import create_app  # noqa: E402
+from workers.tradingagents.runtime import (  # noqa: E402
+    MODEL_PROXY_ORIGIN,
+    PinnedTradingAgentsRuntime,
+    _content_by_category,
+    _extract_thesis,
+    _install_canonical_facade,
+    _normalize_recommendation,
+    _runtime_config,
+    _TelemetryCallback,
+)
+
+NOW = datetime(2026, 7, 12, 12, tzinfo=UTC)
+REQUEST_ID = UUID("00000000-0000-4000-8000-000000000301")
+RUN_ID = UUID("00000000-0000-4000-8000-000000000302")
+INSTRUMENT_ID = UUID("00000000-0000-4000-8000-000000000303")
+EVIDENCE_ID = UUID("00000000-0000-4000-8000-000000000304")
+
+
+def evidence(**overrides: object) -> ScopedEvidence:
+    values: dict[str, object] = {
+        "evidence_id": EVIDENCE_ID,
+        "artifact_ref": f"sha256:{'a' * 64}",
+        "available_at": NOW - timedelta(minutes=1),
+        "category": EvidenceCategory.MARKET,
+        "content": '{"close":"100.00"}',
+        "untrusted_content": True,
+    }
+    values.update(overrides)
+    return ScopedEvidence.model_validate(values)
+
+
+def analysis_request(**overrides: object) -> TradingAgentsRequest:
+    values: dict[str, object] = {
+        "request_id": REQUEST_ID,
+        "run_id": RUN_ID,
+        "profile": WorkerProfile.PAPER,
+        "instrument_id": INSTRUMENT_ID,
+        "symbol": "AAPL",
+        "as_of": NOW,
+        "horizon": "20 trading days",
+        "allowed_evidence_ids": (EVIDENCE_ID,),
+        "evidence": (evidence(),),
+        "deadline": NOW + timedelta(minutes=1),
+    }
+    values.update(overrides)
+    return TradingAgentsRequest.model_validate(values)
+
+
+def policy(**overrides: object) -> WorkerPolicy:
+    values: dict[str, object] = {
+        "profile": WorkerProfile.PAPER,
+        "selected_analysts": ("market", "fundamentals"),
+        "max_evidence_bytes": 65_536,
+        "network_egress": "deny",
+        "worker_version": "tradingagents-worker/0.1.0",
+        "upstream_commit": "01477f9afb7a47b849ed4c9259d3a9a4738d9fda",
+    }
+    values.update(overrides)
+    return WorkerPolicy.model_validate(values)
+
+
+class RecordingRuntime:
+    def __init__(self, *, error: Exception | None = None) -> None:
+        self.requests: list[TradingAgentsRequest] = []
+        self.error = error
+
+    def run(self, request: TradingAgentsRequest) -> RuntimeAnalysis:
+        self.requests.append(request)
+        if self.error is not None:
+            raise self.error
+        return RuntimeAnalysis(
+            recommendation="Overweight",
+            thesis="Canonical evidence supports a cautious positive research view.",
+            telemetry=RuntimeTelemetry(
+                model_usage=(
+                    ModelUsage(
+                        input_tokens=120,
+                        output_tokens=30,
+                        latency_ms=25,
+                    ),
+                ),
+                tool_latency_ms=(25,),
+                warnings=("upstream_risk_text_treated_as_opinion",),
+                source_refs=(EVIDENCE_ID,),
+            ),
+        )
+
+
+def test_success_returns_only_analysis_bundle_and_agent_opinion() -> None:
+    runtime = RecordingRuntime()
+    worker = TradingAgentsWorker(policy=policy(), runtime=runtime, clock=lambda: NOW)
+
+    result = worker.analyze(analysis_request())
+
+    assert isinstance(result, WorkerSuccess)
+    assert result.value.analysis_bundle.run_id == RUN_ID
+    assert result.value.analysis_bundle.source_refs == (EVIDENCE_ID,)
+    assert result.value.analysis_bundle.worker_version == "tradingagents-worker/0.1.0"
+    assert result.value.agent_opinion.recommendation == "Overweight"
+    assert result.value.agent_opinion.confidence == Decimal("0")
+    assert result.value.agent_opinion.evidence_refs == (EVIDENCE_ID,)
+    assert runtime.requests == [analysis_request()]
+    payload = result.value.model_dump(mode="json")
+    assert set(payload) == {"analysis_bundle", "agent_opinion"}
+    assert not _forbidden_authority_keys(payload)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"allowed_evidence_ids": (UUID(int=9),)},
+        {"allowed_evidence_ids": (EVIDENCE_ID, EVIDENCE_ID)},
+        {"evidence": (evidence(available_at=NOW + timedelta(seconds=1)),)},
+        {"evidence": (evidence(), evidence())},
+        {"symbol": "AAPL;curl attacker"},
+        {"order": {"quantity": 100}},
+    ],
+)
+def test_request_rejects_scope_future_duplicates_injection_and_order_fields(
+    overrides: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        analysis_request(**overrides)
+
+
+def test_profile_deadline_and_size_fail_before_runtime() -> None:
+    runtime = RecordingRuntime()
+    worker = TradingAgentsWorker(policy=policy(), runtime=runtime, clock=lambda: NOW)
+
+    mismatched = worker.analyze(analysis_request(profile=WorkerProfile.BACKTEST))
+    expired = worker.analyze(analysis_request(deadline=NOW - timedelta(seconds=1)))
+    small_policy = policy(max_evidence_bytes=1)
+    oversized = TradingAgentsWorker(
+        policy=small_policy,
+        runtime=runtime,
+        clock=lambda: NOW,
+    ).analyze(analysis_request())
+
+    assert isinstance(mismatched, WorkerFailure)
+    assert mismatched.error.code == "profile_mismatch"
+    assert isinstance(expired, WorkerFailure)
+    assert expired.error.code == "deadline_exceeded"
+    assert isinstance(oversized, WorkerFailure)
+    assert oversized.error.code == "evidence_too_large"
+    assert runtime.requests == []
+
+
+def test_runtime_exception_is_generic_and_never_leaks_secret() -> None:
+    runtime = RecordingRuntime(error=RuntimeError("token=must-not-leak"))
+    worker = TradingAgentsWorker(policy=policy(), runtime=runtime, clock=lambda: NOW)
+
+    result = worker.analyze(analysis_request())
+
+    assert isinstance(result, WorkerFailure)
+    assert result.error.code == "runtime_failed"
+    assert "must-not-leak" not in result.model_dump_json()
+
+
+def test_runtime_source_refs_must_remain_inside_request_scope() -> None:
+    class BadRuntime:
+        def run(self, request: TradingAgentsRequest) -> RuntimeAnalysis:
+            return RuntimeAnalysis(
+                recommendation="Hold",
+                thesis="Out of scope",
+                telemetry=RuntimeTelemetry(source_refs=(UUID(int=99),)),
+            )
+
+    result = TradingAgentsWorker(
+        policy=policy(),
+        runtime=BadRuntime(),
+        clock=lambda: NOW,
+    ).analyze(analysis_request())
+
+    assert isinstance(result, WorkerFailure)
+    assert result.error.code == "source_scope_exceeded"
+
+
+def test_api_uses_standard_envelope_and_bounded_body() -> None:
+    runtime = RecordingRuntime()
+    app = create_app(
+        worker=TradingAgentsWorker(
+            policy=policy(),
+            runtime=runtime,
+            clock=lambda: NOW,
+        ),
+        max_request_bytes=8_192,
+    )
+
+    with TestClient(app) as client:
+        health = client.get("/healthz")
+        success = client.post(
+            "/v1/analyze",
+            content=analysis_request().model_dump_json(),
+            headers={"content-type": "application/json"},
+        )
+        invalid = client.post(
+            "/v1/analyze",
+            content=b"not-json",
+            headers={"content-type": "application/json"},
+        )
+        oversized = client.post(
+            "/v1/analyze",
+            content=b"{" + b"x" * 8_192,
+            headers={"content-type": "application/json"},
+        )
+        hidden = client.get("/docs")
+
+    assert health.json()["data"]["upstream_commit"].startswith("01477f9a")
+    assert success.status_code == 200
+    assert success.json()["success"] is True
+    assert set(success.json()) == {"success", "status", "data", "error", "metadata"}
+    assert invalid.status_code == 400
+    assert invalid.json()["error"]["code"] == "invalid_request"
+    assert oversized.status_code == 413
+    assert hidden.status_code == 404
+
+
+def test_api_maps_runtime_and_media_failures_without_leaking() -> None:
+    failing = TradingAgentsWorker(
+        policy=policy(),
+        runtime=RecordingRuntime(error=RuntimeError("secret=hidden")),
+        clock=lambda: NOW,
+    )
+    app = create_app(worker=failing)
+    with pytest.raises(ValueError, match="max_request_bytes"):
+        create_app(worker=failing, max_request_bytes=0)
+    with TestClient(app) as client:
+        unsupported = client.post("/v1/analyze", content=b"{}")
+        encoded = client.post(
+            "/v1/analyze",
+            content=b"{}",
+            headers={
+                "content-type": "application/json",
+                "content-encoding": "gzip",
+            },
+        )
+        failed = client.post(
+            "/v1/analyze",
+            content=analysis_request().model_dump_json(),
+            headers={"content-type": "application/json"},
+        )
+
+    assert unsupported.status_code == 415
+    assert encoded.status_code == 415
+    assert encoded.json()["error"]["code"] == "unsupported_content_encoding"
+    assert failed.status_code == 503
+    assert "hidden" not in failed.text
+
+
+def test_environment_is_strictly_allowlisted_and_denies_db_broker_queue_secrets() -> (
+    None
+):
+    accepted = validate_worker_environment(
+        {
+            "STONKS_WORKER_PROFILE": "paper",
+            "STONKS_MODEL_PROXY_TOKEN": "secret-ref-at-runtime",
+        }
+    )
+    assert accepted.profile is WorkerProfile.PAPER
+
+    for forbidden in (
+        "DATABASE_URL",
+        "POSTGRES_PASSWORD",
+        "BROKER_API_KEY",
+        "REDIS_URL",
+        "QUEUE_TOKEN",
+        "OPENAI_API_KEY",
+    ):
+        with pytest.raises(ValueError, match="forbidden worker environment"):
+            validate_worker_environment(
+                {
+                    "STONKS_WORKER_PROFILE": "paper",
+                    forbidden: "must-not-enter-worker",
+                }
+            )
+
+
+def test_packaging_pin_license_lock_and_container_hardening() -> None:
+    project = tomllib.loads((WORKER / "pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = "\n".join(project["project"]["dependencies"])
+    lock = (WORKER / "uv.lock").read_text(encoding="utf-8")
+    dockerfile = (WORKER / "Dockerfile").read_text(encoding="utf-8")
+    notice = (WORKER / "NOTICE.md").read_text(encoding="utf-8")
+    core_lock = (ROOT / "uv.lock").read_text(encoding="utf-8").lower()
+
+    assert "01477f9afb7a47b849ed4c9259d3a9a4738d9fda" in dependencies
+    assert "01477f9afb7a47b849ed4c9259d3a9a4738d9fda" in lock
+    assert "apache-2.0" in notice.lower()
+    assert "TauricResearch/TradingAgents" in notice
+    assert "@sha256:" in dockerfile
+    assert "uv sync --frozen" in dockerfile
+    assert "USER 65532:65532" in dockerfile
+    assert "PYTHONPATH=/workspace" in dockerfile
+    assert "WORKDIR /workspace" in dockerfile
+    assert "ADD http" not in dockerfile
+    assert "COPY .env" not in dockerfile
+    assert 'name = "tradingagents"' not in core_lock
+    assert 'name = "torch"' not in core_lock
+
+
+def test_runtime_config_and_evidence_facade_are_fixed_and_fail_closed() -> None:
+    config = _runtime_config(
+        {
+            "data_vendors": {"core_stock_apis": "yfinance"},
+            "tool_vendors": {"get_stock_data": "alpha_vantage"},
+        }
+    )
+    grouped = _content_by_category(analysis_request())
+
+    assert config["backend_url"] == MODEL_PROXY_ORIGIN
+    assert config["llm_provider"] == "openai_compatible"
+    assert config["llm_max_retries"] == 0
+    assert config["checkpoint_enabled"] is False
+    assert set(config["data_vendors"].values()) == {"canonical_facade"}
+    assert config["tool_vendors"] == {}
+    assert str(EVIDENCE_ID) in grouped[EvidenceCategory.MARKET]
+    assert "UNTRUSTED EVIDENCE" in grouped[EvidenceCategory.MARKET]
+    assert grouped[EvidenceCategory.NEWS] == "No scoped evidence available."
+
+
+def test_runtime_normalization_and_telemetry_are_bounded() -> None:
+    assert _normalize_recommendation("BUY") == "Buy"
+    with pytest.raises(ValueError, match="recommendation"):
+        _normalize_recommendation("execute 100 shares")
+    thesis, warnings = _extract_thesis({"final_trade_decision": "x" * 20_000})
+    assert len(thesis) == 16_384
+    assert warnings == ("upstream_thesis_truncated",)
+
+    moments = iter((1.0, 1.025, 2.0, 2.010))
+    callback = _TelemetryCallback(clock=lambda: next(moments))
+    callback.on_llm_start()
+    callback.on_llm_end(
+        type(
+            "Response",
+            (),
+            {
+                "llm_output": {
+                    "token_usage": {"prompt_tokens": 9, "completion_tokens": 4}
+                }
+            },
+        )()
+    )
+    callback.on_tool_start()
+    callback.on_tool_end("ok")
+    assert callback.model_usage[0].input_tokens == 9
+    assert callback.model_usage[0].output_tokens == 4
+    assert callback.model_usage[0].latency_ms == 24
+    assert callback.tool_latency_ms == (9,)
+    with pytest.raises(ValueError, match="state"):
+        _extract_thesis([])
+    with pytest.raises(ValueError, match="thesis"):
+        _extract_thesis({"final_trade_decision": ""})
+
+
+def test_pinned_runtime_maps_fake_upstream_without_execution_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    class Graph:
+        def __init__(self, **kwargs: object) -> None:
+            calls.append(("init", kwargs))
+
+        def propagate(
+            self, *args: object, **kwargs: object
+        ) -> tuple[dict[str, str], str]:
+            calls.append(("propagate", args, kwargs))
+            return {"final_trade_decision": "Evidence-scoped thesis"}, "BUY"
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_load_upstream",
+        lambda: (SimpleNamespace(), Graph, {}),
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_install_canonical_facade",
+        lambda module, request: calls.append(("facade", module, request)),
+    )
+
+    result = PinnedTradingAgentsRuntime(
+        selected_analysts=("market", "fundamentals")
+    ).run(analysis_request())
+
+    assert result.recommendation == "Buy"
+    assert result.thesis == "Evidence-scoped thesis"
+    assert result.telemetry.source_refs == (EVIDENCE_ID,)
+    assert [item[0] for item in calls] == ["facade", "init", "propagate"]
+
+
+def test_canonical_facade_replaces_every_upstream_data_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    langchain = ModuleType("langchain_core")
+    tools = ModuleType("langchain_core.tools")
+    tools.tool = lambda function: function  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "langchain_core", langchain)
+    monkeypatch.setitem(sys.modules, "langchain_core.tools", tools)
+    upstream = SimpleNamespace()
+
+    _install_canonical_facade(upstream, analysis_request())
+
+    assert "UNTRUSTED EVIDENCE" in upstream.get_stock_data("AAPL", "x", "y")
+    assert "UNTRUSTED EVIDENCE" in upstream.get_indicators("AAPL", "rsi", "x")
+    assert "UNTRUSTED EVIDENCE" in upstream.get_verified_market_snapshot("AAPL", "x")
+    assert upstream.get_fundamentals("AAPL") == "No scoped evidence available."
+    assert upstream.get_news("AAPL") == "No scoped evidence available."
+    assert upstream.get_global_news() == "No scoped evidence available."
+    assert upstream.get_insider_transactions("AAPL") == "No scoped evidence available."
+    assert upstream.resolve_instrument_identity("AAPL") == {
+        "symbol": "AAPL",
+        "name": "AAPL",
+    }
+    with pytest.raises(ValueError, match="symbol"):
+        upstream.get_stock_data("MSFT", "x", "y")
+
+
+def test_runtime_entrypoint_builds_one_profile_per_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STONKS_WORKER_PROFILE", "backtest")
+    sys.modules.pop("workers.tradingagents.runtime_app", None)
+
+    loaded = importlib.import_module("workers.tradingagents.runtime_app")
+
+    assert loaded.policy.profile is WorkerProfile.BACKTEST
+    assert loaded.runtime._selected_analysts == (
+        "market",
+        "fundamentals",
+        "news",
+        "social",
+    )
+
+
+def test_profiles_are_separate_fail_closed_processes_with_internal_network() -> None:
+    compose = yaml.safe_load(
+        (ROOT / "infra" / "compose.tradingagents.yaml").read_text(encoding="utf-8")
+    )
+    services = compose["services"]
+
+    assert set(services) == {
+        "tradingagents-paper",
+        "tradingagents-backtest",
+        "tradingagents-production",
+    }
+    for profile in ("paper", "backtest", "production"):
+        service = services[f"tradingagents-{profile}"]
+        assert service["environment"] == {"STONKS_WORKER_PROFILE": profile}
+        assert service["read_only"] is True
+        assert service["cap_drop"] == ["ALL"]
+        assert service["security_opt"] == ["no-new-privileges:true"]
+        assert service["networks"] == ["tradingagents-internal"]
+        assert service["tmpfs"] == ["/tmp:rw,noexec,nosuid,size=64m"]
+    assert compose["networks"]["tradingagents-internal"]["internal"] is True
+
+
+def _forbidden_authority_keys(value: object) -> set[str]:
+    forbidden = {
+        "order",
+        "orders",
+        "quantity",
+        "qty",
+        "execution",
+        "trade_intent",
+        "portfolio_target",
+        "risk_decision",
+    }
+    found: set[str] = set()
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if key.lower() in forbidden:
+                found.add(key.lower())
+            found.update(_forbidden_authority_keys(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            found.update(_forbidden_authority_keys(nested))
+    return found

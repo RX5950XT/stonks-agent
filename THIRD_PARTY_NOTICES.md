@@ -9,6 +9,18 @@ Python runtime 與開發依賴依各自套件中附帶的授權散布；exact ve
 依 `docs/legal/license-policy.md` 登錄 notice id、來源 commit、copyright 與
 完整授權義務。
 
+## TRADINGAGENTS-APACHE-2.0-WORKER
+
+Optional `workers/tradingagents/` 是與core lock隔離的Apache-2.0 research worker，
+使用TauricResearch/TradingAgents v0.3.1、commit
+`01477f9afb7a47b849ed4c9259d3a9a4738d9fda`。上游source archive與完整transitive
+dependency resolution固定於worker自己的`pyproject.toml`和`uv.lock`；完整
+Apache-2.0 license與`workers/tradingagents/NOTICE.md`會放進image。
+
+Worker只把上游Trader、Portfolio Manager與risk debate結果轉成
+`AnalysisBundle/AgentOpinion` research output，不授予target、risk、order、broker、
+ledger或execution authority。TradingAgents runtime packages不進core dependency graph。
+
 ## OPENBB-AGPL-3.0-SIDECAR
 
 Optional `sidecars/openbb/` 是與 Apache-2.0 core 分離發行的

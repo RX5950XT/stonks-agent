@@ -1,0 +1,1 @@
+"""Governed TradingAgents research worker."""

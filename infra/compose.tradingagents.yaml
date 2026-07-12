@@ -1,0 +1,26 @@
+services:
+  tradingagents-paper: &worker
+    build:
+      context: ..
+      dockerfile: workers/tradingagents/Dockerfile
+    environment:
+      STONKS_WORKER_PROFILE: paper
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [tradingagents-internal]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+
+  tradingagents-backtest:
+    <<: *worker
+    environment:
+      STONKS_WORKER_PROFILE: backtest
+
+  tradingagents-production:
+    <<: *worker
+    environment:
+      STONKS_WORKER_PROFILE: production
+
+networks:
+  tradingagents-internal:
+    internal: true

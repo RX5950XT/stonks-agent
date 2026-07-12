@@ -88,8 +88,8 @@ upstreams:
       source_copy_allowed: true
       in_core_allowed: false
     notice:
-      required: false
-      id: null
+      required: true
+      id: TRADINGAGENTS-APACHE-2.0-WORKER
 
   - id: kronos
     repository: https://github.com/shiyu-coder/Kronos

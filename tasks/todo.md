@@ -197,7 +197,7 @@
   - 只依公開概念重做planning/tool loop、bounded iterations、parallel read tools、budget與loop hard-stop；不複製Dexter source/prompt/assets。
   - 外部內容包成untrusted blocks；無citation claim標hypothesis。
 
-- [ ] **P2.3 LLM structured-output adapters** — 建立`adapters/llm/{fake,openai_compatible,anthropic}.py`、`config/models.yaml`、`tests/contracts/llm/`。（Depends：P2.1；Complexity：L；Risk：High）
+- [x] **P2.3 LLM structured-output adapters** — 建立`adapters/llm/{fake,openai_compatible,anthropic}.py`、`config/models.yaml`、`tests/contracts/llm/`。（Depends：P2.1；Complexity：L；Risk：High）
   - Provider/model allowlist、schema validation、retry budget、token/cost accounting、secret redaction。
   - Invalid output bounded repair後仍失敗即structured error，不回free-form success。
 
@@ -579,4 +579,14 @@
 - Security：context只讀request allowlist內且`available_at <= as_of`的immutable artifacts並一律標untrusted；tool batch先完成request/policy雙層scope authorization與usage reservation才執行，LLM/tool exception、deadline、invalid schema、oversize、out-of-scope citation皆structured fail closed。
 - Verification：P2 research focused為31 passed、application/adapters branch coverage 88%；完整`scripts/verify.py`為500 passed、171 PostgreSQL tests deselected、branch coverage 87.62%，216 files format、ruff、mypy 125 source files、schema、upstream/license、secret與locked dependency audit全通過；Barrier test證明兩個read tools確實平行啟動。
 - Phase status：P2 gate尚未完成；下一項為P2.3 LLM structured-output adapters。P2.2無migration或DB行為變更，因此本次未重跑P1 PostgreSQL suite。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。
+
+### P2 Progress Review — P2.3 — 2026-07-12
+
+- Scope completed：frozen `models-v1` provider/model allowlist、domain-owned redacted `SecretRef`、offline deterministic fake、OpenAI-compatible Chat Completions與Anthropic Messages structured-output adapters，以及共用artifact-first/schema/accounting/HTTP security primitives。
+- Provider evidence：2026-07-12依官方文件固定OpenAI `response_format.json_schema/strict`與`gpt-4o-mini-2024-07-18`（$0.15 input、$0.075 cached input、$0.60 output），Anthropic採GA `output_config.format`、`claude-haiku-4-5-20251001`（$1 input、$1.25 cache write、$0.10 cache read、$5 output）；provider價格仍屬可變外部政策，修改須更新allowlist與contract tests。
+- Security / replay：caller不能指定origin/endpoint/provider model；remote只允許credential-free HTTPS config、identity encoding、no redirects、bounded request/response/deadline與narrow transient retry。每個200 stochastic response在provider envelope/schema解析前封存exact raw bytes；refusal、model mismatch、late/empty/compressed/oversize/malformed output、impossible token details、archive failure與repair exhaustion皆structured fail closed，錯誤不回顯secret/provider body。
+- Cost / repair：所有成功或invalid-but-billed attempts累計immutable input/output/cache token、cost與elapsed usage；invalid JSON/schema與token truncation最多repair一次，refusal/permanent HTTP failure不重試；failure details保留safe usage供audit，絕不把free-form內容當成功。
+- Verification：P2.3 focused為50 passed、branch coverage 92.55%；完整`scripts/verify.py`為550 passed、171 PostgreSQL tests deselected、branch coverage 88.08%，228 files format、ruff、mypy 134 source files、schema、upstream/license、secret與locked dependency audit全通過且無已知CVE。
+- Honest boundary：remote adapters使用official-wire mock transport，未使用真實OpenAI/Anthropic credentials做live smoke；P2 gate尚未完成，下一項為P2.4 TradingAgents isolated worker。P2.3無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。

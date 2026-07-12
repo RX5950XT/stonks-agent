@@ -11,24 +11,11 @@ from types import MappingProxyType
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from stonks_agent.domain.errors import ErrorCode, StructuredError
+from stonks_agent.domain.secrets import SecretRef
 
 
 class ExecutionMode(StrEnum):
     PAPER = "paper"
-
-
-class SecretRef(BaseModel):
-    """A name understood by a secret resolver; never a secret value."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    environment_variable: str = Field(
-        pattern=r"^[A-Z][A-Z0-9_]{1,127}$",
-        repr=False,
-    )
-
-    def __str__(self) -> str:
-        return "SecretRef([REDACTED])"
 
 
 class Settings(BaseModel):

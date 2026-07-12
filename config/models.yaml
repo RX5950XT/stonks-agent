@@ -1,0 +1,53 @@
+version: 1
+policy_id: models-v1
+routes:
+  - request_model: policy:models-v1
+    provider: fake
+    provider_model: fake-structured-v1
+    input_cost_per_million: "0"
+    cached_input_cost_per_million: "0"
+    cache_write_input_cost_per_million: "0"
+    output_cost_per_million: "0"
+    max_output_tokens: 100000
+    max_total_tokens_per_request: 200000
+    max_cost_usd_per_request: "0"
+    max_transient_retries: 0
+    max_repairs: 1
+    timeout_seconds: "10"
+    max_response_bytes: 1048576
+  - request_model: policy:openai-research-v1
+    provider: openai_compatible
+    provider_model: gpt-4o-mini-2024-07-18
+    origin: https://api.openai.com
+    endpoint: /v1/chat/completions
+    secret_ref:
+      environment_variable: OPENAI_API_KEY
+    input_cost_per_million: "0.15"
+    cached_input_cost_per_million: "0.075"
+    cache_write_input_cost_per_million: "0.15"
+    output_cost_per_million: "0.60"
+    max_output_tokens: 16384
+    max_total_tokens_per_request: 200000
+    max_cost_usd_per_request: "2"
+    max_transient_retries: 2
+    max_repairs: 1
+    timeout_seconds: "30"
+    max_response_bytes: 1048576
+  - request_model: policy:anthropic-research-v1
+    provider: anthropic
+    provider_model: claude-haiku-4-5-20251001
+    origin: https://api.anthropic.com
+    endpoint: /v1/messages
+    secret_ref:
+      environment_variable: ANTHROPIC_API_KEY
+    input_cost_per_million: "1"
+    cached_input_cost_per_million: "0.10"
+    cache_write_input_cost_per_million: "1.25"
+    output_cost_per_million: "5"
+    max_output_tokens: 16384
+    max_total_tokens_per_request: 200000
+    max_cost_usd_per_request: "5"
+    max_transient_retries: 2
+    max_repairs: 1
+    timeout_seconds: "30"
+    max_response_bytes: 1048576

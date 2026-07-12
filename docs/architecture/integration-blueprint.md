@@ -507,7 +507,7 @@ candidate
 
 - 每個 market/capability 有獨立 allowlist、fallback order、freshness與成本 budget。
 - OpenBB 每次只呼叫指定 provider；跨 provider fallback由本系統執行。
-- A/H/TW 特有資料使用 regional adapters；不能把 suffix mapping 當完整市場支援。
+- US/HK/TW 初始能力使用明示 regional mappings；中國 A 股與其他地區特有資料須另接合法、可驗證的 regional adapter，不能把 suffix mapping 當完整市場支援。
 - 高風險價格、corporate action、financial filing date 可要求雙來源 reconciliation；差異超門檻標 `conflict`，不讓 LLM猜測。
 - Provider ToS、entitlement與redistribution tag 隨 evidence 保存；報告/外部平台 publication 先經 redistribution policy。
 - Golden datasets包含多市場、休市、DST、拆股、股利、symbol change、stale/partial/conflict案例。

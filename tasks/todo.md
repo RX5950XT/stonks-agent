@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0 gate 已通過，P1 進行中）  
+> 狀態：執行中（P0、P1 gate 已通過，P2 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -122,42 +122,62 @@
   - 每個market/capability設定allowlist、fallback、freshness、quota、stale acceptance與reconciliation threshold。
   - Empty、legitimate empty、not-supported、quota、stale、partial、conflict皆為不同typed state。
 
-- [ ] **P1.8 Replay and canonical fixture adapter** — 建立`adapters/market_data/replay.py`、`tests/fixtures/market_data/manifest.yaml`、`tests/golden/`。（Depends：P1.5、P1.7；Complexity：M；Risk：Medium）
+- [x] **P1.8 Replay and canonical fixture adapter** — 建立`adapters/market_data/replay.py`、`tests/fixtures/market_data/manifest.yaml`、`tests/golden/`。（Depends：P1.5、P1.7；Complexity：M；Risk：Medium）
   - Golden set至少涵蓋US/HK/TW、daily/intraday、DST、拆股、股利、stale、partial、conflict。
   - Fixture保存source/time/hash但不含secret或無權重散布資料。
 
-- [ ] **P1.9 Financial Datasets HTTP adapter** — 建立`adapters/market_data/financial_datasets.py`、`tests/contracts/providers/test_financial_datasets.py`。（Depends：P1.7；Complexity：M；Risk：Medium）
+- [x] **P1.9 Financial Datasets HTTP adapter** — 建立`adapters/market_data/financial_datasets.py`、`tests/contracts/providers/test_financial_datasets.py`。（Depends：P1.7；Complexity：M；Risk：Medium）
   - 使用自有HTTP DTO，不import ai-hedge-fund/Dexter；明確rate budget、timeout與structured errors。
   - 無API key時adapter標`config_missing`並由policy跳過，不使離線tests失敗。
+  - 已驗證的是read-only observation contract；轉成canonical raw/evidence artifact的production bridge尚未宣稱完成。
 
-- [ ] **P1.10 OpenBB REST adapter** — 建立`adapters/market_data/openbb_rest.py`、`tests/contracts/providers/test_openbb_rest.py`。（Depends：P1.7；Complexity：L；Risk：High）
+- [x] **P1.10 OpenBB REST adapter** — 建立`adapters/market_data/openbb_rest.py`、`tests/contracts/providers/test_openbb_rest.py`。（Depends：P1.7；Complexity：L；Risk：High）
   - 保存`provider/warnings/extra/id`，再正規化；fallback仍由本系統決定。
   - Endpoint/provider allowlist固定，request不可注入arbitrary URL/provider。
+  - 與replay/Financial Datasets共用daily query shape；canonical materialization仍只使用已驗證的replay source。
 
-- [ ] **P1.11 Optional OpenBB sidecar** — 建立`sidecars/openbb/{pyproject.toml,uv.lock,Dockerfile,README.md,SOURCE_OFFER.md,provider-manifest.yaml}`與`infra/compose.openbb.yaml`。（Depends：P0.3、P1.10；Complexity：L；Risk：High）
+- [x] **P1.11 Optional OpenBB sidecar** — 建立`sidecars/openbb/{pyproject.toml,uv.lock,Dockerfile,README.md,SOURCE_OFFER.md,provider-manifest.yaml}`與`infra/compose.openbb.yaml`。（Depends：P0.3、P1.10；Complexity：L；Risk：High）
   - Pin已發布OpenBB與最小providers，不跟`develop`；保存exact source、patch/build recipe、AGPL notice。
   - Core在sidecar未啟動時仍正常以replay/其他provider運作。
 
-- [ ] **P1.12 Regional adapter contract and initial mappings** — 建立`adapters/market_data/regional/base.py`、`config/instruments/{us,hk,tw}.yaml`與contract fixtures；只加入可合法、可穩定測試的首個A/H/TW provider。（Depends：P1.1、P1.7；Complexity：L；Risk：High）
+- [x] **P1.12 Regional adapter contract and initial mappings** — 建立`adapters/market_data/regional/base.py`、`config/instruments/{us,hk,tw}.yaml`與contract fixtures；只宣稱已有合法、穩定fixture與adapter contract的US/HK/TW能力，中國A股另待後續regional provider RFC。（Depends：P1.1、P1.7；Complexity：L；Risk：High）
   - 不把Yahoo suffix當完整市場支援；unsupported capability必須明示。
   - 新provider採HTTP adapter或獨立worker，不把DSA monolith拉入core。
 
-- [ ] **P1.13 Data ingestion API/CLI** — 建立`application/data/create_snapshot.py`、`entrypoints/api/routes/data.py`、`entrypoints/cli_commands/data.py`與E2E tests。（Depends：P1.4–P1.12；Complexity：L；Risk：Medium）
+- [x] **P1.13 Data ingestion API/CLI** — 建立`application/data/create_snapshot.py`、`entrypoints/api/routes/data.py`、`entrypoints/cli_commands/data.py`與E2E tests。（Depends：P1.4–P1.12；Complexity：L；Risk：Medium）
   - API只回job/snapshot/evidence refs；大payload走artifact store。
 
 ### P1 Verification gate
 
-- [ ] PostgreSQL migration可upgrade/downgrade/re-upgrade；schema與grants測試通過。（Depends：P1.3）
-- [ ] 併發jobs、worker crash、outbox retry與duplicate inbox測試無重複事件。（Depends：P1.6）
-- [ ] PIT property tests證明run無法引用future evidence；DST/calendar/corporate-action golden tests通過。（Depends：P1.1、P1.2、P1.8）
-- [ ] Provider outage/empty/stale/conflict皆產生正確quality或`DataUnavailable`，不產生empty success。（Depends：P1.7–P1.12）
-- [ ] OpenBB sidecar SBOM/license/source流程完整，core lock與imports仍無OpenBB。（Depends：P1.11）
+#### P1 gate audit closure（2026-07-11）
+
+- [x] PIT property tests以多組`available_at/snapshot as_of/run as_of`證明future evidence與future snapshot皆由domain/DB fail closed。
+- [x] Snapshot完成後可透過canonical evidence repository完整round-trip，不產生未知`EvidenceKind`。
+- [x] Regional capability、provider route、fixture與adapter支援矩陣一致；未實作能力不得宣稱支援。
+- [x] Snapshot ingestion實際走policy reconciliation；threshold、provider/endpoint authority與outage狀態有E2E證據。
+- [x] OpenBB SBOM每個component皆有license metadata，license/source policy fail closed。
+- [x] FastAPI validation、unknown field與request-size錯誤仍使用統一API envelope。
+- [x] Outbox同owner重領也以generation/nonce fencing拒絕stale ack；artifact multi-instance finalize與exact grants另有整合測試。
+- [x] Provider fetch後、artifact finalize前以fresh DB time再次驗lease fence；跨run canonical snapshot reuse的exact retry可完整重驗。
+- [x] Job、snapshot failure/completion與outbox的claim/ack/nack皆以transaction內PostgreSQL time判斷not-before/deadline/lease；caller clock漂移不得讓late result或提前claim commit。
+- [x] Generic job deadline/max-attempt terminal transition具hash-chained event/outbox、清除lease，completed/idempotent retry完整重驗audit與immutable identity。
+- [x] API/auth/content-length與provider HTTP streaming遇惡意輸入仍回redacted structured error，並防compression bomb與總下載時間繞過。
+- [x] Linked PIT authority不可事後修改；worker只具必要column-level UPDATE權限。
+- [x] OpenBB sidecar runtime route採exact allowlist；CI重驗source/license hashes、live adapter smoke與sidecar lock CVE。
+- [x] Snapshot request retry完整重驗run/job immutable identity；model-copy繞過的provider output在0 artifact writes前拒絕。
+- [x] Reconciliation決策至少封存雙側content refs、metric/value、threshold與decision，能由immutable artifact離線重播。
+
+- [x] PostgreSQL migration可upgrade/downgrade/re-upgrade；schema與grants測試通過。（Depends：P1.3）
+- [x] 併發jobs、worker crash、outbox retry與duplicate inbox測試無重複事件。（Depends：P1.6）
+- [x] PIT property tests證明run無法引用future evidence；DST/calendar/corporate-action golden tests通過。（Depends：P1.1、P1.2、P1.8）
+- [x] Provider outage/empty/stale/conflict皆產生正確quality或`DataUnavailable`，不產生empty success。（Depends：P1.7–P1.12）
+- [x] OpenBB sidecar SBOM/license/source流程完整，core lock與imports仍無OpenBB。（Depends：P1.11）
 
 ### P1 Success criteria
 
-- [ ] 相同query/as-of/policy可建立hash-identical snapshot manifest並離線重播。
-- [ ] 所有canonical datum/evidence均可追到raw artifact、provider、版本與時間語義。
-- [ ] 即使所有外部providers關閉，replay vertical slice與core測試仍完整通過。
+- [x] 相同query/as-of/policy可建立hash-identical snapshot manifest並離線重播。
+- [x] 所有canonical datum/evidence均可追到raw artifact、provider、版本與時間語義。
+- [x] 即使所有外部providers關閉，replay vertical slice與core測試仍完整通過。
 
 ---
 
@@ -535,3 +555,12 @@
 - Deviations：contracts使用workspace根`uv.lock`，不保留容易漂移的nested lock；P0未啟動PostgreSQL/provider/LLM/sidecar，符合phase boundary。
 - Remaining P1 risks：真實PostgreSQL migration/lease併發、PIT calendar、provider state taxonomy與artifact atomicity尚待P1 gate驗證。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`規範無需改動且SHA-256一致。
+
+### P1 Review — 2026-07-12
+
+- Scope completed：PIT instrument/evidence、PostgreSQL 0001–0008、repositories/UoW、content-addressed artifacts、DB-clock durable job/outbox/inbox、provider policy、US/HK/TW replay fixtures、Financial Datasets/OpenBB observation adapters、optional AGPL OpenBB sidecar，以及snapshot request/API/CLI與canonical replay completion。
+- Verification：`scripts/verify.py --with-postgres --skip-audit`為635 passed、branch coverage 87.90%；195 files format、ruff、mypy 113 source files、schema、upstream/license、secret scan與Alembic drift全通過。
+- Replay / security：相同request產生hash-identical manifest；future evidence/run links、stale generation/nonce、caller clock drift、expired lease、duplicate completion、tampered retry graph、oversized/compressed HTTP與reconciliation conflict皆fail closed。雙來源決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並寫immutable failure audit。
+- OpenBB / license：sidecar static policy 8/8、48 policy tests、64-package frozen lock無已知CVE；重建image後live historical smoke回2 rows、source archive驗5類hash，runtime為UID 65532、read-only rootfs、cap-drop ALL、no-new-privileges，exact allowlist之外回404。
+- Honest boundary：Financial Datasets與OpenBB目前只宣稱read-only observation contracts；production canonical materialization source已驗證的是replay。`stonks-worker`目前只claim lease，完整常駐dispatcher不列為已完成能力。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review、內容與SHA-256仍一致。

@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 基礎已完成並通過驗證；P1–P6 依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation 與 P1 Canonical Data Hub 已通過 phase gate；P2–P6 依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -10,6 +10,10 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - 版本化 frozen Pydantic wire contracts 與 deterministic JSON Schema snapshots。
 - 完整 in-memory paper cycle：evidence → signal → target → risk → cash reservation → next-session fill → balanced journal → report → replay。
 - Idempotency、同帳戶並行防雙花、job generation/nonce fencing、late-result quarantine。
+- PostgreSQL PIT evidence/snapshot、content-addressed artifacts、Repository/UoW、durable job/outbox/inbox與transaction-owned audit events。
+- DB-authoritative lease/deadline/not-before fencing；caller clock漂移、duplicate/stale result與tampered retry graph皆fail closed。
+- US/HK/TW replay fixtures與canonical snapshot materialization；雙來源reconciliation trace可由immutable artifact離線重驗。
+- Financial Datasets與OpenBB read-only observation adapters共用daily query shape；optional OpenBB sidecar使用獨立lock/image、exact route allowlist、SBOM與AGPL corresponding source。
 - Local RBAC、process capability/egress deny、secret redaction、統一 API envelope 與 telemetry ports。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 
@@ -22,6 +26,8 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 ```
 
 `fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。
+
+P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；`stonks-worker claim-once`也不是常駐dispatcher。
 
 ## 核心文件
 

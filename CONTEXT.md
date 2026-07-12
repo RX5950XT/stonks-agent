@@ -1,17 +1,16 @@
 # Stonks Agent 開發交接
 
-更新日期：2026-07-11
+更新日期：2026-07-12
 
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、contracts、fake/replay、paper-only/security/CI 已完成；完整 gate 為 100+ tests、branch coverage >90%、ruff、mypy、schema、license、secret 與 dependency audit 全通過。
-- P1.1 instrument/calendar/time domain、P1.3 PostgreSQL 0001 schema與P1.5 memory/local content-addressed artifact stores已完成。
-- PostgreSQL 17實測 upgrade/downgrade/re-upgrade、Alembic drift、artifact FK、strict-PIT check、append-only trigger與least-privilege grants皆通過；Linux CI已有真實PostgreSQL service job。
-- P1.4 repositories/UoW與P1.6 durable queue/outbox已完成：rollback、run CAS、`SKIP LOCKED`、not-before/deadline、lease reclaim、generation/nonce fencing、dead letter、atomic result/event/outbox/ack、outbox retry與worker CLI均有真實PostgreSQL測試。
-- P1.2 provenance/data-quality已完成；available、legitimate-empty、not-supported、config-missing、quota、stale、partial、conflict與fetch-failed皆為互斥typed state，strict-PIT與unsafe source provenance fail closed。
-- P1.7 provider policy已完成：US/HK/TW capability allowlist、ordered fallback、freshness/quota metadata、stale/partial opt-in、reconciliation threshold與typed failure states皆有測試。
-- 下一個實作目標是 P1 replay、Financial Datasets/OpenBB/regional adapters與ingestion API/CLI。
+- P0 Foundation 與 P1 Canonical Data Hub phase gates已完成；下一目標為P2 Research control plane。
+- P1包含PostgreSQL 0001–0008、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
+- Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
+- Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
+- Financial Datasets與OpenBB已驗證read-only observation contracts與共用daily query；canonical materialization目前只宣稱replay source。`stonks-worker`只提供claim-once，不宣稱常駐dispatcher。
+- Optional OpenBB sidecar已實測exact GET allowlist、frozen 64-package lock、SBOM/license policy、4個upstream sdists、AGPL source archive與non-root/read-only runtime。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -40,23 +39,25 @@
 8. AI-Trader 只作 external community HTTP adapter；不提交 canonical paper/copy order。
 9. OpenBB、Kronos、TradingAgents、Qlib、RD-Agent、LEAN/Nautilus 各自獨立 lock/image，不進 core environment。
 
-## P0 可重跑證據
+## P0 / P1 可重跑證據
 
 ```powershell
 uv sync --frozen
 uv run python scripts/verify.py
+$env:STONKS_TEST_DATABASE_URL='postgresql+psycopg://postgres@127.0.0.1:55432/stonks_test'
+uv run python scripts/verify.py --with-postgres
 uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotency-key smoke-p0
 ```
 
-- `scripts/verify.py` 執行 lint、typecheck、完整 tests/coverage、schema drift、upstream/license policy、secret scan 與 locked runtime dependency audit。
+- `scripts/verify.py` 執行format、lint、typecheck、完整tests/coverage、schema drift、upstream/license policy、secret scan與locked runtime dependency audit；`--with-postgres`另驗migration drift與真實DB整合。
 - `tests/e2e/test_fake_cycle.py` 證明 next-session fill、balanced journal、replay、future evidence fail-closed 與 concurrent no-double-spend。
 - `tests/application/test_execution_authority.py` 證明 research/forecast 與 unauthorized principal 無法觸發 `ExecutionPort`。
 - `tests/application/test_fake_job_fencing.py` 證明 duplicate result 不重複寫 event/outbox，stale generation/nonce 只能隔離。
 
 ## 下一個代理的起點
 
-1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P1 與架構藍圖。
-2. 保持 TDD；先寫 P1 domain/property/integration failures，再實作。
-3. PostgreSQL migration、lease/outbox 需以真實 PostgreSQL 驗證；不可用 SQLite 冒充。
+1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P2 與架構藍圖。
+2. 保持 TDD；先完成P2.1 research/tool policy contracts，再做bounded orchestrator與LLM adapters。
+3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

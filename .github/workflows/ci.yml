@@ -123,6 +123,15 @@ jobs:
           uv lock --check --project sidecars/openbb
           docker compose -f infra/compose.openbb.yaml config --quiet
 
+      - name: Audit exact frozen sidecar dependencies
+        shell: bash
+        run: |
+          uv export --project sidecars/openbb --quiet --frozen --no-dev \
+            --no-emit-project --format requirements.txt \
+            --output-file "$RUNNER_TEMP/openbb-requirements.txt"
+          uv run pip-audit --strict --requirement \
+            "$RUNNER_TEMP/openbb-requirements.txt"
+
       - name: Build exact optional sidecar image
         run: docker compose -f infra/compose.openbb.yaml build --pull openbb
 
@@ -130,6 +139,11 @@ jobs:
         run: >-
           docker compose -f infra/compose.openbb.yaml up --detach --wait
           --wait-timeout 240 openbb
+
+      - name: Smoke exact adapter and corresponding source
+        run: >-
+          uv run python scripts/smoke_openbb.py
+          --health-timeout 120 --request-timeout 60
 
       - name: Verify health and deployed corresponding source
         shell: bash
@@ -148,6 +162,7 @@ jobs:
             > /tmp/openbb-source-members.txt
           for member in \
             Dockerfile NOTICE.md OPENBB_LICENSE.txt SOURCE_OFFER.md \
+            license-policy.yaml \
             provider-manifest.yaml pyproject.toml sbom.cdx.json uv.lock \
             upstream/openbb_core-1.6.13.tar.gz \
             upstream/openbb_equity-1.6.2.tar.gz \

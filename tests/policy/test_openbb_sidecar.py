@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import json
+import tarfile
 import tomllib
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
+import pytest
 import yaml
 from pytest import MonkeyPatch
 
@@ -75,6 +79,43 @@ def test_lock_and_sbom_match_source_manifest() -> None:
         ]
 
 
+def test_sbom_components_have_one_auditable_spdx_license_value() -> None:
+    sbom = json.loads((SIDECAR / "sbom.cdx.json").read_text(encoding="utf-8"))
+    invalid: list[str] = []
+    for component in sbom["components"]:
+        licenses = component.get("licenses")
+        if not isinstance(licenses, list) or len(licenses) != 1:
+            invalid.append(component["name"])
+            continue
+        entry = licenses[0]
+        license_id = entry.get("license", {}).get("id")
+        expression = entry.get("expression")
+        if not (
+            (isinstance(license_id, str) and license_id)
+            or (isinstance(expression, str) and expression)
+        ):
+            invalid.append(component["name"])
+
+    assert invalid == []
+
+
+def test_license_policy_exactly_covers_sbom_components() -> None:
+    sbom = json.loads((SIDECAR / "sbom.cdx.json").read_text(encoding="utf-8"))
+    policy = yaml.safe_load(
+        (SIDECAR / "license-policy.yaml").read_text(encoding="utf-8")
+    )
+
+    assert set(policy["components"]) == {
+        component["name"].lower().replace("_", "-") for component in sbom["components"]
+    }
+    assert set(policy["reviewed_components"]) == {
+        "openbb-core",
+        "openbb-equity",
+        "openbb-platform-api",
+        "openbb-yfinance",
+    }
+
+
 def test_transport_is_consistent_and_runtime_is_immutable() -> None:
     manifest = _manifest()
     assert manifest["transport"]["canonical_origin"] == EXPECTED_ORIGIN
@@ -82,9 +123,7 @@ def test_transport_is_consistent_and_runtime_is_immutable() -> None:
     assert manifest["service"]["runtime_auto_build"] is False
 
     policy = yaml.safe_load(
-        (ROOT / "config" / "providers" / "default.yaml").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "config" / "providers" / "default.yaml").read_text(encoding="utf-8")
     )
     openbb_routes = [
         route
@@ -120,6 +159,7 @@ def test_source_offer_and_notice_are_packaged() -> None:
         "OPENBB_LICENSE.txt",
         "README.md",
         "SOURCE_OFFER.md",
+        "license-policy.yaml",
         "provider-manifest.yaml",
         "pyproject.toml",
         "sbom.cdx.json",
@@ -131,6 +171,175 @@ def test_source_offer_and_notice_are_packaged() -> None:
     assert 'Link: </source>; rel="source"' in (
         ROOT / "THIRD_PARTY_NOTICES.md"
     ).read_text(encoding="utf-8")
+
+
+def test_ci_verifies_deployed_license_policy_source_member() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    source_member_loop = workflow.split("for member in", maxsplit=1)[1].split(
+        "; do", maxsplit=1
+    )[0]
+    assert "license-policy.yaml" in source_member_loop
+
+
+def test_sidecar_exports_only_the_allowlisted_asgi_surface() -> None:
+    app_source = (SIDECAR / "app.py").read_text(encoding="utf-8")
+    dockerfile = (SIDECAR / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "from openbb_core.api.rest_api import app as openbb_app" in app_source
+    assert "app = SurfaceAllowlist(openbb_app)" in app_source
+    assert "surface.py" in dockerfile
+
+
+def test_ci_audits_frozen_sidecar_lock_and_runs_live_smoke() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "uv export --project sidecars/openbb" in workflow
+    assert "uv run pip-audit --strict --requirement" in workflow
+    assert "uv run python scripts/smoke_openbb.py" in workflow
+    assert workflow.index("Start healthy optional sidecar") < workflow.index(
+        "uv run python scripts/smoke_openbb.py"
+    )
+
+
+def _source_archive(
+    smoke_openbb: Any,
+    packages: list[dict[str, str]],
+    *,
+    omit: str | None = None,
+    license_body: bytes = b"upstream license",
+) -> bytes:
+    buffer = io.BytesIO()
+    package_bodies = {
+        package["source_archive_member"]: f"source:{index}".encode()
+        for index, package in enumerate(packages)
+    }
+    bodies = {
+        **{name: b"required" for name in smoke_openbb.REQUIRED_SOURCE_MEMBERS},
+        **package_bodies,
+        "OPENBB_LICENSE.txt": license_body,
+    }
+    if omit is not None:
+        bodies.pop(omit)
+    with tarfile.open(fileobj=buffer, mode="w:gz") as bundle:
+        for name, body in bodies.items():
+            info = tarfile.TarInfo(name=name)
+            info.size = len(body)
+            bundle.addfile(info, io.BytesIO(body))
+    return buffer.getvalue()
+
+
+def test_smoke_verifies_all_source_and_license_hashes(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    smoke_openbb = _load_smoke_module()
+    packages = [
+        {
+            "source_archive_member": f"upstream/package-{index}.tar.gz",
+            "sdist_sha256": hashlib.sha256(f"source:{index}".encode()).hexdigest(),
+        }
+        for index in range(4)
+    ]
+    license_body = b"upstream license"
+    manifest = {
+        "packages": packages,
+        "service": {
+            "upstream_raw_license_sha256": hashlib.sha256(license_body).hexdigest()
+        },
+    }
+    archive = _source_archive(
+        smoke_openbb,
+        packages,
+        license_body=license_body,
+    )
+    monkeypatch.setattr(smoke_openbb, "_load_manifest", lambda: manifest)
+    monkeypatch.setattr(smoke_openbb, "SOURCE_MEMBER_PATHS", {})
+    monkeypatch.setattr(
+        smoke_openbb,
+        "_get",
+        lambda *_args, **_kwargs: (
+            archive,
+            {"link": '</source>; rel="source"'},
+        ),
+    )
+
+    verified = smoke_openbb._verify_source_archive(1)  # type: ignore[attr-defined]
+
+    assert len(verified) == 5
+    assert (
+        verified["OPENBB_LICENSE.txt"]
+        == manifest["service"]["upstream_raw_license_sha256"]
+    )
+
+
+def test_smoke_rejects_missing_governance_source_member(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    smoke_openbb = _load_smoke_module()
+    packages = [
+        {
+            "source_archive_member": f"upstream/package-{index}.tar.gz",
+            "sdist_sha256": hashlib.sha256(f"source:{index}".encode()).hexdigest(),
+        }
+        for index in range(4)
+    ]
+    license_body = b"upstream license"
+    manifest = {
+        "packages": packages,
+        "service": {
+            "upstream_raw_license_sha256": hashlib.sha256(license_body).hexdigest()
+        },
+    }
+    archive = _source_archive(
+        smoke_openbb,
+        packages,
+        omit="license-policy.yaml",
+        license_body=license_body,
+    )
+    monkeypatch.setattr(smoke_openbb, "_load_manifest", lambda: manifest)
+    monkeypatch.setattr(smoke_openbb, "SOURCE_MEMBER_PATHS", {})
+    monkeypatch.setattr(
+        smoke_openbb,
+        "_get",
+        lambda *_args, **_kwargs: (
+            archive,
+            {"link": '</source>; rel="source"'},
+        ),
+    )
+
+    with pytest.raises(ValueError, match=r"license-policy\.yaml"):
+        smoke_openbb._verify_source_archive(1)  # type: ignore[attr-defined]
+
+
+def test_smoke_rejects_upstream_license_hash_drift(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    smoke_openbb = _load_smoke_module()
+    packages = [
+        {
+            "source_archive_member": f"upstream/package-{index}.tar.gz",
+            "sdist_sha256": hashlib.sha256(f"source:{index}".encode()).hexdigest(),
+        }
+        for index in range(4)
+    ]
+    manifest = {
+        "packages": packages,
+        "service": {"upstream_raw_license_sha256": "0" * 64},
+    }
+    archive = _source_archive(smoke_openbb, packages)
+    monkeypatch.setattr(smoke_openbb, "_load_manifest", lambda: manifest)
+    monkeypatch.setattr(smoke_openbb, "SOURCE_MEMBER_PATHS", {})
+    monkeypatch.setattr(
+        smoke_openbb,
+        "_get",
+        lambda *_args, **_kwargs: (
+            archive,
+            {"link": '</source>; rel="source"'},
+        ),
+    )
+
+    with pytest.raises(ValueError, match="license hash mismatch"):
+        smoke_openbb._verify_source_archive(1)  # type: ignore[attr-defined]
 
 
 def test_smoke_normalizes_http_header_names(monkeypatch: MonkeyPatch) -> None:

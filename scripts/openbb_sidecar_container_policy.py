@@ -284,15 +284,46 @@ def _check_source_route(inputs: Inputs) -> list[Violation]:
     violations: list[Violation] = []
     if not valid:
         violations.append(Violation("MISSING_SOURCE_ROUTE", "/source route drifted"))
+    expected_surface = (
+        ("GET", "/api/v1/equity/price/historical"),
+        ("GET", "/healthz"),
+        ("GET", "/source"),
+    )
+    surface_constants = literal_constants(inputs.surface, "sidecars/openbb/surface.py")
+    wrapper_tokens = (
+        "from openbb_core.api.rest_api import app as openbb_app",
+        "app = SurfaceAllowlist(openbb_app)",
+    )
+    surface_tokens = (
+        "class SurfaceAllowlist:",
+        "route in ALLOWED_HTTP_SURFACE",
+        'scope_type == "websocket"',
+    )
+    bounded = (
+        surface_constants.get("ALLOWED_HTTP_SURFACE") == expected_surface
+        and surface_constants.get("SOURCE_LINK")
+        == '</source>; rel="source"; type="application/gzip"'
+        and all(token in inputs.app for token in wrapper_tokens)
+        and all(token in inputs.surface for token in surface_tokens)
+    )
+    if not bounded:
+        violations.append(
+            Violation(
+                "UNBOUNDED_RUNTIME_SURFACE",
+                "OpenBB ASGI surface allowlist drifted",
+            )
+        )
     required = {
         "Dockerfile",
         "NOTICE.md",
         "README.md",
         "SOURCE_OFFER.md",
         "app.py",
+        "license-policy.yaml",
         "provider-manifest.yaml",
         "pyproject.toml",
         "sbom.cdx.json",
+        "surface.py",
         "uv.lock",
     }
     if any(name not in inputs.dockerfile for name in required):

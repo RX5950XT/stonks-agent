@@ -9,6 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 POLICY_SCRIPT = PROJECT_ROOT / "scripts" / "verify_openbb_sidecar.py"
@@ -139,6 +140,131 @@ def test_policy_rejects_missing_locked_component_from_sbom(tmp_path: Path) -> No
     assert "SBOM_MISSING_LOCK_COMPONENT" in _failure_codes(result)
 
 
+def _component(sbom: dict[str, object], name: str) -> dict[str, object]:
+    components = sbom["components"]
+    assert isinstance(components, list)
+    return next(
+        item
+        for item in components
+        if isinstance(item, dict) and str(item.get("name", "")).lower() == name
+    )
+
+
+def test_policy_rejects_missing_sbom_component_license(tmp_path: Path) -> None:
+    root = _copy_policy_fixture(tmp_path)
+    sbom_path = root / "sidecars" / "openbb" / "sbom.cdx.json"
+    sbom = json.loads(sbom_path.read_text(encoding="utf-8"))
+    _component(sbom, "pyjwt")["licenses"] = []
+    sbom_path.write_text(json.dumps(sbom), encoding="utf-8")
+
+    result = _run_policy(root)
+
+    assert result.returncode == 1
+    assert "SBOM_LICENSE_MISSING" in _failure_codes(result)
+
+
+def test_policy_rejects_non_spdx_sbom_license_name(tmp_path: Path) -> None:
+    root = _copy_policy_fixture(tmp_path)
+    sbom_path = root / "sidecars" / "openbb" / "sbom.cdx.json"
+    sbom = json.loads(sbom_path.read_text(encoding="utf-8"))
+    _component(sbom, "pyjwt")["licenses"] = [
+        {"license": {"acknowledgement": "declared", "name": "MIT-ish"}}
+    ]
+    sbom_path.write_text(json.dumps(sbom), encoding="utf-8")
+
+    result = _run_policy(root)
+
+    assert result.returncode == 1
+    assert "SBOM_LICENSE_NOT_SPDX" in _failure_codes(result)
+
+
+def test_policy_rejects_license_inventory_drift(tmp_path: Path) -> None:
+    root = _copy_policy_fixture(tmp_path)
+    sbom_path = root / "sidecars" / "openbb" / "sbom.cdx.json"
+    sbom = json.loads(sbom_path.read_text(encoding="utf-8"))
+    _component(sbom, "pyjwt")["licenses"] = [
+        {"license": {"acknowledgement": "declared", "id": "GPL-3.0-only"}}
+    ]
+    sbom_path.write_text(json.dumps(sbom), encoding="utf-8")
+
+    result = _run_policy(root)
+
+    assert result.returncode == 1
+    codes = _failure_codes(result)
+    assert "SBOM_LICENSE_INVENTORY_DRIFT" in codes
+    assert "SBOM_LICENSE_REVIEW_REQUIRED" in codes
+
+
+def test_policy_requires_explicit_review_for_openbb_license(tmp_path: Path) -> None:
+    root = _copy_policy_fixture(tmp_path)
+    policy_path = root / "sidecars" / "openbb" / "license-policy.yaml"
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    del policy["reviewed_components"]["openbb-core"]
+    policy_path.write_text(yaml.safe_dump(policy), encoding="utf-8")
+
+    result = _run_policy(root)
+
+    assert result.returncode == 1
+    assert "SBOM_LICENSE_REVIEW_REQUIRED" in _failure_codes(result)
+
+
+def test_policy_rejects_silent_license_allowlist_widening(tmp_path: Path) -> None:
+    root = _copy_policy_fixture(tmp_path)
+    policy_path = root / "sidecars" / "openbb" / "license-policy.yaml"
+    policy = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    policy["allowed_expressions"].append("GPL-3.0-only")
+    policy_path.write_text(yaml.safe_dump(policy), encoding="utf-8")
+
+    result = _run_policy(root)
+
+    assert result.returncode == 1
+    assert "SBOM_LICENSE_ALLOWLIST_DRIFT" in _failure_codes(result)
+
+
+def _provider_policy(root: Path) -> tuple[Path, dict[str, object]]:
+    path = root / "config" / "providers" / "default.yaml"
+    policy = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert isinstance(policy, dict)
+    return path, policy
+
+
+def test_policy_rejects_openbb_routes_outside_us(tmp_path: Path) -> None:
+    root = _copy_policy_fixture(tmp_path)
+    path, policy = _provider_policy(root)
+    policies = policy["policies"]
+    assert isinstance(policies, list)
+    us_policy = next(item for item in policies if item["market"] == "US")
+    us_route = next(
+        route for route in us_policy["routes"] if route["provider"] == "openbb_rest"
+    )
+    for market in ("HK", "TW"):
+        market_policy = next(item for item in policies if item["market"] == market)
+        market_policy["routes"].append(dict(us_route))
+    path.write_text(yaml.safe_dump(policy), encoding="utf-8")
+
+    result = _run_policy(root)
+
+    assert result.returncode == 1
+    assert "TRANSPORT_POLICY_DRIFT" in _failure_codes(result)
+
+
+def test_policy_rejects_missing_us_openbb_route(tmp_path: Path) -> None:
+    root = _copy_policy_fixture(tmp_path)
+    path, policy = _provider_policy(root)
+    policies = policy["policies"]
+    assert isinstance(policies, list)
+    us_policy = next(item for item in policies if item["market"] == "US")
+    us_policy["routes"] = [
+        route for route in us_policy["routes"] if route["provider"] != "openbb_rest"
+    ]
+    path.write_text(yaml.safe_dump(policy), encoding="utf-8")
+
+    result = _run_policy(root)
+
+    assert result.returncode == 1
+    assert "TRANSPORT_POLICY_DRIFT" in _failure_codes(result)
+
+
 @pytest.mark.parametrize(
     ("relative", "transform", "expected_code"),
     [
@@ -166,6 +292,21 @@ def test_policy_rejects_missing_locked_component_from_sbom(tmp_path: Path) -> No
             "sidecars/openbb/app.py",
             lambda value: value.replace('"/source"', '"/source-disabled"'),
             "MISSING_SOURCE_ROUTE",
+        ),
+        (
+            "sidecars/openbb/app.py",
+            lambda value: value.replace(
+                "app = SurfaceAllowlist(openbb_app)", "app = openbb_app"
+            ),
+            "UNBOUNDED_RUNTIME_SURFACE",
+        ),
+        (
+            "sidecars/openbb/surface.py",
+            lambda value: value.replace(
+                '("GET", "/api/v1/equity/price/historical")',
+                '("GET", "/api/v1/equity/price/quote")',
+            ),
+            "UNBOUNDED_RUNTIME_SURFACE",
         ),
         (
             "infra/compose.openbb.yaml",

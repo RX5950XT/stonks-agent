@@ -15,9 +15,16 @@ docker compose -f ../../infra/compose.openbb.yaml up openbb
 
 套件、sdist URL、SHA-256 與上游 commit 記錄於 `provider-manifest.yaml`；完整
 transitive resolution 與 artifact hashes 在 `uv.lock`，CycloneDX SBOM 在
-`sbom.cdx.json`。image build 會下載並以 SHA-256 驗證四個 pinned OpenBB source
+`sbom.cdx.json`；逐套件 frozen SPDX inventory、allowlist 與 AGPL review 在
+`license-policy.yaml`。SBOM 重新產生後，以
+`uv run python ../../scripts/normalize_openbb_sbom_licenses.py` deterministic 正規化，
+再用 `--check` 驗證無 drift。image build 會下載並以 SHA-256 驗證四個 pinned OpenBB source
 sdists，再連同本目錄的 wrapper/source/build inputs 封存。服務所有 response 都帶
 `Link: </source>; rel="source"`，而 `/source` 直接提供該完整 archive。
+
+`surface.py` 在 OpenBB router 前 fail closed，只放行 `GET /healthz`、`GET /source`
+與 `GET /api/v1/equity/price/historical`；其餘 method、path 與 WebSocket 都不會抵達
+OpenBB app。
 
 `GET /healthz` 只驗證 immutable app/build identity，不會觸發 provider request；
 `openbb-build` 僅在 image build 執行，runtime 明確設為 `OPENBB_AUTO_BUILD=false`。

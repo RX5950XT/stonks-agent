@@ -18,11 +18,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project \
     && uv run --frozen openbb-build
 
-COPY app.py ./
+COPY app.py surface.py ./
 COPY Dockerfile README.md NOTICE.md SOURCE_OFFER.md provider-manifest.yaml \
-    sbom.cdx.json \
+    license-policy.yaml sbom.cdx.json \
     /srv/source-tree/
-COPY pyproject.toml uv.lock app.py /srv/source-tree/
+COPY pyproject.toml uv.lock app.py surface.py /srv/source-tree/
 
 ADD --checksum=sha256:c26cfc2ae37c1700e01db9ca0fd2cd02118715cec2097ea870f47a70186402bb \
     https://files.pythonhosted.org/packages/42/9e/0cbc623a38f7c72cebce47c7c71968dd3276259422f9eb2eb49fca73a219/openbb_core-1.6.13.tar.gz \

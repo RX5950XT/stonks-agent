@@ -6,15 +6,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import Request
-from openbb_core.api.rest_api import app
+from openbb_core.api.rest_api import app as openbb_app
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import FileResponse, JSONResponse, Response
+from surface import SurfaceAllowlist
 
 SOURCE_ARCHIVE = Path("/srv/stonks-openbb-sidecar-source.tar.gz")
 SOURCE_LINK = '</source>; rel="source"; type="application/gzip"'
 
 
-@app.middleware("http")
+@openbb_app.middleware("http")
 async def advertise_source(
     request: Request,
     call_next: RequestResponseEndpoint,
@@ -27,7 +28,7 @@ async def advertise_source(
     return response
 
 
-@app.get(
+@openbb_app.get(
     "/source",
     include_in_schema=True,
     summary="Download Corresponding Source",
@@ -45,7 +46,7 @@ async def corresponding_source() -> FileResponse:
     )
 
 
-@app.get(
+@openbb_app.get(
     "/healthz",
     include_in_schema=True,
     summary="Sidecar liveness",
@@ -61,3 +62,6 @@ async def healthz() -> JSONResponse:
             "source": "/source",
         }
     )
+
+
+app = SurfaceAllowlist(openbb_app)

@@ -27,7 +27,22 @@ EXPECTED_PROVIDER: Final = "yfinance"
 EXPECTED_ADAPTER: Final = "openbb_rest"
 EXPECTED_SERVICE: Final = "stonks-openbb-sidecar"
 EXPECTED_LICENSE: Final = "AGPL-3.0-only"
-EXPECTED_MARKETS: Final = frozenset({"US", "HK", "TW"})
+EXPECTED_MARKETS: Final = frozenset({"US"})
+EXPECTED_ALLOWED_LICENSE_EXPRESSIONS: Final = frozenset(
+    {
+        "Apache-2.0",
+        "Apache-2.0 AND MIT",
+        "Apache-2.0 OR BSD-3-Clause",
+        "BSD-2-Clause",
+        "BSD-3-Clause",
+        "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+        "MIT",
+        "MIT-0",
+        "MPL-2.0",
+        "PSF-2.0",
+    }
+)
+EXPECTED_REVIEWED_LICENSE_COMPONENTS: Final = frozenset(EXPECTED_PINS)
 EXPECTED_CHECKS: Final = (
     "exact-pins",
     "core-isolation",
@@ -63,11 +78,13 @@ class Inputs:
     sidecar_lock: Mapping[str, Any]
     manifest: Mapping[str, Any]
     sbom: Mapping[str, Any]
+    license_policy: Mapping[str, Any]
     compose: Mapping[str, Any]
     provider_config: Mapping[str, Any]
     adapter: str
     dockerfile: str
     app: str
+    surface: str
     notice: str
     source_offer: str
     third_party_notices: str
@@ -136,6 +153,7 @@ def load_inputs(root: Path) -> Inputs:
         sidecar_lock=_load_toml(resolved, "sidecars/openbb/uv.lock"),
         manifest=_load_yaml(resolved, "sidecars/openbb/provider-manifest.yaml"),
         sbom=_load_json(resolved, "sidecars/openbb/sbom.cdx.json"),
+        license_policy=_load_yaml(resolved, "sidecars/openbb/license-policy.yaml"),
         compose=_load_yaml(resolved, "infra/compose.openbb.yaml"),
         provider_config=_load_yaml(resolved, "config/providers/default.yaml"),
         adapter=_read_text(
@@ -143,6 +161,7 @@ def load_inputs(root: Path) -> Inputs:
         ),
         dockerfile=_read_text(resolved, "sidecars/openbb/Dockerfile"),
         app=_read_text(resolved, "sidecars/openbb/app.py"),
+        surface=_read_text(resolved, "sidecars/openbb/surface.py"),
         notice=_read_text(resolved, "sidecars/openbb/NOTICE.md"),
         source_offer=_read_text(resolved, "sidecars/openbb/SOURCE_OFFER.md"),
         third_party_notices=_read_text(resolved, "THIRD_PARTY_NOTICES.md"),
@@ -422,6 +441,114 @@ def _sbom_components(inputs: Inputs) -> dict[str, Mapping[str, Any]]:
     return package_index(components, "SBOM")
 
 
+def _named_policy_entries(value: Any, label: str) -> dict[str, Mapping[str, Any]]:
+    raw = mapping(value, label)
+    entries: dict[str, Mapping[str, Any]] = {}
+    for raw_name, raw_entry in raw.items():
+        if not isinstance(raw_name, str):
+            raise PolicyInputError(f"{label} names must be strings")
+        name = normalize_name(raw_name)
+        if name != raw_name or name in entries:
+            raise PolicyInputError(f"{label} contains invalid name {raw_name}")
+        entries[name] = mapping(raw_entry, f"{label}.{name}")
+    return entries
+
+
+def _declared_spdx(component: Mapping[str, Any]) -> tuple[str | None, str | None]:
+    raw = component.get("licenses")
+    if raw is None or raw == []:
+        return None, "SBOM_LICENSE_MISSING"
+    if not isinstance(raw, list) or len(raw) != 1:
+        return None, "SBOM_LICENSE_NOT_SPDX"
+    entry = raw[0]
+    if not isinstance(entry, Mapping):
+        return None, "SBOM_LICENSE_NOT_SPDX"
+    expression = entry.get("expression")
+    license_value = entry.get("license")
+    license_id = license_value.get("id") if isinstance(license_value, Mapping) else None
+    values = [item for item in (expression, license_id) if isinstance(item, str)]
+    if (
+        len(values) != 1
+        or not values[0].strip()
+        or (isinstance(license_value, Mapping) and "name" in license_value)
+    ):
+        return None, "SBOM_LICENSE_NOT_SPDX"
+    return values[0], None
+
+
+def _allowed_license_expressions(inputs: Inputs) -> frozenset[str]:
+    raw = sequence(
+        inputs.license_policy.get("allowed_expressions"),
+        "license policy allowed_expressions",
+    )
+    if any(not isinstance(item, str) or not item for item in raw):
+        raise PolicyInputError("allowed license expressions must be strings")
+    values = [cast(str, item) for item in raw]
+    if len(values) != len(set(values)):
+        raise PolicyInputError("allowed license expressions must be unique")
+    return frozenset(values)
+
+
+def _review_matches(
+    review: Mapping[str, Any], component: Mapping[str, Any], expression: str
+) -> bool:
+    return (
+        review.get("version") == component.get("version")
+        and review.get("expression") == expression
+        and review.get("decision") == "approved-sidecar-only"
+        and review.get("scope") == "optional-process-isolated-openbb-sidecar"
+        and review.get("evidence") == "sidecars/openbb/SOURCE_OFFER.md"
+    )
+
+
+def _check_license_policy(
+    inputs: Inputs, components: Mapping[str, Mapping[str, Any]]
+) -> list[Violation]:
+    policy = inputs.license_policy
+    inventory = _named_policy_entries(policy.get("components"), "license components")
+    reviews = _named_policy_entries(
+        policy.get("reviewed_components"), "reviewed license components"
+    )
+    allowed = _allowed_license_expressions(inputs)
+    violations: list[Violation] = []
+    if policy.get("schema_version") != 1:
+        violations.append(Violation("SBOM_LICENSE_POLICY_INVALID", "schema drift"))
+    if allowed != EXPECTED_ALLOWED_LICENSE_EXPRESSIONS:
+        violations.append(
+            Violation("SBOM_LICENSE_ALLOWLIST_DRIFT", "allowlist drifted")
+        )
+    if set(inventory) != set(components):
+        violations.append(
+            Violation("SBOM_LICENSE_POLICY_COVERAGE", "inventory coverage drifted")
+        )
+    if set(reviews) != EXPECTED_REVIEWED_LICENSE_COMPONENTS:
+        violations.append(
+            Violation("SBOM_LICENSE_REVIEW_POLICY_DRIFT", "review set drifted")
+        )
+    for name, component in components.items():
+        expression, error_code = _declared_spdx(component)
+        if error_code is not None:
+            violations.append(Violation(error_code, f"invalid license for {name}"))
+            continue
+        assert expression is not None
+        expected = inventory.get(name)
+        if expected is None or (
+            expected.get("version") != component.get("version")
+            or expected.get("expression") != expression
+        ):
+            violations.append(
+                Violation("SBOM_LICENSE_INVENTORY_DRIFT", f"drift for {name}")
+            )
+        if expression in allowed:
+            continue
+        review = reviews.get(name)
+        if review is None or not _review_matches(review, component, expression):
+            violations.append(
+                Violation("SBOM_LICENSE_REVIEW_REQUIRED", f"review required for {name}")
+            )
+    return violations
+
+
 def _check_sbom(inputs: Inputs) -> list[Violation]:
     violations: list[Violation] = []
     if (
@@ -431,6 +558,7 @@ def _check_sbom(inputs: Inputs) -> list[Violation]:
     ):
         violations.append(Violation("INVALID_CYCLONEDX_SBOM", "invalid SBOM"))
     components = _sbom_components(inputs)
+    violations.extend(_check_license_policy(inputs, components))
     for package in locked_packages(inputs.sidecar_lock):
         source = package.get("source")
         if isinstance(source, Mapping) and "virtual" in source:

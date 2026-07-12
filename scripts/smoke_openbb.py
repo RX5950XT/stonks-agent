@@ -12,7 +12,7 @@ import tarfile
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -27,8 +27,28 @@ from stonks_agent.application.data.fetch_evidence import FetchDataRequest
 from stonks_agent.domain.data_quality import ProviderDataState
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "sidecars" / "openbb" / "provider-manifest.yaml"
+SIDECAR = ROOT / "sidecars" / "openbb"
+MANIFEST = SIDECAR / "provider-manifest.yaml"
 MAX_SOURCE_BYTES = 100 * 1024 * 1024
+MAX_SOURCE_MEMBER_BYTES = 64 * 1024 * 1024
+MAX_SOURCE_MEMBERS = 64
+SOURCE_MEMBER_PATHS: Final = {
+    name: SIDECAR / name
+    for name in (
+        "Dockerfile",
+        "NOTICE.md",
+        "README.md",
+        "SOURCE_OFFER.md",
+        "app.py",
+        "license-policy.yaml",
+        "provider-manifest.yaml",
+        "pyproject.toml",
+        "sbom.cdx.json",
+        "surface.py",
+        "uv.lock",
+    )
+}
+REQUIRED_SOURCE_MEMBERS: Final = frozenset({"OPENBB_LICENSE.txt", *SOURCE_MEMBER_PATHS})
 
 
 def _get(path: str, *, timeout: float) -> tuple[bytes, dict[str, str]]:
@@ -43,9 +63,7 @@ def _get(path: str, *, timeout: float) -> tuple[bytes, dict[str, str]]:
         body = response.read(MAX_SOURCE_BYTES + 1)
         if len(body) > MAX_SOURCE_BYTES:
             raise ValueError("OpenBB response exceeds smoke limit")
-        return body, {
-            key.lower(): value for key, value in response.headers.items()
-        }
+        return body, {key.lower(): value for key, value in response.headers.items()}
 
 
 def _wait_for_health(timeout: float) -> dict[str, Any]:
@@ -66,36 +84,95 @@ def _wait_for_health(timeout: float) -> dict[str, Any]:
     raise TimeoutError(f"OpenBB health did not become ready: {last_error}")
 
 
-def _load_packages() -> list[dict[str, str]]:
+def _load_manifest() -> dict[str, Any]:
     raw = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
-    packages = raw.get("packages") if isinstance(raw, dict) else None
-    if not isinstance(packages, list):
+    if not isinstance(raw, dict):
         raise ValueError("OpenBB package manifest is invalid")
-    return [dict(item) for item in packages]
+    return raw
+
+
+def _archive_members(bundle: tarfile.TarFile) -> dict[str, tarfile.TarInfo]:
+    items = bundle.getmembers()
+    if len(items) > MAX_SOURCE_MEMBERS:
+        raise ValueError("source archive has too many members")
+    members: dict[str, tarfile.TarInfo] = {}
+    for item in items:
+        name = item.name.removeprefix("./")
+        if name.startswith("/") or ".." in Path(name).parts or name in members:
+            raise ValueError("source archive contains an unsafe member")
+        members[name] = item
+    return members
+
+
+def _member_sha256(
+    bundle: tarfile.TarFile,
+    members: dict[str, tarfile.TarInfo],
+    name: str,
+) -> str:
+    member = members.get(name)
+    if member is None or not member.isfile() or member.size > MAX_SOURCE_MEMBER_BYTES:
+        raise ValueError(f"source archive is missing {name}")
+    stream = bundle.extractfile(member)
+    if stream is None:
+        raise ValueError(f"source archive cannot read {name}")
+    return hashlib.sha256(stream.read(MAX_SOURCE_MEMBER_BYTES + 1)).hexdigest()
+
+
+def _package_manifest(raw: dict[str, Any]) -> list[dict[str, str]]:
+    packages = raw.get("packages")
+    if not isinstance(packages, list) or len(packages) != 4:
+        raise ValueError("OpenBB package manifest must contain four packages")
+    parsed = [dict(item) for item in packages if isinstance(item, dict)]
+    if len(parsed) != 4:
+        raise ValueError("OpenBB package manifest is invalid")
+    return parsed
+
+
+def _license_hash(raw: dict[str, Any]) -> str:
+    service = raw.get("service")
+    expected = (
+        service.get("upstream_raw_license_sha256")
+        if isinstance(service, dict)
+        else None
+    )
+    if not isinstance(expected, str) or len(expected) != 64:
+        raise ValueError("OpenBB license hash is invalid")
+    return expected
+
+
+def _verify_local_sources(
+    bundle: tarfile.TarFile,
+    members: dict[str, tarfile.TarInfo],
+) -> None:
+    for name, path in SOURCE_MEMBER_PATHS.items():
+        expected = hashlib.sha256(path.read_bytes()).hexdigest()
+        if _member_sha256(bundle, members, name) != expected:
+            raise ValueError(f"source hash mismatch for {name}")
 
 
 def _verify_source_archive(timeout: float) -> dict[str, str]:
     archive, headers = _get("/source", timeout=timeout)
     if "/source" not in headers.get("link", ""):
         raise ValueError("source response omitted source link")
+    manifest = _load_manifest()
     verified: dict[str, str] = {}
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as bundle:
-        members = {item.name.lstrip("./"): item for item in bundle.getmembers()}
-        for package in _load_packages():
-            name = package["source_archive_member"]
-            member = members.get(name)
-            if member is None or not member.isfile():
+        members = _archive_members(bundle)
+        for name in REQUIRED_SOURCE_MEMBERS:
+            if name not in members:
                 raise ValueError(f"source archive is missing {name}")
-            stream = bundle.extractfile(member)
-            if stream is None:
-                raise ValueError(f"source archive cannot read {name}")
-            actual = hashlib.sha256(stream.read()).hexdigest()
+        _verify_local_sources(bundle, members)
+        for package in _package_manifest(manifest):
+            name = package["source_archive_member"]
+            actual = _member_sha256(bundle, members, name)
             if actual != package["sdist_sha256"]:
                 raise ValueError(f"source hash mismatch for {name}")
             verified[name] = actual
-        for required in ("Dockerfile", "OPENBB_LICENSE.txt", "uv.lock"):
-            if required not in members:
-                raise ValueError(f"source archive is missing {required}")
+        license_name = "OPENBB_LICENSE.txt"
+        actual_license = _member_sha256(bundle, members, license_name)
+        if actual_license != _license_hash(manifest):
+            raise ValueError("upstream license hash mismatch")
+        verified[license_name] = actual_license
     return verified
 
 

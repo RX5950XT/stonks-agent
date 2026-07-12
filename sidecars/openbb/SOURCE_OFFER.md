@@ -26,8 +26,9 @@ SHA-256 驗證後一併放進 archive。
 
 ## Patch state 與 build recipe
 
-OpenBB packages 未被 patch；唯一新增程式為本目錄的 `app.py`，用途是掛載原始
-OpenBB FastAPI app、加入 `/source`，並在每個 HTTP response 宣告 source link。
+OpenBB packages 未被 patch；新增程式為本目錄的 `app.py` 與 `surface.py`，用途是
+掛載原始 OpenBB FastAPI app、加入 `/source`、宣告 source link，並在 OpenBB router
+前限制成三個精確 read-only routes。
 
 ```sh
 uv sync --frozen

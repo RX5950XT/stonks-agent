@@ -189,7 +189,7 @@
 
 ### Tasks
 
-- [ ] **P2.1 Research domain and tool policy** — 實作`domain/{research,tool_policy,usage_budget}.py`、`ports/{research_worker,llm,tool}.py`、`tests/domain/test_tool_policy.py`。（Depends：P1 gate；Complexity：L；Risk：High）
+- [x] **P2.1 Research domain and tool policy** — 實作`domain/{research,tool_policy,usage_budget}.py`、`ports/{research_worker,llm,tool}.py`、`tests/domain/test_tool_policy.py`。（Depends：P1 gate；Complexity：L；Risk：High）
   - Tool具allowlist、typed args、instrument/evidence scope、read-only/mutation class、timeout、byte limit、redaction與audit。
   - Research principals無filesystem write/shell/secret/queue/execution ports。
 
@@ -564,3 +564,11 @@
 - OpenBB / license：sidecar static policy 8/8、48 policy tests、64-package frozen lock無已知CVE；重建image後live historical smoke回2 rows、source archive驗5類hash，runtime為UID 65532、read-only rootfs、cap-drop ALL、no-new-privileges，exact allowlist之外回404。
 - Honest boundary：Financial Datasets與OpenBB目前只宣稱read-only observation contracts；production canonical materialization source已驗證的是replay。`stonks-worker`目前只claim lease，完整常駐dispatcher不列為已完成能力。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review、內容與SHA-256仍一致。
+
+### P2 Progress Review — P2.1 — 2026-07-12
+
+- Scope completed：frozen evidence-scoped research/LLM contracts、immutable multi-dimensional usage budget、runtime-checkable research/LLM/tool ports，以及read-only tool authorization/result validation。
+- Security：research principal無ambient filesystem/process/network/secret/queue/execution capabilities；principal/profile/policy、tool allowlist、typed arguments、instrument/evidence scope、timeout/output cap、audit redaction、result call/hash/byte limit皆fail closed。
+- Verification：P2.1 focused為22 passed、branch coverage 92%；完整`scripts/verify.py`為486 passed、171 PostgreSQL tests deselected、branch coverage 87.50%，205 files format、ruff、mypy 119 source files、schema、upstream/license、secret與locked dependency audit全通過。
+- Phase status：P2 gate尚未完成；下一項為P2.2 clean-room bounded research orchestrator。P2.1無migration或DB行為變更，因此本次未重跑P1 PostgreSQL suite。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。

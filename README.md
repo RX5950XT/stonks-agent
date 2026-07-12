@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation 與 P1 Canonical Data Hub 已通過 phase gate；P2–P6 依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation 與 P1 Canonical Data Hub 已通過 phase gate；P2 Research control plane 已完成 domain/tool policy foundation，後續工作依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -14,6 +14,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - DB-authoritative lease/deadline/not-before fencing；caller clock漂移、duplicate/stale result與tampered retry graph皆fail closed。
 - US/HK/TW replay fixtures與canonical snapshot materialization；雙來源reconciliation trace可由immutable artifact離線重驗。
 - Financial Datasets與OpenBB read-only observation adapters共用daily query shape；optional OpenBB sidecar使用獨立lock/image、exact route allowlist、SBOM與AGPL corresponding source。
+- Evidence-scoped `ResearchRequest/ResearchArtifact/AgentOpinion`、usage budget、structured LLM contracts，以及 deny-by-default read-only tool authorization；tool result會核對scope、identity、hash與byte limit。
 - Local RBAC、process capability/egress deny、secret redaction、統一 API envelope 與 telemetry ports。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 

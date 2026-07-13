@@ -233,17 +233,21 @@
 - [x] **P2.11 Research/report API and CLI** — 建立`entrypoints/api/routes/{research,reports}.py`、`entrypoints/cli_commands/{research,report}.py`與SSE run-event projection。（Depends：P2.2–P2.10；Complexity：L；Risk：Medium）
   - API不直接執行長任務，只建立job並stream/read canonical events。
 
+- [x] **P2.12 Canonical research pipeline gate** — 建立`application/research/pipeline.py`與snapshot→deterministic/TradingAgents→report/render/delivery E2E；每次result輸出immutable stage audit artifact。（Depends：P2.1–P2.11；Complexity：XL；Risk：High）
+  - TradingAgents outage可degrade；deterministic/report failure須形成failed result；任何路徑都不得產生target/order或偽造success。
+  - 此gate只關閉P2 research control plane；P4.7仍負責portfolio/risk/execution完整state machine。
+
 ### P2 Verification gate
 
 - [x] Fake LLM、prompt-injection fixtures、tool scope/timeout/output-limit與budget exhaustion tests全部通過。（Depends：P2.1–P2.3）
 - [x] TradingAgents pinned worker contract測試證明只回`AnalysisBundle/AgentOpinion`，且worker無execution/DB credentials、無任意data egress、無late-result commit能力。（Depends：P2.4、P2.5）
 - [x] PEAD/event-study golden與PIT tests通過，notice完整。（Depends：P2.6）
 - [x] 每個report claim都能解析到evidence；所有channel render可由同一report重建且hash穩定。（Depends：P2.7–P2.10）
-- [ ] Provider/LLM/TradingAgents outage時run能degrade/fail/report，不產生偽造success或order。（Depends：P2.11）
+- [x] Provider/LLM/TradingAgents outage時run能degrade/fail/report，不產生偽造success或order。（Depends：P2.11）
 
 ### P2 Success criteria
 
-- [ ] 單一instrument可從snapshot完成deterministic + TradingAgents research並產生可稽核report。
+- [x] 單一instrument可從snapshot完成deterministic + TradingAgents research並產生可稽核report。
 - [x] Agent opinion與community-like文字沒有任何直接execution path。
 - [x] Dexter與AI-Trader source/prompt/assets未進repository；DSA/ai-hedge-fund採用均有notice。
 
@@ -645,4 +649,4 @@
 - Safety / UX：Jinja使用sandbox、StrictUndefined與固定startup-loaded paths；HTML autoescape、Markdown special-char escape、subject/brief deterministic truncation、zh-TW/en labels與observed/qualified/hypothesis + quality標籤都有測試。full Markdown 64KiB、brief 4KiB、email 128KiB上限在任何artifact write前檢查；unsupported language或missing template fail closed。
 - Upstream / dependency：模板為clean implementation，未複製daily_stock_analysis片段，不新增其MIT notice；core新增輕量Jinja2 3.1.6並更新frozen lock，locked runtime audit無已知CVE。
 - Verification：focused為6 passed、branch coverage 90%；完整non-PostgreSQL gate為619 passed、172 deselected、coverage 88.28%，259 files format、ruff、mypy 150 source files、43 schemas、upstream/license/secret與locked dependency audit全通過。無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
-- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2.1–P2.11已完成；P2 phase gate仍缺canonical research dispatcher整體E2E與outage run-state證據，不能宣稱P2完成。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2.1–P2.12與phase gate已完成；下一項為P3.1 forecast contracts。Production常駐dispatcher與durable全流程transition仍屬P4.7，不在P2 gate冒充完成。

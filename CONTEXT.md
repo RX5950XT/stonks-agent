@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation 與 P1 Canonical Data Hub phase gates已完成；P2.1–P2.11 bounded research、structured LLM、TradingAgents worker/core adapter、draft PEAD/event-study、evidence/report integrity、render/delivery與queue-only research API/CLI已完成。P2 phase gate尚缺canonical research dispatcher整體E2E與outage run-state證據。
+- P0 Foundation、P1 Canonical Data Hub與P2 Research control plane phase gates已完成；P2.1–P2.12包含bounded research、structured LLM、TradingAgents worker/core adapter、draft PEAD/event-study、evidence/report integrity、render/delivery、queue-only API/CLI與application-level整體research pipeline。下一目標為P3.1 forecast contracts。
 - P1包含PostgreSQL 0001–0008、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -22,6 +22,7 @@
 - P2.9新增sandboxed fixed-template Jinja adapter與clean full/brief Markdown、email HTML templates；所有輸出只讀同一`AnalysisReport`，autoescape/Markdown escape、quality qualifier、zh-TW/en labels、subject/brief truncation、channel byte caps、artifact metadata與render hash皆固定。未複製DSA template片段，因此無新增上游notice義務。
 - P2.10新增artifact-backed delivery request/command/receipt contracts與fenced outbox consumer；console/file預設可用，email/webhook未配置時產生明確`skipped` receipt。所有adapter重驗SHA-256與idempotency identity；file限制fixed root、atomic replace並拒絕覆寫不同內容，webhook限制fixed HTTPS、no redirect、chunk idempotency key與bounded retry，錯誤只回public-safe code。
 - P2.11新增paper-only `ResearchRunRequest`、atomic PostgreSQL run/job/snapshot link、verified run-event reader、queue-only API與CLI。SSE支援`Last-Event-ID`且只投影通過完整hash-chain驗證的canonical events；payload先secret redaction。Report API/CLI只讀source/license/sensitivity/template metadata符合renderer contract的artifact，任意LLM raw/prompt artifact不得經此能力讀取。
+- P2.12新增`ResearchPipelineCommand/Result`與application pipeline gate；同一PIT context先驗deterministic artifact與TradingAgents opinion的run/as-of/evidence scope，再把兩者ID注入structured report attribution、完成三channel render與file delivery。每次succeeded/degraded/failed結果皆封存public-safe immutable audit；provider/deterministic/report outage fail，TradingAgents outage degrade，任何contract均無target/order。此為application-level gate，production常駐dispatcher與durable transition/commit仍由P4.7負責。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -50,7 +51,7 @@
 8. AI-Trader 只作 external community HTTP adapter；不提交 canonical paper/copy order。
 9. OpenBB、Kronos、TradingAgents、Qlib、RD-Agent、LEAN/Nautilus 各自獨立 lock/image，不進 core environment。
 
-## P0 / P1 / P2.1–P2.11 可重跑證據
+## P0 / P1 / P2 可重跑證據
 
 ```powershell
 uv sync --frozen
@@ -75,11 +76,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P2.9後完整non-PostgreSQL gate為619 passed、172 deselected、coverage 88.28%；focused renderer為6 passed、branch coverage 90%。三channel golden、stable replay hash、escaping、stale/conflict qualifier、多語、long subject、byte cap與startup template checks通過；Jinja2 3.1.6 locked audit無已知CVE。
 - P2.10後完整non-PostgreSQL gate為630 passed、172 deselected、coverage 88.28%；focused delivery為11 passed、branch coverage 85.93%。outbox fence、artifact hash、UTF-8 byte chunk、idempotency、fixed-root no-overwrite、optional channel skip、webhook retry/no-redirect與redacted failures皆通過；locked audit無已知CVE。
 - P2.11後non-PostgreSQL gate為640 passed、176 deselected、coverage 88.10%；完整PostgreSQL gate為816 passed、coverage 88.52%，Alembic無drift。focused API/CLI/SSE/report reader為12 passed、branch coverage 82.20%；另有4個真實PostgreSQL tests覆蓋atomic submit、PIT snapshot、idempotency、event chain與CLI enqueue，locked audit無已知CVE。
+- P2.12後non-PostgreSQL gate為642 passed、176 deselected、coverage 88.12%；完整PostgreSQL gate為818 passed、coverage 88.54%，Alembic無drift。focused pipeline為2 E2E、branch coverage 87.16%，涵蓋snapshot→dual research→report/render/file delivery與provider/deterministic/TradingAgents/LLM outage audit；locked audit無已知CVE。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P2 與架構藍圖。
-2. 保持 TDD；補齊canonical `research_pipeline` dispatcher與整體E2E，證明單一snapshot能走deterministic + TradingAgents research、report/render/delivery；provider/LLM/worker outage必須形成degraded/failed canonical run event，不能偽造success或order。
+2. 保持 TDD；從P3.1 forecast contracts開始，所有forecast只產stochastic artifact/signal，不能直接建立target/order或覆寫risk。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

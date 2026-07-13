@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.5 已完成，P4.6 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.6 已完成，P4.7 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -366,9 +366,9 @@
   - [x] 同idempotency key + same payload回同receipt；same key + different payload fail closed。
   - [x] 每個accepted command必須帶有效reservation；fill/cancel/reject/expire按account序列化並原子consume/release。
 
-- [ ] **P4.6 Balanced journal and projections** — 建立`application/ledger/{post,replay,reconcile}.py`、`adapters/postgres/ledger_repository.py`與property tests。（Depends：P4.2、P4.5；Complexity：XL；Risk：High）
-  - 每筆transaction至少兩個postings；每種currency/commodity經Decimal quantization後debit/credit sum為零，明確使用cash/inventory/fee/PnL/clearing accounts。
-  - Cash/positions/fees/P&L只由journal推導；daily replay hash與DB projection一致。不平、gap、unknown order state觸發rollback與global paper kill switch。
+- [x] **P4.6 Balanced journal and projections** — 建立`application/ledger/{post,replay,reconcile}.py`、`adapters/postgres/ledger_repository.py`與property tests。（Depends：P4.2、P4.5；Complexity：XL；Risk：High）
+  - [x] 每筆transaction至少兩個postings；每種currency/commodity經Decimal quantization後debit/credit sum為零，明確使用cash/inventory/fee/PnL/clearing accounts。
+  - [x] Cash/positions/fees/P&L只由journal推導；daily replay hash與DB projection一致。不平、gap、unknown order state觸發rollback與global paper kill switch。
 
 - [ ] **P4.7 End-to-end workflow state machine** — 完成`application/workflows/run_cycle.py`各transition/retry/cancel/dead-letter；建立`tests/e2e/test_paper_fund_cycle.py`。（Depends：P1.6、P2.11、P3.10、P4.3–P4.6；Complexity：XL；Risk：High）
   - Flow固定`Evidence -> Research/Opinion/Signal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt -> Ledger -> Report`。
@@ -794,3 +794,11 @@
 - Transaction / idempotency：application先重讀DB-authoritative intent、reservation、account、events/fills，再模擬並於account row lock內重驗sequence/prefix/hash。Order/reservation events、fills、reservation projection consume/release與append-only `paper_execution_receipt`同transaction寫入；same idempotency + exact command重播同record，different payload、concurrent drift、cash/position projection mismatch與incomplete chain全rollback。兩個並行duplicate commands實測只產一筆receipt/fill。
 - Verification：focused application/golden/PostgreSQL為31 passed，四個execution核心模組合計branch coverage 81%。完整PostgreSQL gate為1122 passed、coverage 88.27%，400 files format、ruff、mypy 238 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.6 balanced journal and projections。
+
+### P4 Progress Review — P4.6 — 2026-07-13
+
+- Scope completed：新增immutable opening snapshot、versioned `ledger_v1.yaml`、deterministic fill journal、journal replay/reconciliation、generic ledger account projections、PostgreSQL repository與0012 migration。BUY/SELL依average cost建立cash/inventory value與units/fee/realized PnL/clearing postings；opening position無cost basis時SELL fail closed。
+- Atomicity / graph：execution在單一account-serialized UoW完成fill、journal、settled cash/position、generic projection、ledger/account head/event與receipt。Deferred constraints雙向保證每筆fill恰有一筆journal且latest order state/cumulative fill一致；receipt replay重驗fills/journals/head/projection graph，concurrent duplicate只回authoritative record。
+- Reconciliation / safety：opening + immutable journals可deterministic重建projection/hash；CAS同時綁account/ledger sequence與previous hash。Gap、tamper、unknown ledger account/order state、projection drift或unbalanced graph先rollback，再以獨立transaction啟動singleton global paper kill switch；active switch拒絕新execution。
+- Verification：focused ledger/execution/PostgreSQL為53 passed，五個核心模組合計branch coverage 80.98%、reconciliation 95%。完整PostgreSQL gate為1144 passed、coverage 87.92%，412 files format、ruff、mypy 243 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P4.7 end-to-end workflow state machine。

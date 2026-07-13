@@ -53,6 +53,8 @@ def clean_database(migrated_engine: Engine) -> Engine:
                     paper_fill,
                     order_event, order_intent, reservation_event,
                     account_reservation, risk_decision, portfolio_target,
+                    paper_ledger_account_projection,
+                    paper_account_opening_snapshot,
                     paper_cash_projection, paper_position_projection,
                     paper_account_event, paper_kill_switch, paper_account,
                     strategy_audit_event, strategy_evaluation_report,
@@ -63,6 +65,19 @@ def clean_database(migrated_engine: Engine) -> Engine:
                     instrument, trading_calendar_version, provider_health,
                     usage_budget, run, artifact_manifest
                 cascade
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                insert into paper_kill_switch
+                    (switch_id, scope, account_id, active, reason_code, actor,
+                     version, created_at, updated_at)
+                values
+                    ('46000000-0000-4000-8000-000000000000', 'global', null,
+                     false, 'test_initialized', 'system:test', 1,
+                     clock_timestamp(), clock_timestamp())
                 """
             )
         )

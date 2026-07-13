@@ -57,6 +57,26 @@ class PaperAccountRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class PaperAccountOpeningSnapshotRow(Base):
+    __tablename__ = "paper_account_opening_snapshot"
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", name="uq_paper_account_opening_snapshot_id"),
+        UniqueConstraint(
+            "snapshot_hash", name="uq_paper_account_opening_snapshot_hash"
+        ),
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("paper_account.account_id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    snapshot_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
+    snapshot_hash: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class PaperAccountEventRow(Base):
     __tablename__ = "paper_account_event"
     __table_args__ = (
@@ -148,6 +168,36 @@ class PaperPositionProjectionRow(Base):
     reserved_quantity: Mapped[Decimal] = mapped_column(Numeric)
     quantum: Mapped[Decimal] = mapped_column(Numeric)
     updated_sequence: Mapped[int] = mapped_column(BigInteger)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PaperLedgerAccountProjectionRow(Base):
+    __tablename__ = "paper_ledger_account_projection"
+    __table_args__ = (
+        PrimaryKeyConstraint("account_id", "ledger_account", "commodity"),
+        CheckConstraint(
+            "quantum > 0 and debit_total >= 0 and credit_total >= 0",
+            name="paper_ledger_projection_amounts_valid",
+        ),
+        CheckConstraint(
+            "mod(debit_total, quantum) = 0 and mod(credit_total, quantum) = 0",
+            name="paper_ledger_projection_quantized",
+        ),
+        CheckConstraint(
+            "updated_ledger_sequence >= 0",
+            name="paper_ledger_projection_sequence_nonnegative",
+        ),
+    )
+
+    account_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("paper_account.account_id", ondelete="RESTRICT")
+    )
+    ledger_account: Mapped[str] = mapped_column(String(256))
+    commodity: Mapped[str] = mapped_column(String(128))
+    quantum: Mapped[Decimal] = mapped_column(Numeric)
+    debit_total: Mapped[Decimal] = mapped_column(Numeric)
+    credit_total: Mapped[Decimal] = mapped_column(Numeric)
+    updated_ledger_sequence: Mapped[int] = mapped_column(BigInteger)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -505,6 +555,12 @@ class PaperKillSwitchRow(Base):
     __tablename__ = "paper_kill_switch"
     __table_args__ = (
         UniqueConstraint("account_id", name="uq_paper_kill_switch_account"),
+        Index(
+            "uq_paper_kill_switch_global",
+            "scope",
+            unique=True,
+            postgresql_where=text("scope='global'"),
+        ),
         CheckConstraint(
             "(scope = 'global' and account_id is null) or "
             "(scope = 'account' and account_id is not null)",

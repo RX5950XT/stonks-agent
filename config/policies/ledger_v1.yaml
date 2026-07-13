@@ -1,0 +1,3 @@
+policy_version: 1.0.0
+cost_basis_method: average
+monetary_rounding: ROUND_HALF_EVEN

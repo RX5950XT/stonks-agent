@@ -34,6 +34,7 @@ from stonks_agent.adapters.postgres.trading_repository import (
 )
 from stonks_agent.adapters.postgres.unit_of_work import PostgresUnitOfWork
 from stonks_agent.application.execution.execute import execute_reference_paper
+from stonks_agent.application.ledger.post import load_ledger_posting_policy
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.execution_model import ExecutionBar, PaperExecutionRequest
 from stonks_agent.domain.orders import build_execution_command
@@ -91,6 +92,10 @@ def _broker() -> ReferencePaperBroker:
     )
 
 
+def _ledger_policy():
+    return load_ledger_posting_policy(ROOT / "config" / "policies" / "ledger_v1.yaml")
+
+
 def _seed_order(engine: Engine) -> None:
     mutation, intent = reservation_order(reserved_amount=Decimal("405.00"))
     with Session(engine) as session:
@@ -110,6 +115,7 @@ def test_execution_receipt_fill_events_and_release_commit_atomically(
     result = execute_reference_paper(
         execution_request(),
         _broker(),
+        _ledger_policy(),
         lambda: PostgresUnitOfWork(clean_database),
     )
 
@@ -124,6 +130,7 @@ def test_execution_receipt_fill_events_and_release_commit_atomically(
                 select
                   (select count(*) from paper_execution_receipt) receipts,
                   (select count(*) from paper_fill) fills,
+                  (select count(*) from journal_transaction) journals,
                   (select count(*) from order_event) order_events,
                   (select count(*) from reservation_event) reservation_events
                 """
@@ -143,13 +150,39 @@ def test_execution_receipt_fill_events_and_release_commit_atomically(
             text("select state from account_reservation where account_id=:account_id"),
             {"account_id": ACCOUNT_ID},
         )
+        cash_settled = connection.scalar(
+            text(
+                "select settled_amount from paper_cash_projection "
+                "where account_id=:account_id and currency='USD'"
+            ),
+            {"account_id": ACCOUNT_ID},
+        )
+        position = connection.scalar(
+            text(
+                "select quantity from paper_position_projection "
+                "where account_id=:account_id and instrument_id=:instrument_id"
+            ),
+            {"account_id": ACCOUNT_ID, "instrument_id": INSTRUMENT_ID},
+        )
+        ledger_sequence = connection.scalar(
+            text(
+                "select ledger_sequence from paper_account where account_id=:account_id"
+            ),
+            {"account_id": ACCOUNT_ID},
+        )
     assert counts == {
         "receipts": 1,
         "fills": 1,
+        "journals": 1,
         "order_events": 2,
         "reservation_events": 3,
     }
     assert cash_reserved == Decimal("0.00")
+    assert result.value.outcome.fill is not None
+    fill = result.value.outcome.fill
+    assert cash_settled == Decimal("10000.00") - fill.quantity * fill.price - fill.fees
+    assert position == fill.quantity
+    assert ledger_sequence == 1
     assert state == "released"
 
 
@@ -161,11 +194,13 @@ def test_execution_idempotency_replays_same_and_rejects_changed_command(
     first = execute_reference_paper(
         first_request,
         _broker(),
+        _ledger_policy(),
         lambda: PostgresUnitOfWork(clean_database),
     )
     replay = execute_reference_paper(
         first_request,
         _broker(),
+        _ledger_policy(),
         lambda: PostgresUnitOfWork(clean_database),
     )
     changed_command = build_execution_command(
@@ -183,6 +218,7 @@ def test_execution_idempotency_replays_same_and_rejects_changed_command(
     changed = execute_reference_paper(
         first_request.model_copy(update={"command": changed_command.value}),
         _broker(),
+        _ledger_policy(),
         lambda: PostgresUnitOfWork(clean_database),
     )
 
@@ -245,6 +281,7 @@ def test_execution_sequence_drift_rolls_back_without_side_effects(
     result = execute_reference_paper(
         execution_request(),
         _broker(),
+        _ledger_policy(),
         lambda: PostgresUnitOfWork(clean_database),
     )
 
@@ -268,13 +305,14 @@ def test_concurrent_duplicate_execution_commits_one_receipt_and_fill(
         return execute_reference_paper(
             submitted,
             _broker(),
+            _ledger_policy(),
             lambda: PostgresUnitOfWork(clean_database),
         )
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = tuple(executor.map(lambda _: execute(), range(2)))
 
-    assert all(isinstance(item, Success) for item in results)
+    assert all(isinstance(item, Success) for item in results), results
     assert results[0] == results[1]
     with clean_database.connect() as connection:
         assert connection.scalar(text("select count(*) from paper_fill")) == 1
@@ -289,6 +327,7 @@ def test_execution_receipt_is_append_only(clean_database: Engine) -> None:
     result = execute_reference_paper(
         execution_request(),
         _broker(),
+        _ledger_policy(),
         lambda: PostgresUnitOfWork(clean_database),
     )
     assert isinstance(result, Success)
@@ -341,6 +380,7 @@ def test_projection_reconciliation_failure_rolls_back_execution(
     result = execute_reference_paper(
         execution_request(),
         _broker(),
+        _ledger_policy(),
         lambda: PostgresUnitOfWork(clean_database),
     )
 
@@ -362,6 +402,7 @@ def test_pending_receipt_keeps_open_reservation_without_projection_change(
     result = execute_reference_paper(
         pending,
         _broker(),
+        _ledger_policy(),
         lambda: PostgresUnitOfWork(clean_database),
     )
 

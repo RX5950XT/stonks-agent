@@ -6,12 +6,14 @@ from collections.abc import Callable
 from types import TracebackType
 from typing import Protocol, Self, runtime_checkable
 
+from stonks_agent.ports.ledger import LedgerPort
 from stonks_agent.ports.trading_repository import TradingRepositoryPort
 
 
 @runtime_checkable
 class TradingUnitOfWork(Protocol):
     trading: TradingRepositoryPort
+    ledger: LedgerPort
 
     def __enter__(self) -> Self: ...
 
@@ -28,3 +30,7 @@ class TradingUnitOfWork(Protocol):
 
 
 type TradingUnitOfWorkFactory = Callable[[], TradingUnitOfWork]
+
+
+class TradingCommitError(RuntimeError):
+    """Public-safe signal that the authoritative transaction did not commit."""

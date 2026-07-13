@@ -16,9 +16,11 @@ from stonks_agent.adapters.postgres.trading_repository import (
     PostgresTradingRepository,
 )
 from stonks_agent.adapters.postgres.unit_of_work import PostgresUnitOfWork
+from stonks_agent.application.ledger.post import LedgerPostingPolicy, build_fill_journal
+from stonks_agent.application.ledger.replay import replay_journal
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.fills import Fill
-from stonks_agent.domain.journal import JournalPosting, JournalSide, JournalTransaction
+from stonks_agent.domain.journal import JournalTransaction
 from stonks_agent.domain.orders import (
     OrderIntent,
     OrderSide,
@@ -309,33 +311,19 @@ def paper_fill() -> Fill:
 
 
 def balanced_journal() -> JournalTransaction:
-    return JournalTransaction.create(
-        transaction_id=UUID("42000000-0000-4000-8000-000000000013"),
-        account_id=ACCOUNT_ID,
-        sequence=1,
-        occurred_at=NOW + timedelta(minutes=2),
-        previous_hash=None,
-        source_order_intent_id=INTENT_ID,
-        source_fill_id=FILL_ID,
-        postings=(
-            JournalPosting(
-                posting_id=UUID("42000000-0000-4000-8000-000000000014"),
-                ledger_account="asset:cash:USD",
-                commodity="USD",
-                side=JournalSide.DEBIT,
-                amount=Decimal("401.00"),
-                quantum=Decimal("0.01"),
-            ),
-            JournalPosting(
-                posting_id=UUID("42000000-0000-4000-8000-000000000015"),
-                ledger_account="clearing:paper:USD",
-                commodity="USD",
-                side=JournalSide.CREDIT,
-                amount=Decimal("401.00"),
-                quantum=Decimal("0.01"),
-            ),
+    projection = replay_journal(account_snapshot(), ())
+    assert isinstance(projection, Success)
+    built = build_fill_journal(
+        paper_fill(),
+        projection.value,
+        LedgerPostingPolicy(
+            policy_version="1.0.0",
+            cost_basis_method="average",
+            monetary_rounding="ROUND_HALF_EVEN",
         ),
     )
+    assert isinstance(built, Success)
+    return built.value
 
 
 def seed(repository: PostgresTradingRepository, session: Session) -> None:

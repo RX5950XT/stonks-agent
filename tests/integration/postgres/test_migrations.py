@@ -34,9 +34,11 @@ EXPECTED_TABLES = {
     "strategy_evaluation_report",
     "strategy_audit_event",
     "paper_account",
+    "paper_account_opening_snapshot",
     "paper_account_event",
     "paper_cash_projection",
     "paper_position_projection",
+    "paper_ledger_account_projection",
     "portfolio_target",
     "risk_decision",
     "account_reservation",
@@ -110,6 +112,12 @@ TRADING_UPDATE_COLUMNS = {
         "sellable_quantity",
         "reserved_quantity",
         "updated_sequence",
+        "updated_at",
+    },
+    "paper_ledger_account_projection": {
+        "debit_total",
+        "credit_total",
+        "updated_ledger_sequence",
         "updated_at",
     },
     "account_reservation": {
@@ -370,6 +378,8 @@ def test_trading_migration_downgrade_and_reupgrade(
         "order_event",
         "paper_fill",
         "paper_execution_receipt",
+        "paper_account_opening_snapshot",
+        "paper_ledger_account_projection",
         "journal_transaction",
         "journal_posting",
     }
@@ -386,6 +396,7 @@ def test_trading_migration_downgrade_and_reupgrade(
         "trg_journal_transaction_chain",
         "trg_journal_transaction_balanced",
         "trg_paper_execution_receipt_append_only",
+        "trg_fill_requires_journal_accounting",
     ):
         assert _trigger_exists(migrated_engine, trigger)
 

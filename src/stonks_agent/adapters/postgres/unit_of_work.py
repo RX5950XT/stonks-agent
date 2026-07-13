@@ -6,8 +6,10 @@ from types import TracebackType
 from typing import Self
 
 from sqlalchemy import Engine
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from stonks_agent.adapters.postgres.ledger_repository import PostgresLedgerRepository
 from stonks_agent.adapters.postgres.repositories import (
     PostgresEvidenceRepository,
     PostgresWorkflowStore,
@@ -18,6 +20,7 @@ from stonks_agent.adapters.postgres.strategy_repository import (
 from stonks_agent.adapters.postgres.trading_repository import (
     PostgresTradingRepository,
 )
+from stonks_agent.ports.trading_unit_of_work import TradingCommitError
 
 
 class PostgresUnitOfWork:
@@ -25,6 +28,7 @@ class PostgresUnitOfWork:
     workflows: PostgresWorkflowStore
     strategies: PostgresStrategyRepository
     trading: PostgresTradingRepository
+    ledger: PostgresLedgerRepository
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -39,6 +43,7 @@ class PostgresUnitOfWork:
         self.workflows = PostgresWorkflowStore(self._session)
         self.strategies = PostgresStrategyRepository(self._session)
         self.trading = PostgresTradingRepository(self._session)
+        self.ledger = PostgresLedgerRepository(self._session)
         self._committed = False
         return self
 
@@ -58,7 +63,13 @@ class PostgresUnitOfWork:
 
     def commit(self) -> None:
         session = self._require_session()
-        session.commit()
+        try:
+            session.commit()
+        except DBAPIError as error:
+            session.rollback()
+            raise TradingCommitError(
+                "Authoritative transaction did not commit"
+            ) from error
         self._committed = True
 
     def rollback(self) -> None:

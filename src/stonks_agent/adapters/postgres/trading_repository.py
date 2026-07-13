@@ -11,10 +11,12 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
 from stonks_agent.adapters.postgres import trading_execution
+from stonks_agent.adapters.postgres.ledger_repository import (
+    PostgresLedgerRepository,
+    register_opening_projection,
+)
 from stonks_agent.adapters.postgres.models import (
     AccountReservationRow,
-    JournalPostingRow,
-    JournalTransactionRow,
     OrderEventRow,
     OrderIntentRow,
     PaperAccountEventRow,
@@ -34,15 +36,12 @@ from stonks_agent.adapters.postgres.trading_mapping import (
     cash_row,
     fill_matches_intent,
     fill_row,
-    journal_row,
     new_account_event,
     order_event_from_row,
     order_event_row,
     order_intent_row,
     position_from_row,
     position_row,
-    posting_from_row,
-    posting_row,
     reservation_event_from_row,
     reservation_event_row,
     reservation_from_row,
@@ -64,7 +63,7 @@ from stonks_agent.domain.errors import (
 )
 from stonks_agent.domain.execution_model import PaperExecutionOutcome
 from stonks_agent.domain.fills import Fill
-from stonks_agent.domain.journal import JournalTransaction, verify_journal_chain
+from stonks_agent.domain.journal import JournalTransaction
 from stonks_agent.domain.orders import ExecutionCommand, OrderEvent, OrderIntent
 from stonks_agent.domain.portfolio import (
     AccountPortfolioSnapshot,
@@ -143,6 +142,7 @@ class PostgresTradingRepository:
                 self._session.add(cash_row(snapshot, cash_balance))
             for position_balance in snapshot.positions:
                 self._session.add(position_row(snapshot, position_balance))
+            register_opening_projection(self._session, snapshot)
             self._session.flush()
             state = self.get_account(snapshot.account_id)
             if isinstance(state, Failure):
@@ -475,58 +475,19 @@ class PostgresTradingRepository:
         *,
         expected_account_sequence: int,
     ) -> Result[JournalTransaction]:
-        existing = self._session.get(JournalTransactionRow, transaction.transaction_id)
-        if existing is not None:
-            persisted = self._journal_from_row(existing)
-            if isinstance(persisted, Success) and persisted.value == transaction:
-                return persisted
-            return _failure(ErrorCode.CONFLICT, "Journal transaction id already exists")
-
-        def mutate() -> JournalTransaction:
-            self._validate_journal_sources(transaction)
-            account = self._advance_account(
-                transaction.account_id,
-                expected_sequence=expected_account_sequence,
-                ledger_sequence=transaction.sequence,
-                ledger_hash=transaction.transaction_hash,
-            )
-            account_event = new_account_event(
-                account_id=transaction.account_id,
-                sequence=account.aggregate_sequence,
-                event_type="journal.posted",
-                aggregate_ref_type="journal_transaction",
-                aggregate_ref_id=transaction.transaction_id,
-                occurred_at=account.updated_at,
-                previous_hash=self._previous_account_hash(transaction.account_id),
-            )
-            self._session.add(journal_row(transaction))
-            self._session.flush()
-            self._session.add_all(
-                posting_row(transaction.transaction_id, index, posting)
-                for index, posting in enumerate(transaction.postings)
-            )
-            self._session.add(account_event_row(account_event))
-            self._session.flush()
-            return transaction
-
-        return self._mutation(mutate, "Journal append conflicted")
+        ledger = PostgresLedgerRepository(self._session)
+        head = ledger.get_head(transaction.account_id)
+        if isinstance(head, Failure):
+            return head
+        return ledger.append(
+            transaction,
+            expected_sequence=head.value.sequence,
+            expected_hash=head.value.transaction_hash,
+            expected_account_sequence=expected_account_sequence,
+        )
 
     def list_journal(self, account_id: str) -> Result[tuple[JournalTransaction, ...]]:
-        rows = self._session.scalars(
-            select(JournalTransactionRow)
-            .where(JournalTransactionRow.account_id == account_id)
-            .order_by(JournalTransactionRow.sequence)
-        ).all()
-        transactions: list[JournalTransaction] = []
-        for row in rows:
-            parsed = self._journal_from_row(row)
-            if isinstance(parsed, Failure):
-                return parsed
-            transactions.append(parsed.value)
-        result = tuple(transactions)
-        if result and not verify_journal_chain(result):
-            return _failure(ErrorCode.CONFLICT, "Journal chain is invalid")
-        return Success(result)
+        return PostgresLedgerRepository(self._session).list_transactions(account_id)
 
     def _validate_reservation_order_inputs(
         self, mutation: ReservationMutation, intent: OrderIntent
@@ -714,44 +675,6 @@ class PostgresTradingRepository:
             return _failure(
                 ErrorCode.CONFLICT, "Reservation/order integrity check failed"
             )
-
-    def _validate_journal_sources(self, transaction: JournalTransaction) -> None:
-        fill = self._session.get(PaperFillRow, transaction.source_fill_id)
-        intent = self._session.get(OrderIntentRow, transaction.source_order_intent_id)
-        if fill is None or intent is None:
-            raise _MutationRejected(ErrorCode.NOT_FOUND, "Journal source was not found")
-        if (
-            fill.order_intent_id != transaction.source_order_intent_id
-            or fill.account_id != transaction.account_id
-            or intent.account_id != transaction.account_id
-        ):
-            raise _MutationRejected(
-                ErrorCode.CONFLICT, "Journal source binding mismatch"
-            )
-
-    def _journal_from_row(
-        self, row: JournalTransactionRow
-    ) -> Result[JournalTransaction]:
-        posting_rows = self._session.scalars(
-            select(JournalPostingRow)
-            .where(JournalPostingRow.transaction_id == row.transaction_id)
-            .order_by(JournalPostingRow.posting_index)
-        ).all()
-        try:
-            transaction = JournalTransaction(
-                transaction_id=row.transaction_id,
-                account_id=row.account_id,
-                sequence=row.sequence,
-                occurred_at=row.occurred_at,
-                previous_hash=row.previous_hash,
-                source_order_intent_id=row.source_order_intent_id,
-                source_fill_id=row.source_fill_id,
-                postings=tuple(posting_from_row(item) for item in posting_rows),
-                transaction_hash=row.transaction_hash,
-            )
-        except ValueError:
-            return _failure(ErrorCode.CONFLICT, "Journal integrity check failed")
-        return Success(transaction)
 
     def _mutation(self, operation: Callable[[], T], conflict_message: str) -> Result[T]:
         try:

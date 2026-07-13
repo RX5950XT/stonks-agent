@@ -1,0 +1,1 @@
+"""Idempotent report delivery adapters."""

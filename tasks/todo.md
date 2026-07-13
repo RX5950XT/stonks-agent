@@ -226,7 +226,7 @@
   - 若移植DSA模板片段，保留MIT notice與來源commit；否則clean implementation。
   - Render snapshot涵蓋missing/stale/conflict、多語、long symbol/channel limit與escaping。
 
-- [ ] **P2.10 Delivery ports** — 建立`ports/delivery.py`、`adapters/delivery/{console,file,email,webhook}.py`、`application/reporting/deliver.py`與idempotency tests。（Depends：P1.6、P2.9；Complexity：L；Risk：High）
+- [x] **P2.10 Delivery ports** — 建立`ports/delivery.py`、`adapters/delivery/{console,file,email,webhook}.py`、`application/reporting/deliver.py`與idempotency tests。（Depends：P1.6、P2.9；Complexity：L；Risk：High）
   - Chunking、rate limit、retry/outbox、receipt與redacted errors一致；console/file為default。
   - Email/webhook未配置時不阻擋報告產生。
 
@@ -238,7 +238,7 @@
 - [x] Fake LLM、prompt-injection fixtures、tool scope/timeout/output-limit與budget exhaustion tests全部通過。（Depends：P2.1–P2.3）
 - [x] TradingAgents pinned worker contract測試證明只回`AnalysisBundle/AgentOpinion`，且worker無execution/DB credentials、無任意data egress、無late-result commit能力。（Depends：P2.4、P2.5）
 - [x] PEAD/event-study golden與PIT tests通過，notice完整。（Depends：P2.6）
-- [ ] 每個report claim都能解析到evidence；所有channel render可由同一report重建且hash穩定。（Depends：P2.7–P2.10）
+- [x] 每個report claim都能解析到evidence；所有channel render可由同一report重建且hash穩定。（Depends：P2.7–P2.10）
 - [ ] Provider/LLM/TradingAgents outage時run能degrade/fail/report，不產生偽造success或order。（Depends：P2.11）
 
 ### P2 Success criteria
@@ -645,4 +645,4 @@
 - Safety / UX：Jinja使用sandbox、StrictUndefined與固定startup-loaded paths；HTML autoescape、Markdown special-char escape、subject/brief deterministic truncation、zh-TW/en labels與observed/qualified/hypothesis + quality標籤都有測試。full Markdown 64KiB、brief 4KiB、email 128KiB上限在任何artifact write前檢查；unsupported language或missing template fail closed。
 - Upstream / dependency：模板為clean implementation，未複製daily_stock_analysis片段，不新增其MIT notice；core新增輕量Jinja2 3.1.6並更新frozen lock，locked runtime audit無已知CVE。
 - Verification：focused為6 passed、branch coverage 90%；完整non-PostgreSQL gate為619 passed、172 deselected、coverage 88.28%，259 files format、ruff、mypy 150 source files、43 schemas、upstream/license/secret與locked dependency audit全通過。無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
-- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2 gate尚未完成，下一項為P2.10 delivery ports。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2 gate尚未完成，下一項為P2.11 research/report API與CLI。

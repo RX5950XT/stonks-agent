@@ -1,0 +1,75 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "event_at": {
+      "title": "Event At",
+      "type": "string"
+    },
+    "feature_available_at": {
+      "title": "Feature Available At",
+      "type": "string"
+    },
+    "features": {
+      "items": {
+        "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Features",
+      "type": "array"
+    },
+    "historical_universe_known_at": {
+      "title": "Historical Universe Known At",
+      "type": "string"
+    },
+    "in_historical_universe": {
+      "const": true,
+      "title": "In Historical Universe",
+      "type": "boolean"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "label": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Label",
+      "type": "string"
+    },
+    "label_available_at": {
+      "title": "Label Available At",
+      "type": "string"
+    },
+    "label_outcome_at": {
+      "title": "Label Outcome At",
+      "type": "string"
+    },
+    "row_id": {
+      "format": "uuid",
+      "title": "Row Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "row_id",
+    "instrument_id",
+    "event_at",
+    "feature_available_at",
+    "label_outcome_at",
+    "label_available_at",
+    "historical_universe_known_at",
+    "in_historical_universe",
+    "features",
+    "label"
+  ],
+  "title": "QuantDatasetRow",
+  "type": "object"
+}

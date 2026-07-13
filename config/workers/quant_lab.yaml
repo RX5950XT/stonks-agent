@@ -1,0 +1,12 @@
+max_rows: 100000
+max_request_bytes: 16777216
+runtime:
+  worker_version: quant-lab-worker/0.1.0
+  qlib_commit: d5379c520f66a39953bad76234a7019a72796fd0
+  qlib_source_hash: 3aaefc2f1711376ef6e603ffcf953e6f377eed90d6367fe2eb0cbcd4cfcb2276
+  qlib_version: 0.9.8.dev0+d5379c52
+  runtime_hash: 4219b706e0e26f5cfc19e147c5f61094040571ad29d5c387f7d7f4dce107ca5a
+  python_version: 3.12.12
+  numpy_version: 2.2.6
+  pandas_version: 2.2.3
+  sklearn_version: 1.7.2

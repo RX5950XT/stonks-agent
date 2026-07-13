@@ -1,0 +1,418 @@
+{
+  "$defs": {
+    "QuantBacktestPosition": {
+      "additionalProperties": false,
+      "properties": {
+        "event_at": {
+          "title": "Event At",
+          "type": "string"
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "research_exposure": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Research Exposure",
+          "type": "string"
+        },
+        "research_only": {
+          "const": true,
+          "default": true,
+          "title": "Research Only",
+          "type": "boolean"
+        },
+        "row_id": {
+          "format": "uuid",
+          "title": "Row Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_id",
+        "instrument_id",
+        "event_at",
+        "research_exposure"
+      ],
+      "title": "QuantBacktestPosition",
+      "type": "object"
+    },
+    "QuantMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "unit": {
+          "pattern": "^[a-z][a-z0-9_.%/-]{0,63}$",
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "unit"
+      ],
+      "title": "QuantMetric",
+      "type": "object"
+    },
+    "QuantPrediction": {
+      "additionalProperties": false,
+      "properties": {
+        "actual_return": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Actual Return",
+          "type": "string"
+        },
+        "event_at": {
+          "title": "Event At",
+          "type": "string"
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "predicted_return": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Predicted Return",
+          "type": "string"
+        },
+        "row_id": {
+          "format": "uuid",
+          "title": "Row Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_id",
+        "instrument_id",
+        "event_at",
+        "predicted_return",
+        "actual_return"
+      ],
+      "title": "QuantPrediction",
+      "type": "object"
+    },
+    "QuantResearchResult": {
+      "additionalProperties": false,
+      "properties": {
+        "cost_model_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Cost Model Hash",
+          "type": "string"
+        },
+        "dataset_artifact_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Dataset Artifact Hash",
+          "type": "string"
+        },
+        "dataset_snapshot_id": {
+          "format": "uuid",
+          "title": "Dataset Snapshot Id",
+          "type": "string"
+        },
+        "deterministic": {
+          "const": true,
+          "title": "Deterministic",
+          "type": "boolean"
+        },
+        "feature_spec_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Feature Spec Hash",
+          "type": "string"
+        },
+        "generated_at": {
+          "title": "Generated At",
+          "type": "string"
+        },
+        "label_spec_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Label Spec Hash",
+          "type": "string"
+        },
+        "metrics": {
+          "items": {
+            "$ref": "#/$defs/QuantMetric"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Metrics",
+          "type": "array"
+        },
+        "metrics_artifact_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Metrics Artifact Hash",
+          "type": "string"
+        },
+        "model_artifact_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Model Artifact Hash",
+          "type": "string"
+        },
+        "model_parameters": {
+          "items": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Model Parameters",
+          "type": "array"
+        },
+        "model_spec_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Model Spec Hash",
+          "type": "string"
+        },
+        "position_artifact_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Position Artifact Hash",
+          "type": "string"
+        },
+        "positions": {
+          "items": {
+            "$ref": "#/$defs/QuantBacktestPosition"
+          },
+          "maxItems": 1000000,
+          "minItems": 1,
+          "title": "Positions",
+          "type": "array"
+        },
+        "prediction_artifact_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prediction Artifact Hash",
+          "type": "string"
+        },
+        "predictions": {
+          "items": {
+            "$ref": "#/$defs/QuantPrediction"
+          },
+          "maxItems": 1000000,
+          "minItems": 1,
+          "title": "Predictions",
+          "type": "array"
+        },
+        "request_id": {
+          "format": "uuid",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/QuantRuntimeIdentity"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_data_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Data Hash",
+          "type": "string"
+        },
+        "split_policy_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Split Policy Hash",
+          "type": "string"
+        },
+        "universe_spec_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Universe Spec Hash",
+          "type": "string"
+        },
+        "warnings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "request_id",
+        "dataset_snapshot_id",
+        "source_data_hash",
+        "dataset_artifact_hash",
+        "feature_spec_hash",
+        "label_spec_hash",
+        "universe_spec_hash",
+        "cost_model_hash",
+        "split_policy_hash",
+        "model_spec_hash",
+        "runtime",
+        "predictions",
+        "positions",
+        "metrics",
+        "model_parameters",
+        "prediction_artifact_hash",
+        "position_artifact_hash",
+        "metrics_artifact_hash",
+        "model_artifact_hash",
+        "deterministic",
+        "generated_at"
+      ],
+      "title": "QuantResearchResult",
+      "type": "object"
+    },
+    "QuantRuntimeIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "numpy_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Numpy Version",
+          "type": "string"
+        },
+        "pandas_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Pandas Version",
+          "type": "string"
+        },
+        "python_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Python Version",
+          "type": "string"
+        },
+        "qlib_commit": {
+          "pattern": "^[a-f0-9]{40}$",
+          "title": "Qlib Commit",
+          "type": "string"
+        },
+        "qlib_source_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Qlib Source Hash",
+          "type": "string"
+        },
+        "qlib_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Qlib Version",
+          "type": "string"
+        },
+        "runtime_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Runtime Hash",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sklearn_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Sklearn Version",
+          "type": "string"
+        },
+        "worker_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Worker Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "worker_version",
+        "qlib_commit",
+        "qlib_source_hash",
+        "qlib_version",
+        "runtime_hash",
+        "python_version",
+        "numpy_version",
+        "pandas_version",
+        "sklearn_version"
+      ],
+      "title": "QuantRuntimeIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempt_generation": {
+      "minimum": 1,
+      "title": "Attempt Generation",
+      "type": "integer"
+    },
+    "attempt_nonce": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Attempt Nonce",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "result": {
+      "$ref": "#/$defs/QuantResearchResult"
+    },
+    "result_artifact_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Result Artifact Hash",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "run_id",
+    "job_id",
+    "attempt_generation",
+    "attempt_nonce",
+    "result_artifact_hash",
+    "result"
+  ],
+  "title": "QuantWorkerResponse",
+  "type": "object"
+}

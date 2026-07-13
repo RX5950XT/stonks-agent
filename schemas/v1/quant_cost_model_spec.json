@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "fee_bps": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Fee Bps",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "slippage_bps": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Slippage Bps",
+      "type": "string"
+    }
+  },
+  "required": [
+    "fee_bps",
+    "slippage_bps"
+  ],
+  "title": "QuantCostModelSpec",
+  "type": "object"
+}

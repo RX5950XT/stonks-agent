@@ -1,0 +1,23 @@
+services:
+  quant-lab:
+    build:
+      context: ..
+      dockerfile: workers/quant_lab/Dockerfile
+      target: runtime
+    environment:
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      PYTHONHASHSEED: "0"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [quant-lab-internal]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    pids_limit: 128
+    mem_limit: 2g
+    cpus: 2.0
+
+networks:
+  quant-lab-internal:
+    internal: true

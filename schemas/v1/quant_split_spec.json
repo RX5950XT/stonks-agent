@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "embargo_observations": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Embargo Observations",
+      "type": "integer"
+    },
+    "purge_observations": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Purge Observations",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "test_end": {
+      "title": "Test End",
+      "type": "string"
+    },
+    "test_start": {
+      "title": "Test Start",
+      "type": "string"
+    },
+    "train_end": {
+      "title": "Train End",
+      "type": "string"
+    },
+    "train_start": {
+      "title": "Train Start",
+      "type": "string"
+    },
+    "valid_end": {
+      "title": "Valid End",
+      "type": "string"
+    },
+    "valid_start": {
+      "title": "Valid Start",
+      "type": "string"
+    }
+  },
+  "required": [
+    "train_start",
+    "train_end",
+    "valid_start",
+    "valid_end",
+    "test_start",
+    "test_end",
+    "purge_observations",
+    "embargo_observations"
+  ],
+  "title": "QuantSplitSpec",
+  "type": "object"
+}

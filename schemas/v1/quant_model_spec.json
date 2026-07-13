@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "algorithm": {
+      "const": "qlib_linear_ols",
+      "title": "Algorithm",
+      "type": "string"
+    },
+    "deterministic": {
+      "const": true,
+      "default": true,
+      "title": "Deterministic",
+      "type": "boolean"
+    },
+    "fit_intercept": {
+      "const": false,
+      "default": false,
+      "title": "Fit Intercept",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "algorithm"
+  ],
+  "title": "QuantModelSpec",
+  "type": "object"
+}

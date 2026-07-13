@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub 與 P2 Research control plane 已通過 phase gate；P3 strategy/forecast/evaluation 已完成P3.1–P3.8，後續工作依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub 與 P2 Research control plane 已通過 phase gate；P3 strategy/forecast/evaluation 已完成P3.1–P3.9，後續工作依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -33,6 +33,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Opinion-to-alpha mapper預設停用；啟用時仍要求mapper manifest parameters exact綁定policy hash、strategy為`paper_eligible`、evaluation passed且未過期、opinion confidence已校準。Bullish/neutral/bearish只映射成固定signed research value，unknown rating或任何quantity/order-shaped欄位fail closed。
 - Pinned Kronos-small/Tokenizer-base isolated worker以本機唯讀model root做file size/SHA-256/symlink/untracked-entry驗證並在startup warm一次，禁止request-time download。CPU與CUDA使用獨立PyTorch 2.12.1 locks/images；non-root/read-only/internal-network runtime無DB/provider/broker/execution credentials。Canonical request由core以PIT `BarSeries`與exchange calendar產生，worker逐explicit seed以`sample_count=1`保留raw paths；core依序封存raw response與lease-secret-free path artifact，再驗fence/runtime/OHLCV/length/extreme jump並映射research-only `ForecastSignal`。Artifact replay、CPU與RTX 3070 Ti CUDA exact runtime route及16-path aggregate tolerance皆以實際115 MB權重通過。
 - Kronos evaluation只從archived forecasts建立content-hashed PIT dataset，固定要求US/HK/TW、三個deterministic baselines、同一runtime/model/tokenizer identity與production evaluation policy。Golden的768筆跨市場資料完成4個purged walk-forward splits與252筆OOS；baseline、cost與calibration未達原門檻時保留`passed=false`，不調低threshold。Exact evaluated forecast可映射成versioned shadow `AlphaSignal`，但目前策略設定固定`shadow`且eligibility weight 0。
+- Pinned Qlib quant-lab worker只接受canonical snapshot converter產生的immutable feature/label/universe/cost/split artifact，固定執行`DataHandlerLP -> DatasetH -> LinearModel(OLS)`，回傳research-only predictions/positions/metrics與content hashes。Qlib source archive、Python/NumPy/Pandas/scikit-learn與worker source/lock皆綁定runtime identity；同job真實HTTP route重播得到相同四組artifact hashes。獨立image為UID 65532、read-only、cap-drop/internal network，無DB/queue/provider/execution credentials；worker lock audit為0 vulnerabilities，Qlib與NumPy/Pandas未進core lock。
 - Local RBAC、process capability/egress deny、secret redaction、統一 API envelope 與 telemetry ports。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 
@@ -46,7 +47,7 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 
 `fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。
 
-P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Research API目前只建立`research_pipeline` job，application-level pipeline已通過P2 gate，但常駐dispatcher與durable全流程transition/commit wiring仍屬P4.7；`stonks-worker claim-once`也不是常駐dispatcher。
+P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，但strategy/evaluation API與CLI仍由P3.10完成。Research API目前只建立`research_pipeline` job，application-level pipeline已通過P2 gate，但常駐dispatcher與durable全流程transition/commit wiring仍屬P4.7；`stonks-worker claim-once`也不是常駐dispatcher。
 
 ## 核心文件
 

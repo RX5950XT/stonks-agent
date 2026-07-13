@@ -1,0 +1,75 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "numpy_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Numpy Version",
+      "type": "string"
+    },
+    "pandas_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Pandas Version",
+      "type": "string"
+    },
+    "python_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Python Version",
+      "type": "string"
+    },
+    "qlib_commit": {
+      "pattern": "^[a-f0-9]{40}$",
+      "title": "Qlib Commit",
+      "type": "string"
+    },
+    "qlib_source_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Qlib Source Hash",
+      "type": "string"
+    },
+    "qlib_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Qlib Version",
+      "type": "string"
+    },
+    "runtime_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Runtime Hash",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sklearn_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Sklearn Version",
+      "type": "string"
+    },
+    "worker_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Worker Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "worker_version",
+    "qlib_commit",
+    "qlib_source_hash",
+    "qlib_version",
+    "runtime_hash",
+    "python_version",
+    "numpy_version",
+    "pandas_version",
+    "sklearn_version"
+  ],
+  "title": "QuantRuntimeIdentity",
+  "type": "object"
+}

@@ -1,0 +1,239 @@
+{
+  "$defs": {
+    "QuantDatasetRow": {
+      "additionalProperties": false,
+      "properties": {
+        "event_at": {
+          "title": "Event At",
+          "type": "string"
+        },
+        "feature_available_at": {
+          "title": "Feature Available At",
+          "type": "string"
+        },
+        "features": {
+          "items": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Features",
+          "type": "array"
+        },
+        "historical_universe_known_at": {
+          "title": "Historical Universe Known At",
+          "type": "string"
+        },
+        "in_historical_universe": {
+          "const": true,
+          "title": "In Historical Universe",
+          "type": "boolean"
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "label": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Label",
+          "type": "string"
+        },
+        "label_available_at": {
+          "title": "Label Available At",
+          "type": "string"
+        },
+        "label_outcome_at": {
+          "title": "Label Outcome At",
+          "type": "string"
+        },
+        "row_id": {
+          "format": "uuid",
+          "title": "Row Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_id",
+        "instrument_id",
+        "event_at",
+        "feature_available_at",
+        "label_outcome_at",
+        "label_available_at",
+        "historical_universe_known_at",
+        "in_historical_universe",
+        "features",
+        "label"
+      ],
+      "title": "QuantDatasetRow",
+      "type": "object"
+    },
+    "QuantFeatureName": {
+      "enum": [
+        "return_1",
+        "return_5",
+        "volatility_5",
+        "volume_change_1"
+      ],
+      "title": "QuantFeatureName",
+      "type": "string"
+    },
+    "QuantFeatureSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "lookback_bars": {
+          "maximum": 512,
+          "minimum": 2,
+          "title": "Lookback Bars",
+          "type": "integer"
+        },
+        "names": {
+          "items": {
+            "$ref": "#/$defs/QuantFeatureName"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Names",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "names",
+        "lookback_bars"
+      ],
+      "title": "QuantFeatureSpec",
+      "type": "object"
+    },
+    "QuantLabelSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "horizon_bars": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Horizon Bars",
+          "type": "integer"
+        },
+        "name": {
+          "const": "forward_return",
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "horizon_bars"
+      ],
+      "title": "QuantLabelSpec",
+      "type": "object"
+    },
+    "QuantUniverseSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "historical_membership_artifact_ref": {
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "title": "Historical Membership Artifact Ref",
+          "type": "string"
+        },
+        "instrument_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Instrument Ids",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrument_ids",
+        "historical_membership_artifact_ref"
+      ],
+      "title": "QuantUniverseSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "dataset_snapshot_id": {
+      "format": "uuid",
+      "title": "Dataset Snapshot Id",
+      "type": "string"
+    },
+    "feature_spec": {
+      "$ref": "#/$defs/QuantFeatureSpec"
+    },
+    "label_spec": {
+      "$ref": "#/$defs/QuantLabelSpec"
+    },
+    "rows": {
+      "items": {
+        "$ref": "#/$defs/QuantDatasetRow"
+      },
+      "maxItems": 1000000,
+      "minItems": 2,
+      "title": "Rows",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_data_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Data Hash",
+      "type": "string"
+    },
+    "source_snapshot_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Source Snapshot Artifact Ref",
+      "type": "string"
+    },
+    "universe_spec": {
+      "$ref": "#/$defs/QuantUniverseSpec"
+    }
+  },
+  "required": [
+    "dataset_snapshot_id",
+    "source_snapshot_artifact_ref",
+    "source_data_hash",
+    "as_of",
+    "feature_spec",
+    "label_spec",
+    "universe_spec",
+    "rows"
+  ],
+  "title": "QuantDatasetArtifact",
+  "type": "object"
+}

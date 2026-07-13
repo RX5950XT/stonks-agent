@@ -1,0 +1,44 @@
+{
+  "$defs": {
+    "QuantFeatureName": {
+      "enum": [
+        "return_1",
+        "return_5",
+        "volatility_5",
+        "volume_change_1"
+      ],
+      "title": "QuantFeatureName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "lookback_bars": {
+      "maximum": 512,
+      "minimum": 2,
+      "title": "Lookback Bars",
+      "type": "integer"
+    },
+    "names": {
+      "items": {
+        "$ref": "#/$defs/QuantFeatureName"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Names",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "names",
+    "lookback_bars"
+  ],
+  "title": "QuantFeatureSpec",
+  "type": "object"
+}

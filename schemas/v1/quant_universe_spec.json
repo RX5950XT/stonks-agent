@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "historical_membership_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Historical Membership Artifact Ref",
+      "type": "string"
+    },
+    "instrument_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Instrument Ids",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instrument_ids",
+    "historical_membership_artifact_ref"
+  ],
+  "title": "QuantUniverseSpec",
+  "type": "object"
+}

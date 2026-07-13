@@ -1,0 +1,44 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actual_return": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Actual Return",
+      "type": "string"
+    },
+    "event_at": {
+      "title": "Event At",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "predicted_return": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Predicted Return",
+      "type": "string"
+    },
+    "row_id": {
+      "format": "uuid",
+      "title": "Row Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "row_id",
+    "instrument_id",
+    "event_at",
+    "predicted_return",
+    "actual_return"
+  ],
+  "title": "QuantPrediction",
+  "type": "object"
+}

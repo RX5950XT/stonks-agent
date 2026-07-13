@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2 gate 已通過，P3.1–P3.8 已完成，P3.9 進行中）
+> 狀態：執行中（P0、P1、P2 gate 已通過，P3.1–P3.9 已完成，P3.10 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -312,7 +312,7 @@
 - [x] **P3.8 Kronos evaluation and promotion** — 以golden跨市場snapshots執行walk-forward、baseline、成本與calibration報告；建立`config/strategies/kronos.yaml`。（Depends：P3.4、P3.7；Complexity：XL；Risk：High）
   - 未達預先固定門檻時保持`shadow`/weight 0，不能為了整合而降低門檻。
 
-- [ ] **P3.9 Qlib quant-lab worker** — 建立`workers/quant_lab/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,qlib_adapter.py}`與`tests/contracts/workers/test_qlib.py`。（Depends：P3.1、P3.4；Complexity：XL；Risk：High）
+- [x] **P3.9 Qlib quant-lab worker** — 建立`workers/quant_lab/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,qlib_adapter.py}`與`tests/contracts/workers/test_qlib.py`。（Depends：P3.1、P3.4；Complexity：XL；Risk：High）
   - `QuantResearchJob`只收immutable snapshot、feature/label/universe/cost/split specs；回傳predictions/positions/metrics/artifact hashes/provenance。
   - 不依賴已暫停的官方dataset；由canonical snapshot converter供應資料。
 
@@ -324,7 +324,7 @@
 - [x] Leakage/PIT/survivorship fixtures故意污染時evaluation必須失敗。（Depends：P3.4）
 - [x] Opinion mapper default disabled；未評估opinion、Kronos或PEAD signal權重必為0。（Depends：P3.5、P3.8）
 - [x] Kronos archived-artifact replay、CPU smoke、可用時GPU schema/tolerance smoke、model checksum與calendar/validity tests通過；fresh stochastic inference不作bit-identical gate。（Depends：P3.6–P3.8）
-- [ ] Qlib deterministic job同snapshot/runtime可重播相同artifact hashes；任何stochastic model則重播封存output artifact，worker無core DB/execution credentials。（Depends：P3.9）
+- [x] Qlib deterministic job同snapshot/runtime可重播相同artifact hashes；任何stochastic model則重播封存output artifact，worker無core DB/execution credentials。（Depends：P3.9）
 - [ ] Strategy promotion/suspend/retire均有immutable audit event與CAS conflict tests。（Depends：P3.2、P3.10）
 
 ### P3 Success criteria
@@ -737,3 +737,11 @@
 - Golden / authority：768筆跨市場archived forecasts依未修改的production policy完成4個purged walk-forward splits與252筆OOS。Candidate與baseline打平且cost/calibration不合格，因此golden固定`passed=false`；committed deployment仍為`shadow`/paper weight 0，不為整合降低threshold。只有passed、calibrated、unexpired、exact manifest/runtime/model/evaluation binding可產shadow Alpha，shared eligibility仍回weight 0，輸出無target/order/risk authority。
 - Verification：focused為15 passed、兩個新模組合計branch coverage 89.76%；P3 contracts/worker/adapter/evaluation/signal regression為137 passed。完整non-PostgreSQL gate為787 passed、187 deselected、coverage 88.34%，332 files format、ruff、mypy 197 source files、52 schemas、upstream/license、secret與locked dependency audit全通過。無dependency、migration或DB行為變更。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.9 Qlib quant-lab worker。
+
+### P3 Progress Review — P3.9 — 2026-07-13
+
+- Scope completed：新增15個frozen shared Qlib contracts、canonical `BarSeries`→immutable tabular artifact converter、closed Qlib OLS runtime、bounded HTTP worker、獨立76-package lock、hardened OCI image/compose、MIT NOTICE與67份schema snapshots。官方dataset未使用，core lock未加入Qlib/NumPy/Pandas。
+- PIT / replay / authority：dataset逐row綁feature/label/universe availability與forward label，spec、snapshot、runtime、cost、split及generation/nonce皆exact fence；purge/embargo與deadline前後fail closed。Worker只允許`qlib_linear_ols`，拒絕任意module/class/expression/pickle/path，輸出固定research-only predictions/positions/metrics/artifact hashes，不能promotion、target、risk或order。
+- Runtime / security：Qlib固定commit `d5379c52`與source archive SHA-256 `3aaefc2f...cb2276`，worker source/lock與Python 3.12.12、NumPy 2.2.6、Pandas 2.2.3、scikit-learn 1.7.2綁runtime hash `4219b706...107ca5a`。真實`DataHandlerLP -> DatasetH -> LinearModel(OLS)` HTTP route兩次重播四組artifact hashes完全相同；image為UID 65532、read-only、cap-drop/internal network且無DB/queue/provider/execution credentials。修補`filelock`/`requests`後獨立lock audit為0 vulnerabilities。
+- Verification：focused contracts/converter/worker為24 passed、四個新模組合計branch coverage 86.70%；完整non-PostgreSQL gate為811 passed、187 deselected、coverage 88.52%，341 files format、ruff、core 200 source files與worker 4 files mypy、67 schemas、upstream/license、secret、core與worker locked dependency audit全通過。無migration或DB行為變更。
+- 文件同步：`README.md`、worker README、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.10 forecast/signal/evaluation API與CLI。

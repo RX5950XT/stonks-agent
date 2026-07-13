@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "horizon_bars": {
+      "maximum": 64,
+      "minimum": 1,
+      "title": "Horizon Bars",
+      "type": "integer"
+    },
+    "name": {
+      "const": "forward_return",
+      "title": "Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "horizon_bars"
+  ],
+  "title": "QuantLabelSpec",
+  "type": "object"
+}

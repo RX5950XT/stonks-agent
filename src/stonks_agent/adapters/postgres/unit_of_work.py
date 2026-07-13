@@ -15,12 +15,16 @@ from stonks_agent.adapters.postgres.repositories import (
 from stonks_agent.adapters.postgres.strategy_repository import (
     PostgresStrategyRepository,
 )
+from stonks_agent.adapters.postgres.trading_repository import (
+    PostgresTradingRepository,
+)
 
 
 class PostgresUnitOfWork:
     evidence: PostgresEvidenceRepository
     workflows: PostgresWorkflowStore
     strategies: PostgresStrategyRepository
+    trading: PostgresTradingRepository
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -34,6 +38,7 @@ class PostgresUnitOfWork:
         self.evidence = PostgresEvidenceRepository(self._session)
         self.workflows = PostgresWorkflowStore(self._session)
         self.strategies = PostgresStrategyRepository(self._session)
+        self.trading = PostgresTradingRepository(self._session)
         self._committed = False
         return self
 

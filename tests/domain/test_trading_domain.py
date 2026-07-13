@@ -29,6 +29,8 @@ from stonks_agent.domain.orders import (
 from stonks_agent.domain.portfolio import (
     AccountPortfolioSnapshot,
     CashBalance,
+    PaperAccountEvent,
+    PaperAccountState,
     PortfolioTarget,
     PositionBalance,
     TargetAllocation,
@@ -208,6 +210,42 @@ def test_portfolio_snapshot_and_target_use_exact_available_balances_and_hash() -
     assert state.positions[0].available_quantity == Decimal("6")
     assert built.calculation_hash == built.expected_calculation_hash()
     assert built.allocations[0].delta_quantity == Decimal("4")
+
+
+def test_paper_account_state_requires_complete_untampered_event_chain() -> None:
+    event_id = UUID("41000000-0000-4000-8000-000000000020")
+    event_values = {
+        "event_id": event_id,
+        "account_id": ACCOUNT_ID,
+        "sequence": 1,
+        "event_type": "reservation_order.created",
+        "aggregate_ref_type": "reservation_order",
+        "aggregate_ref_id": INTENT_ID,
+        "occurred_at": NOW,
+        "previous_hash": None,
+    }
+    provisional = PaperAccountEvent.model_construct(**event_values, event_hash="0" * 64)
+    event = PaperAccountEvent(
+        **event_values,
+        event_hash=provisional.expected_event_hash(),
+    )
+    state = PaperAccountState(
+        account_id=ACCOUNT_ID,
+        base_currency="USD",
+        account_aggregate_sequence=1,
+        portfolio_sequence=0,
+        ledger_sequence=0,
+        ledger_hash=None,
+        events=(event,),
+        created_at=NOW,
+        updated_at=NOW,
+    )
+
+    assert state.events == (event,)
+    with pytest.raises(ValidationError, match="event count"):
+        PaperAccountState.model_validate(state.model_dump() | {"events": ()})
+    with pytest.raises(ValidationError, match="event hash"):
+        PaperAccountEvent.model_validate(event.model_dump() | {"event_hash": "f" * 64})
 
 
 @given(cents=st.integers(min_value=1, max_value=1_000_000))

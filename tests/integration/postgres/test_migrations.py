@@ -33,6 +33,20 @@ EXPECTED_TABLES = {
     "strategy_registry",
     "strategy_evaluation_report",
     "strategy_audit_event",
+    "paper_account",
+    "paper_account_event",
+    "paper_cash_projection",
+    "paper_position_projection",
+    "portfolio_target",
+    "risk_decision",
+    "account_reservation",
+    "reservation_event",
+    "order_intent",
+    "order_event",
+    "paper_fill",
+    "journal_transaction",
+    "journal_posting",
+    "paper_kill_switch",
 }
 ROLE_NAMES = {"stonks_app", "stonks_reader", "stonks_worker"}
 APP_MUTABLE_TABLES = {
@@ -74,6 +88,43 @@ QUEUE_UPDATE_COLUMNS = {
         "lease_generation",
         "lease_nonce",
         "last_error",
+    },
+}
+TRADING_UPDATE_COLUMNS = {
+    "paper_account": {
+        "aggregate_sequence",
+        "portfolio_sequence",
+        "ledger_sequence",
+        "ledger_hash",
+        "updated_at",
+    },
+    "paper_cash_projection": {
+        "settled_amount",
+        "reserved_amount",
+        "updated_sequence",
+        "updated_at",
+    },
+    "paper_position_projection": {
+        "quantity",
+        "sellable_quantity",
+        "reserved_quantity",
+        "updated_sequence",
+        "updated_at",
+    },
+    "account_reservation": {
+        "remaining_amount",
+        "state",
+        "updated_at",
+        "event_sequence",
+        "previous_event_hash",
+        "event_hash",
+    },
+    "paper_kill_switch": {
+        "active",
+        "reason_code",
+        "actor",
+        "version",
+        "updated_at",
     },
 }
 NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
@@ -256,6 +307,34 @@ def test_strategy_updates_are_app_only_and_column_scoped(
     }
 
 
+def test_trading_updates_are_app_only_and_column_scoped(
+    migrated_engine: Engine,
+) -> None:
+    with migrated_engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                """
+                select table_name, grantee, column_name, privilege_type
+                from information_schema.column_privileges
+                where table_schema = 'public'
+                  and table_name = any(:tables)
+                  and grantee in ('stonks_app', 'stonks_worker')
+                  and privilege_type = 'UPDATE'
+                """
+            ),
+            {"tables": list(TRADING_UPDATE_COLUMNS)},
+        ).all()
+
+    assert {
+        (row.table_name, row.grantee, row.column_name, row.privilege_type)
+        for row in rows
+    } == {
+        (table, "stonks_app", column, "UPDATE")
+        for table, columns in TRADING_UPDATE_COLUMNS.items()
+        for column in columns
+    }
+
+
 def test_strategy_registry_migration_downgrade_and_reupgrade(
     migrated_engine: Engine,
     alembic_config: Config,
@@ -275,6 +354,88 @@ def test_strategy_registry_migration_downgrade_and_reupgrade(
         command.upgrade(alembic_config, "head")
 
     assert _trigger_exists(migrated_engine, "trg_strategy_registry_immutable")
+
+
+def test_trading_migration_downgrade_and_reupgrade(
+    migrated_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    trading_tables = set(TRADING_UPDATE_COLUMNS) | {
+        "paper_account_event",
+        "portfolio_target",
+        "risk_decision",
+        "reservation_event",
+        "order_intent",
+        "order_event",
+        "paper_fill",
+        "journal_transaction",
+        "journal_posting",
+    }
+    command.downgrade(alembic_config, "0009")
+    try:
+        assert not trading_tables & set(inspect(migrated_engine).get_table_names())
+    finally:
+        command.upgrade(alembic_config, "head")
+
+    for trigger in (
+        "trg_paper_account_mutation_has_event",
+        "trg_order_event_chain",
+        "trg_reservation_event_chain",
+        "trg_journal_transaction_chain",
+        "trg_journal_transaction_balanced",
+    ):
+        assert _trigger_exists(migrated_engine, trigger)
+
+
+def test_account_sequence_requires_matching_event(migrated_engine: Engine) -> None:
+    account_id = f"paper-account-{uuid4()}"
+    with migrated_engine.begin() as connection:
+        _insert_paper_account(connection, account_id)
+
+    with (
+        pytest.raises(DBAPIError, match="requires matching event"),
+        migrated_engine.begin() as connection,
+    ):
+        connection.execute(
+            text(
+                "update paper_account set aggregate_sequence = 1 "
+                "where account_id = :account_id"
+            ),
+            {"account_id": account_id},
+        )
+
+
+def test_account_event_cannot_advance_without_account_cas(
+    migrated_engine: Engine,
+) -> None:
+    account_id = f"paper-account-{uuid4()}"
+    with migrated_engine.begin() as connection:
+        _insert_paper_account(connection, account_id)
+
+    with (
+        pytest.raises(DBAPIError, match="does not match account sequence"),
+        migrated_engine.begin() as connection,
+    ):
+        connection.execute(
+            text(
+                """
+                insert into paper_account_event
+                    (event_id, account_id, sequence, event_type,
+                     aggregate_ref_type, aggregate_ref_id, occurred_at,
+                     previous_hash, event_hash)
+                values
+                    (:event_id, :account_id, 1, 'orphan.test',
+                     'test', :aggregate_ref_id, :occurred_at, null, :event_hash)
+                """
+            ),
+            {
+                "event_id": uuid4(),
+                "account_id": account_id,
+                "aggregate_ref_id": uuid4(),
+                "occurred_at": NOW,
+                "event_hash": uuid4().hex * 2,
+            },
+        )
 
 
 @pytest.mark.parametrize("role", ("stonks_app", "stonks_worker"))
@@ -556,6 +717,21 @@ def _insert_run(connection: Connection, run_id: UUID) -> None:
             "idempotency_key": f"migration-run-{run_id}",
             "input_hash": "e" * 64,
         },
+    )
+
+
+def _insert_paper_account(connection: Connection, account_id: str) -> None:
+    connection.execute(
+        text(
+            """
+            insert into paper_account
+                (account_id, base_currency, aggregate_sequence,
+                 portfolio_sequence, ledger_sequence, ledger_hash,
+                 created_at, updated_at)
+            values (:account_id, 'USD', 0, 0, 0, null, :now, :now)
+            """
+        ),
+        {"account_id": account_id, "now": NOW},
     )
 
 

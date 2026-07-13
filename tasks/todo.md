@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1 已完成，P4.2 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.2 已完成，P4.3 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -347,9 +347,9 @@
   - [x] Decimal、rounding、order state transitions、sequence/hash與accounting invariants明確。
   - [x] `RiskDecision`綁account aggregate/portfolio sequence並有expiry；sequence變更必須重評。Risk approval本身不保留資金，必須建立reservation才可形成command。
 
-- [ ] **P4.2 Trading persistence** — 新增`migrations/versions/0003_paper_trading.py`、repositories與DB permissions。（Depends：P4.1、P1.4；Complexity：XL；Risk：High）
-  - 建立account aggregate、cash/position reservations與projections、risk decisions、order intents/events、fills、balanced journal transactions/postings、kill switch。
-  - Order idempotency、event sequence與append-only由DB constraint保護。
+- [x] **P4.2 Trading persistence** — 新增`migrations/versions/0010_paper_trading.py`、repositories與DB permissions。（Depends：P4.1、P1.4；Complexity：XL；Risk：High）
+  - [x] 建立account aggregate、cash/position reservations與projections、risk decisions、order intents/events、fills、balanced journal transactions/postings、kill switch。
+  - [x] Order idempotency、event sequence與append-only由DB constraint保護。
 
 - [ ] **P4.3 Deterministic portfolio baseline** — 建立`application/portfolio/build_target.py`、`config/policies/portfolio_v1.yaml`與golden/property tests。（Depends：P3.1、P4.1；Complexity：L；Risk：High）
   - Fixed ensemble weights、confidence calibration、deadband、shrinkage、turnover penalty、position bounds與stable ordering。
@@ -762,3 +762,11 @@
 - Fail closed：timezone-naive clock、extreme Decimal、hidden fractional amounts、stale sequence、over-consume/overfill、terminal transition、receipt identity drift、mixed quantum、unbalanced或tampered chain皆拒絕；所有mutation use case回structured `Result`。
 - Verification：focused domain/ports為23 passed，新trading modules branch coverage 83%；P0 execution/fake-cycle regression為20 passed。完整non-PostgreSQL gate為843 passed、190 deselected、coverage 88.14%，362 files format、ruff、mypy 217 source files、67 schemas、upstream/license、secret與locked dependency audit全通過。無migration、DB或dependency變更。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.2 trading persistence。
+
+### P4 Progress Review — P4.2 — 2026-07-13
+
+- Scope completed：新增0010的14個paper trading tables、version-pinned trigger/grant helper、SQLAlchemy mappings、frozen account state/event與reservation-order persistence result、runtime-checkable trading repository port、PostgreSQL repository與UoW wiring。
+- Transaction / integrity：account aggregate以CAS推進且同transaction必須append matching hash-chained event；cash/position reservation projection、target/risk binding、order idempotency/event chain、fill與journal source binding皆fail closed。Savepoint只回滾局部conflict，commit仍由core UoW擁有；同帳戶並行reservation只有一個成功。
+- DB authority / security：DB trigger拒絕orphan account event、無event account update、stale projection、reservation/order chain drift、append-only mutation與不完整或不平衡journal。`stonks_app`只有trading tables的select/insert及五個projection的column-scoped update，reader唯讀，worker無任何trading table權限；corrupt persisted payload回structured `CONFLICT`。
+- Verification：focused PostgreSQL migration/repository為35 passed，trading repository branch coverage 84%、mapping 97%。完整PostgreSQL gate為1048 passed、coverage 88.44%，370 files format、ruff、mypy 222 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.3 deterministic portfolio baseline。

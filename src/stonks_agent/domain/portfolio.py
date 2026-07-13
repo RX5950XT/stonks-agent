@@ -114,6 +114,80 @@ class AccountPortfolioSnapshot(TradingModel):
         return stable_payload_hash(self.model_dump(mode="json"))
 
 
+class PaperAccountEvent(TradingModel):
+    """Immutable account-aggregate audit event persisted with every CAS update."""
+
+    event_id: UUID
+    account_id: NonEmptyString
+    sequence: int = Field(ge=1)
+    event_type: NonEmptyString
+    aggregate_ref_type: NonEmptyString
+    aggregate_ref_id: UUID
+    occurred_at: UTCDateTime
+    previous_hash: Sha256 | None = None
+    event_hash: Sha256
+
+    @model_validator(mode="after")
+    def validate_event(self) -> Self:
+        if (self.sequence == 1) != (self.previous_hash is None):
+            raise ValueError("only genesis account event may omit previous hash")
+        if self.event_hash != self.expected_event_hash():
+            raise ValueError("paper account event hash does not match payload")
+        return self
+
+    def expected_event_hash(self) -> str:
+        return stable_payload_hash(self.model_dump(mode="json", exclude={"event_hash"}))
+
+
+class PaperAccountState(TradingModel):
+    """Database-authoritative account aggregate and its current projections."""
+
+    account_id: NonEmptyString
+    base_currency: Currency
+    account_aggregate_sequence: int = Field(ge=0)
+    portfolio_sequence: int = Field(ge=0)
+    ledger_sequence: int = Field(ge=0)
+    ledger_hash: Sha256 | None = None
+    cash: tuple[CashBalance, ...] = Field(default_factory=tuple, max_length=64)
+    positions: tuple[PositionBalance, ...] = Field(
+        default_factory=tuple, max_length=100_000
+    )
+    events: tuple[PaperAccountEvent, ...] = Field(
+        default_factory=tuple, max_length=1_000_000
+    )
+    created_at: UTCDateTime
+    updated_at: UTCDateTime
+
+    @model_validator(mode="after")
+    def validate_state(self) -> Self:
+        if (self.ledger_sequence == 0) != (self.ledger_hash is None):
+            raise ValueError("only genesis paper account may omit ledger hash")
+        if self.updated_at < self.created_at:
+            raise ValueError("paper account timeline is invalid")
+        _require_sorted_unique(
+            tuple(item.currency for item in self.cash), "cash currencies"
+        )
+        _require_sorted_unique(
+            tuple(str(item.instrument_id) for item in self.positions),
+            "position instruments",
+        )
+        self._validate_event_chain()
+        return self
+
+    def _validate_event_chain(self) -> None:
+        if len(self.events) != self.account_aggregate_sequence:
+            raise ValueError("paper account event count does not match sequence")
+        previous_hash: str | None = None
+        for sequence, event in enumerate(self.events, start=1):
+            if (
+                event.account_id != self.account_id
+                or event.sequence != sequence
+                or event.previous_hash != previous_hash
+            ):
+                raise ValueError("paper account event chain is invalid")
+            previous_hash = event.event_hash
+
+
 class TargetAllocation(TradingModel):
     instrument_id: UUID
     current_quantity: DecimalString

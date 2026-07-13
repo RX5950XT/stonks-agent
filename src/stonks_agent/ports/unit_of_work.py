@@ -6,6 +6,7 @@ from types import TracebackType
 from typing import Protocol, Self, runtime_checkable
 
 from stonks_agent.ports.evidence_repository import EvidenceRepository
+from stonks_agent.ports.trading_repository import TradingRepositoryPort
 from stonks_agent.ports.workflow_store import WorkflowStore
 
 
@@ -13,6 +14,7 @@ from stonks_agent.ports.workflow_store import WorkflowStore
 class UnitOfWork(Protocol):
     evidence: EvidenceRepository
     workflows: WorkflowStore
+    trading: TradingRepositoryPort
 
     def __enter__(self) -> Self: ...
 

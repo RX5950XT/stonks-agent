@@ -8,7 +8,19 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from hashlib import sha256
-from typing import Any
+from typing import Any, Protocol
+
+from stonks_agent.domain.artifact import ArtifactMetadata
+from stonks_agent.domain.errors import ErrorCode, Failure, Result, StructuredError
+from stonks_agent.domain.paper_cycle import (
+    CancelPaperCycle,
+    PaperCycleRunResult,
+    RunPaperCycle,
+)
+from stonks_agent.ports.artifact_store import ArtifactStore
+from stonks_agent.ports.paper_cycle import PaperCycleStageHandler, PaperCycleStore
+from stonks_contracts.common import canonical_json
+from stonks_contracts.evidence import Sensitivity
 
 
 class IdempotencyConflict(RuntimeError):
@@ -174,6 +186,96 @@ class RunCycleResult:
     events: tuple[RunEvent, ...]
     control_hash: str
     projection_hash: str
+
+
+class CycleClock(Protocol):
+    def __call__(self) -> datetime: ...
+
+
+def run_paper_fund_cycle(
+    command: RunPaperCycle,
+    *,
+    handler: PaperCycleStageHandler,
+    store: PaperCycleStore,
+    artifacts: ArtifactStore,
+    clock: CycleClock,
+) -> Result[PaperCycleRunResult]:
+    """Advance durable canonical stages under the active core job lease."""
+
+    loaded = store.load(command)
+    if isinstance(loaded, Failure):
+        return loaded
+    state = loaded.value
+    if (
+        state.run_id != command.lease.run_id
+        or state.cycle_input_hash != command.cycle_input_hash
+    ):
+        return _fail_cycle(
+            command,
+            store,
+            ErrorCode.CONFLICT,
+            "Paper cycle checkpoint identity changed",
+        )
+    while state.next_stage is not None:
+        before_hash = state.state_hash
+        advanced = handler.advance(state.next_stage, state)
+        if isinstance(advanced, Failure):
+            return store.fail(command, advanced.error)
+        try:
+            next_state = state.advance(advanced.value)
+        except ValueError:
+            return _fail_cycle(
+                command,
+                store,
+                ErrorCode.CONFLICT,
+                "Paper cycle stage output is invalid",
+            )
+        saved = store.checkpoint(
+            command,
+            next_state,
+            expected_state_hash=before_hash,
+        )
+        if isinstance(saved, Failure):
+            return saved
+        state = saved.value
+    content = canonical_json(state.model_dump(mode="json")).encode("utf-8")
+    finalized = artifacts.finalize(
+        content,
+        metadata=ArtifactMetadata(
+            media_type="application/json",
+            license_tag="Apache-2.0",
+            sensitivity=Sensitivity.INTERNAL,
+            source="stonks-agent-paper-cycle",
+            attributes=(
+                ("run_id", str(state.run_id)),
+                ("schema", "paper-fund-cycle-result/1.0.0"),
+                ("state_hash", state.state_hash),
+            ),
+        ),
+        finalized_at=clock(),
+    )
+    if isinstance(finalized, Failure):
+        return store.fail(command, finalized.error)
+    return store.complete(command, state, finalized.value)
+
+
+def cancel_paper_fund_cycle(
+    command: CancelPaperCycle,
+    *,
+    store: PaperCycleStore,
+) -> Result[PaperCycleRunResult]:
+    """Request an audited terminal cancellation through the durable store."""
+
+    return store.cancel(command)
+
+
+def _fail_cycle(
+    command: RunPaperCycle,
+    store: PaperCycleStore,
+    code: ErrorCode,
+    message: str,
+) -> Result[PaperCycleRunResult]:
+    return store.fail(command, StructuredError(code=code, message=message))
 
 
 def stable_hash(value: Any) -> str:

@@ -21,6 +21,7 @@ class JobStatus(StrEnum):
     LEASED = "leased"
     SUCCEEDED = "succeeded"
     DEAD_LETTER = "dead_letter"
+    CANCELLED = "cancelled"
 
 
 class EnqueueJob(BaseModel):

@@ -15,6 +15,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Hard risk gate以19個stable checks重驗target/account/ledger sequence、signal與mark freshness、kill switch、session、cash/position/open reservations、pending orders、ADV、single/sector/asset/gross/net exposure、turnover、drawdown與daily loss。Risk evaluation到multi-instrument reservation/order建立由同一UoW與account CAS擁有；任一資金不足、sequence drift或unsupported order會整批rollback。
 - Reference paper broker只讀reservation-backed immutable command與已封存bar；嚴格跳過command當根，使用下一個tradable bar，以versioned policy固定market/limit、DAY/GTC/IOC、expiry、spread/slippage/impact、fees與volume participation/partial fill。Core UoW在account lock內原子寫order/reservation events、fills與append-only durable receipt；同idempotency同payload重播相同receipt，payload drift、sequence/projection mismatch整批rollback。
 - Balanced paper ledger以immutable opening snapshot與versioned average-cost policy，將每筆fill轉成cash/inventory/fee/PnL/clearing postings；per-commodity debit/credit exact平衡。Fill、journal、settled cash/position、ledger head、receipt與account event同transaction commit；replay hash、DB projection、order/fill graph不一致時rollback並以獨立transaction啟動global paper kill switch。
+- Durable paper fund cycle固定`Evidence -> Research/Opinion -> Signal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt -> Ledger -> Report`，每階段只保存canonical ID/hash refs與content-hashed state，並寫入既有run-event/outbox hash chain。Checkpoint、retry、dead-letter與cancel均由DB job generation/nonce、lease/deadline及account authority fencing；receipt commit後、checkpoint前crash重領實測仍只有一筆fill/journal/receipt，完整cycle result另封存content-addressed artifact。
 - Idempotency、同帳戶並行防雙花、job generation/nonce fencing、late-result quarantine。
 - PostgreSQL PIT evidence/snapshot、content-addressed artifacts、Repository/UoW、durable job/outbox/inbox與transaction-owned audit events。
 - DB-authoritative lease/deadline/not-before fencing；caller clock漂移、duplicate/stale result與tampered retry graph皆fail closed。
@@ -54,7 +55,7 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 
 `fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。
 
-P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。Research API目前只建立`research_pipeline` job，application-level pipeline已通過P2 gate，但常駐dispatcher與durable全流程transition/commit wiring仍屬P4.7；`stonks-worker claim-once`也不是常駐dispatcher。
+P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。Research API目前只建立`research_pipeline` job；P4.7已驗證core-owned durable paper cycle與crash replay，但尚未接成常駐production dispatcher，`stonks-worker claim-once`也不是常駐dispatcher。
 
 ## 核心文件
 

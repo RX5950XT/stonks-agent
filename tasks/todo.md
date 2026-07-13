@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.6 已完成，P4.7 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.7 已完成，P4.8 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -370,9 +370,9 @@
   - [x] 每筆transaction至少兩個postings；每種currency/commodity經Decimal quantization後debit/credit sum為零，明確使用cash/inventory/fee/PnL/clearing accounts。
   - [x] Cash/positions/fees/P&L只由journal推導；daily replay hash與DB projection一致。不平、gap、unknown order state觸發rollback與global paper kill switch。
 
-- [ ] **P4.7 End-to-end workflow state machine** — 完成`application/workflows/run_cycle.py`各transition/retry/cancel/dead-letter；建立`tests/e2e/test_paper_fund_cycle.py`。（Depends：P1.6、P2.11、P3.10、P4.3–P4.6；Complexity：XL；Risk：High）
-  - Flow固定`Evidence -> Research/Opinion/Signal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt -> Ledger -> Report`。
-  - Execution retry先query idempotency receipt；crash injection不得重複下單。
+- [x] **P4.7 End-to-end workflow state machine** — 完成`application/workflows/run_cycle.py`各transition/retry/cancel/dead-letter；建立`tests/e2e/test_paper_fund_cycle.py`。（Depends：P1.6、P2.11、P3.10、P4.3–P4.6；Complexity：XL；Risk：High）
+  - [x] Flow固定`Evidence -> Research/Opinion/Signal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt -> Ledger -> Report`。
+  - [x] Execution retry先query idempotency receipt；crash injection不得重複下單。
 
 - [ ] **P4.8 Outcome monitoring and reflection evidence** — 建立`application/monitoring/{mark_to_market,outcomes,reflection_context}.py`與tests。（Depends：P4.6、P2.8；Complexity：L；Risk：Medium）
   - 保存raw return、benchmark alpha、drawdown、fees、fills與outcome evidence；LLM reflection只是新ResearchArtifact，不改歷史decision。
@@ -802,3 +802,11 @@
 - Reconciliation / safety：opening + immutable journals可deterministic重建projection/hash；CAS同時綁account/ledger sequence與previous hash。Gap、tamper、unknown ledger account/order state、projection drift或unbalanced graph先rollback，再以獨立transaction啟動singleton global paper kill switch；active switch拒絕新execution。
 - Verification：focused ledger/execution/PostgreSQL為53 passed，五個核心模組合計branch coverage 80.98%、reconciliation 95%。完整PostgreSQL gate為1144 passed、coverage 87.92%，412 files format、ruff、mypy 243 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P4.7 end-to-end workflow state machine。
+
+### P4 Progress Review — P4.7 — 2026-07-13
+
+- Scope completed：新增frozen canonical stage/reference/state/result contracts、typed handler/store ports、core `run_paper_fund_cycle`/cancel use cases與PostgreSQL paper-cycle store。Flow嚴格固定evidence → research/opinion → signal → target → risk → order → receipt → ledger → report；每階段只接受allowlisted canonical ref types、stable IDs/hashes與前綴state hash。
+- Durable transitions / fencing：checkpoint、retry、dead-letter、cancel、complete全寫入既有run-event/outbox matching hash chain，不新增平行workflow authority。每次mutation在transaction內以PostgreSQL clock重驗job generation/nonce/owner/lease/deadline、payload hash與run input hash；concurrent同stage CAS只有一個commit，late generation不能讀寫。Cancel有version CAS及actor/reason audit；terminal result為content-addressed immutable artifact。
+- Crash / idempotency：真實PostgreSQL E2E在reference broker已commit receipt/fill/journal後、workflow checkpoint前刻意crash；lease expiry後新generation重領，execution use case先query/驗證既有receipt與ledger graph再繼續。最終仍只有1 receipt、1 fill、1 journal，9 stage checkpoints + completion均有matching outbox；完整completion replay不重跑handler。
+- Verification：focused domain/application/PostgreSQL/E2E為21 passed，三個workflow核心模組合計branch coverage 85.57%、runner 91%。完整PostgreSQL gate為1157 passed、coverage 87.78%，419 files format、ruff、mypy 246 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P4.8 outcome monitoring and reflection evidence。

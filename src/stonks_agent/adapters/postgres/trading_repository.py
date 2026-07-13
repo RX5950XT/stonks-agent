@@ -49,6 +49,10 @@ from stonks_agent.adapters.postgres.trading_mapping import (
     risk_matches_target,
     risk_row,
 )
+from stonks_agent.adapters.postgres.trading_reservation_batch import (
+    batch_identity_is_valid,
+    existing_reservation_order_batch,
+)
 from stonks_agent.domain._trading import TradingModel
 from stonks_agent.domain.errors import (
     ErrorCode,
@@ -71,7 +75,11 @@ from stonks_agent.domain.reservations import (
     ReservationMutation,
 )
 from stonks_agent.domain.risk import RiskDecision
-from stonks_agent.domain.trading_persistence import ReservationOrderRecord
+from stonks_agent.domain.trading_persistence import (
+    ReservationOrderBatchRecord,
+    ReservationOrderItem,
+    ReservationOrderRecord,
+)
 
 T = TypeVar("T")
 
@@ -252,6 +260,11 @@ class PostgresTradingRepository:
                 expected_sequence=reservation.risk_account_aggregate_sequence,
                 portfolio_sequence=reservation.portfolio_sequence,
             )
+            self._advance_projection_sequences(
+                intent.account_id,
+                expected_sequence=reservation.risk_account_aggregate_sequence,
+                new_sequence=reservation.account_aggregate_sequence,
+            )
             self._reserve_projection(reservation)
             account_event = new_account_event(
                 account_id=intent.account_id,
@@ -279,6 +292,72 @@ class PostgresTradingRepository:
             )
 
         return self._mutation(mutate, "Reservation/order mutation conflicted")
+
+    def create_reservation_orders(
+        self,
+        pairs: tuple[tuple[ReservationMutation, OrderIntent], ...],
+    ) -> Result[ReservationOrderBatchRecord]:
+        if not pairs:
+            return _failure(ErrorCode.INVALID_INPUT, "Reservation/order batch is empty")
+        ordered = tuple(sorted(pairs, key=lambda item: str(item[1].intent_id)))
+        replay = existing_reservation_order_batch(self._session, ordered)
+        if replay is not None:
+            return replay
+
+        def mutate() -> ReservationOrderBatchRecord:
+            for mutation, intent in ordered:
+                self._validate_reservation_order_inputs(mutation, intent)
+            reservations = tuple(item[0].reservation for item in ordered)
+            intents = tuple(item[1] for item in ordered)
+            if not batch_identity_is_valid(reservations, intents):
+                raise _MutationRejected(
+                    ErrorCode.CONFLICT,
+                    "Reservation/order batch identity is inconsistent",
+                )
+            first = reservations[0]
+            account = self._advance_account(
+                first.account_id,
+                expected_sequence=first.risk_account_aggregate_sequence,
+                portfolio_sequence=first.portfolio_sequence,
+            )
+            self._advance_projection_sequences(
+                first.account_id,
+                expected_sequence=first.risk_account_aggregate_sequence,
+                new_sequence=first.account_aggregate_sequence,
+            )
+            for reservation in reservations:
+                self._reserve_projection(reservation)
+            account_event = new_account_event(
+                account_id=first.account_id,
+                sequence=account.aggregate_sequence,
+                event_type="reservation_orders.created",
+                aggregate_ref_type="reservation_orders",
+                aggregate_ref_id=first.risk_decision_id,
+                occurred_at=account.updated_at,
+                previous_hash=self._previous_account_hash(first.account_id),
+            )
+            items = tuple(
+                ReservationOrderItem(
+                    reservation=mutation.reservation,
+                    reservation_event=mutation.event,
+                    order_intent=intent,
+                )
+                for mutation, intent in ordered
+            )
+            rows: list[object] = [account_event_row(account_event)]
+            for mutation, intent in ordered:
+                rows.extend(
+                    (
+                        reservation_row(mutation.reservation),
+                        reservation_event_row(mutation.event),
+                        order_intent_row(intent),
+                    )
+                )
+            self._session.add_all(rows)
+            self._session.flush()
+            return ReservationOrderBatchRecord(items=items, account_event=account_event)
+
+        return self._mutation(mutate, "Reservation/order batch mutation conflicted")
 
     def append_order_event(self, event: OrderEvent) -> Result[OrderEvent]:
         existing = self._session.get(OrderEventRow, event.event_id)
@@ -474,6 +553,36 @@ class PostgresTradingRepository:
             raise _MutationRejected(ErrorCode.CONFLICT, "Paper account CAS failed")
         return row
 
+    def _advance_projection_sequences(
+        self,
+        account_id: str,
+        *,
+        expected_sequence: int,
+        new_sequence: int,
+    ) -> None:
+        cash = self._session.scalars(
+            select(PaperCashProjectionRow)
+            .where(PaperCashProjectionRow.account_id == account_id)
+            .with_for_update()
+        ).all()
+        positions = self._session.scalars(
+            select(PaperPositionProjectionRow)
+            .where(PaperPositionProjectionRow.account_id == account_id)
+            .with_for_update()
+        ).all()
+        if any(item.updated_sequence != expected_sequence for item in cash) or any(
+            item.updated_sequence != expected_sequence for item in positions
+        ):
+            raise _MutationRejected(
+                ErrorCode.CONFLICT,
+                "Paper account projection sequence is stale",
+            )
+        for cash_item in cash:
+            cash_item.updated_sequence = new_sequence
+        for position_item in positions:
+            position_item.updated_sequence = new_sequence
+        self._session.flush()
+
     def _reserve_projection(self, reservation: AccountReservation) -> None:
         if reservation.kind is ReservationKind.CASH:
             cash = self._session.scalar(
@@ -483,7 +592,7 @@ class PostgresTradingRepository:
                     PaperCashProjectionRow.currency == reservation.commodity,
                     PaperCashProjectionRow.quantum == reservation.quantum,
                     PaperCashProjectionRow.updated_sequence
-                    == reservation.risk_account_aggregate_sequence,
+                    == reservation.account_aggregate_sequence,
                     PaperCashProjectionRow.reserved_amount + reservation.amount
                     <= PaperCashProjectionRow.settled_amount,
                 )
@@ -506,7 +615,7 @@ class PostgresTradingRepository:
                 PaperPositionProjectionRow.instrument_id == reservation.instrument_id,
                 PaperPositionProjectionRow.quantum == reservation.quantum,
                 PaperPositionProjectionRow.updated_sequence
-                == reservation.risk_account_aggregate_sequence,
+                == reservation.account_aggregate_sequence,
                 PaperPositionProjectionRow.reserved_quantity + reservation.amount
                 <= PaperPositionProjectionRow.sellable_quantity,
             )

@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.3 已完成，P4.4 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.4 已完成，P4.5 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -355,10 +355,10 @@
   - [x] Fixed ensemble weights、confidence calibration、deadband、shrinkage、turnover penalty、position bounds與stable ordering。
   - [x] Missing signal不重新正規化造成過曝；輸出calculation hash與cost diagnostics。
 
-- [ ] **P4.4 Hard risk gate** — 建立`application/risk/evaluate.py`、`config/policies/risk_v1.yaml`與boundary tests。（Depends：P4.1、P4.3；Complexity：XL；Risk：High）
-  - 檢查data/signal freshness、cash、pending orders、single/sector/asset/gross/net、turnover、ADV、market session、drawdown/daily loss、kill switch。
-  - Unknown/conflict/stale required state、unsupported asset/order或ledger mismatch一律reject。
-  - Risk核准到`OrderIntent`建立必須在per-account serialized transaction/advisory lock內重新確認sequence並原子reserve cash/sellable position；所有open reservations納入available state。
+- [x] **P4.4 Hard risk gate** — 建立`application/risk/evaluate.py`、`config/policies/risk_v1.yaml`與boundary tests。（Depends：P4.1、P4.3；Complexity：XL；Risk：High）
+  - [x] 檢查data/signal freshness、cash、pending orders、single/sector/asset/gross/net、turnover、ADV、market session、drawdown/daily loss、kill switch。
+  - [x] Unknown/conflict/stale required state、unsupported asset/order或ledger mismatch一律reject。
+  - [x] Risk核准到`OrderIntent`建立必須在per-account serialized transaction/advisory lock內重新確認sequence並原子reserve cash/sellable position；所有open reservations納入available state。
 
 - [ ] **P4.5 Reference paper broker** — 建立`adapters/execution/paper.py`、`domain/execution_model.py`、`config/execution/paper_v1.yaml`與golden fill tests。（Depends：P4.1、P4.4；Complexity：XL；Risk：High）
   - Market/limit/expiry/partial fill、fees/slippage/spread/volume participation語義版本化。
@@ -778,3 +778,11 @@
 - Determinism / exposure：instrument與signal固定排序；score直接加總`fixed weight × alpha × calibrated confidence`，缺少權重保留為cash、不重新正規化。Deadband、shrinkage、current-weight turnover penalty、long-only position bound及quantity floor順序固定；target輸出actual rounded weight、input signal IDs、policy/calculation hashes、turnover與per-instrument cost/missing-weight diagnostics。
 - Verification：focused golden/property/boundary為16 passed，builder branch coverage 97%、construction contracts 92%。完整PostgreSQL gate為1064 passed、coverage 88.55%，376 files format、ruff、mypy 225 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.4 hard risk gate。
+
+### P4 Progress Review — P4.4 — 2026-07-13
+
+- Scope completed：新增frozen risk state/policy、19個stable hard checks、atomic risk authorization UoW、multi-instrument reservation/order batch與versioned `risk_v1.yaml`。Risk business rejection產immutable `RiskDecision`與sorted checks；contract/infra conflict維持structured failure。
+- Checks / fail-closed：重驗target/account/portfolio/ledger sequence、signal/evaluation及mark freshness、session、global/account kill switch、cash/position/open reservation reconciliation、pending orders、ADV、single/sector/asset/gross/net exposure、turnover、drawdown與daily loss。Unknown/missing/future/stale/binding drift、unsupported asset/order皆拒絕。
+- Transaction / reservation：approved path在同一UoW重讀account並重跑risk，保存target/decision後以一次account CAS推進所有cash/position projection sequence，原子建立全部reservations/orders。多buy成本按traded notional分攤並向上量化；sell exact reserve available position。任一不足、partial idempotency或concurrent sequence drift整批rollback。
+- Verification：focused risk/authorization/portfolio/PostgreSQL regression為53 passed；risk evaluator branch coverage 94%、authorization 84%、trading repository 85%。完整PostgreSQL gate為1091 passed、coverage 88.60%，389 files format、ruff、mypy 233 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.5 reference paper broker。

@@ -47,6 +47,7 @@ pytestmark = pytest.mark.postgres
 NOW = datetime(2026, 7, 13, 10, tzinfo=UTC)
 ACCOUNT_ID = "paper-account-p4"
 INSTRUMENT_ID = UUID("42000000-0000-4000-8000-000000000001")
+INSTRUMENT_ID_2 = UUID("42000000-0000-4000-8000-000000000021")
 SNAPSHOT_ID = UUID("42000000-0000-4000-8000-000000000002")
 TARGET_ID = UUID("42000000-0000-4000-8000-000000000003")
 DECISION_ID = UUID("42000000-0000-4000-8000-000000000004")
@@ -174,6 +175,120 @@ def reservation_order(
     return reserved.value, order.value
 
 
+def reservation_order_batch(
+    target_value: PortfolioTarget,
+    decision_value: RiskDecision,
+    *,
+    second_amount: Decimal = Decimal("303.00"),
+) -> tuple[tuple[ReservationMutation, OrderIntent], ...]:
+    values = (
+        (
+            INSTRUMENT_ID,
+            UUID("42000000-0000-4000-8000-000000000022"),
+            UUID("42000000-0000-4000-8000-000000000023"),
+            Decimal("4"),
+            Decimal("405.00"),
+            "paper-account-p4:batch-1",
+        ),
+        (
+            INSTRUMENT_ID_2,
+            UUID("42000000-0000-4000-8000-000000000024"),
+            UUID("42000000-0000-4000-8000-000000000025"),
+            Decimal("3"),
+            second_amount,
+            "paper-account-p4:batch-2",
+        ),
+    )
+    pairs: list[tuple[ReservationMutation, OrderIntent]] = []
+    for instrument_id, reservation_id, intent_id, quantity, amount, key in values:
+        reserved = create_reservation(
+            reservation_id=reservation_id,
+            order_intent_id=intent_id,
+            decision=decision_value,
+            kind=ReservationKind.CASH,
+            commodity="USD",
+            amount=amount,
+            quantum=Decimal("0.01"),
+            instrument_id=instrument_id,
+            at=NOW + timedelta(seconds=2),
+            expires_at=NOW + timedelta(minutes=4),
+            current_account_sequence=0,
+            current_portfolio_sequence=0,
+        )
+        assert isinstance(reserved, Success)
+        order = create_order_intent(
+            intent_id=intent_id,
+            run_id=UUID("42000000-0000-4000-8000-000000000026"),
+            decision=decision_value,
+            reservation=reserved.value.reservation,
+            instrument_id=instrument_id,
+            side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=quantity,
+            quantity_quantum=Decimal("1"),
+            limit_price=Decimal("100.00"),
+            stop_price=None,
+            time_in_force=TimeInForce.DAY,
+            valid_from=NOW + timedelta(seconds=2),
+            valid_until=NOW + timedelta(minutes=4),
+            idempotency_key=key,
+            execution_model_version="paper-v1",
+            created_at=NOW + timedelta(seconds=2),
+        )
+        assert isinstance(order, Success)
+        pairs.append((reserved.value, order.value))
+    return tuple(pairs)
+
+
+def multi_target() -> PortfolioTarget:
+    return PortfolioTarget.create(
+        target_id=UUID("42000000-0000-4000-8000-000000000027"),
+        account_id=ACCOUNT_ID,
+        portfolio_snapshot_id=SNAPSHOT_ID,
+        account_aggregate_sequence=0,
+        portfolio_sequence=0,
+        as_of=NOW,
+        allocations=(
+            TargetAllocation(
+                instrument_id=INSTRUMENT_ID,
+                current_quantity=Decimal("0"),
+                target_quantity=Decimal("4"),
+                delta_quantity=Decimal("4"),
+                quantity_quantum=Decimal("1"),
+                target_weight=Decimal("0.04"),
+            ),
+            TargetAllocation(
+                instrument_id=INSTRUMENT_ID_2,
+                current_quantity=Decimal("0"),
+                target_quantity=Decimal("3"),
+                delta_quantity=Decimal("3"),
+                quantity_quantum=Decimal("1"),
+                target_weight=Decimal("0.03"),
+            ),
+        ),
+        input_signal_ids=(UUID("42000000-0000-4000-8000-000000000028"),),
+        policy_version="portfolio-v1",
+        policy_hash=HASH_A,
+        expected_turnover=Decimal("0.07"),
+        expected_cost=Decimal("8.00"),
+        cost_currency="USD",
+    )
+
+
+def multi_decision(target_value: PortfolioTarget) -> RiskDecision:
+    return RiskDecision.create(
+        decision_id=UUID("42000000-0000-4000-8000-000000000029"),
+        target=target_value,
+        approved=True,
+        normalized_target=target_value,
+        checks=(RiskCheck(code="cash_available", passed=True),),
+        policy_version="risk-v1",
+        policy_hash=HASH_B,
+        decided_at=NOW + timedelta(seconds=1),
+        expires_at=NOW + timedelta(minutes=5),
+    )
+
+
 def paper_fill() -> Fill:
     return Fill(
         fill_id=FILL_ID,
@@ -267,6 +382,93 @@ def test_atomic_reservation_order_is_idempotent_and_updates_available_cash(
     assert account.value.cash[0].available_amount == Decimal("9595.00")
     assert len(account.value.events) == 1
     assert account.value.events[0].aggregate_ref_type == "reservation_order"
+
+
+def test_atomic_multi_instrument_batch_advances_account_once_and_is_idempotent(
+    clean_database: Engine,
+) -> None:
+    target_value = multi_target()
+    decision_value = multi_decision(target_value)
+    pairs = reservation_order_batch(target_value, decision_value)
+    with Session(clean_database) as session:
+        repository = PostgresTradingRepository(session)
+        seed(repository, session)
+        session.add(
+            InstrumentRow(
+                instrument_id=INSTRUMENT_ID_2,
+                asset_class="equity",
+                primary_symbol="P4TEST2",
+                exchange_mic="XNAS",
+                currency="USD",
+                timezone="America/New_York",
+                valid_from=NOW,
+                valid_to=None,
+                version=1,
+                created_at=NOW,
+            )
+        )
+        session.flush()
+        assert isinstance(repository.save_target(target_value), Success)
+        assert isinstance(repository.save_risk_decision(decision_value), Success)
+
+        created = repository.create_reservation_orders(pairs)
+        replayed = repository.create_reservation_orders(pairs)
+        account = repository.get_account(ACCOUNT_ID)
+        session.commit()
+
+    assert isinstance(created, Success)
+    assert isinstance(replayed, Success)
+    assert created.value == replayed.value
+    assert len(created.value.items) == 2
+    assert created.value.account_event.aggregate_ref_type == "reservation_orders"
+    assert isinstance(account, Success)
+    assert account.value.account_aggregate_sequence == 1
+    assert account.value.cash[0].reserved_amount == Decimal("708.00")
+    assert len(account.value.events) == 1
+
+
+def test_atomic_batch_insufficient_cash_rolls_back_every_order(
+    clean_database: Engine,
+) -> None:
+    target_value = multi_target()
+    decision_value = multi_decision(target_value)
+    pairs = reservation_order_batch(
+        target_value,
+        decision_value,
+        second_amount=Decimal("10000.00"),
+    )
+    with Session(clean_database) as session:
+        repository = PostgresTradingRepository(session)
+        seed(repository, session)
+        session.add(
+            InstrumentRow(
+                instrument_id=INSTRUMENT_ID_2,
+                asset_class="equity",
+                primary_symbol="P4TEST2",
+                exchange_mic="XNAS",
+                currency="USD",
+                timezone="America/New_York",
+                valid_from=NOW,
+                valid_to=None,
+                version=1,
+                created_at=NOW,
+            )
+        )
+        session.flush()
+        assert isinstance(repository.save_target(target_value), Success)
+        assert isinstance(repository.save_risk_decision(decision_value), Success)
+
+        result = repository.create_reservation_orders(pairs)
+        account = repository.get_account(ACCOUNT_ID)
+        order_count = session.scalar(text("select count(*) from order_intent"))
+        session.commit()
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.CONFLICT
+    assert isinstance(account, Success)
+    assert account.value.account_aggregate_sequence == 0
+    assert account.value.cash[0].reserved_amount == Decimal("0.00")
+    assert order_count == 0
 
 
 def test_order_idempotency_key_with_different_payload_fails_closed(

@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Protocol, runtime_checkable
 
 from stonks_agent.domain.errors import Result
-from stonks_agent.domain.portfolio import AccountPortfolioSnapshot, PortfolioTarget
 from stonks_agent.domain.risk import RiskDecision
+from stonks_agent.domain.risk_evaluation import BuildRiskDecisionCommand
 
 
 @runtime_checkable
 class RiskPolicyPort(Protocol):
     def evaluate(
         self,
-        snapshot: AccountPortfolioSnapshot,
-        target: PortfolioTarget,
-        *,
-        at: datetime,
+        command: BuildRiskDecisionCommand,
     ) -> Result[RiskDecision]: ...

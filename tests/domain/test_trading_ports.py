@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from stonks_agent.domain.errors import Result
 from stonks_agent.domain.fills import ExecutionReceipt
 from stonks_agent.domain.journal import JournalTransaction
 from stonks_agent.domain.orders import ExecutionCommand
-from stonks_agent.domain.portfolio import AccountPortfolioSnapshot, PortfolioTarget
+from stonks_agent.domain.portfolio import PortfolioTarget
+from stonks_agent.domain.portfolio_construction import BuildTargetCommand
 from stonks_agent.domain.risk import RiskDecision
-from stonks_agent.domain.signal import AlphaSignal
+from stonks_agent.domain.risk_evaluation import BuildRiskDecisionCommand
 from stonks_agent.ports.execution import CanonicalExecutionPort
 from stonks_agent.ports.ledger import LedgerHead, LedgerPort
 from stonks_agent.ports.portfolio_policy import PortfolioPolicyPort
@@ -18,8 +17,7 @@ from stonks_agent.ports.risk_policy import RiskPolicyPort
 class PortfolioPolicy:
     def build_target(
         self,
-        snapshot: AccountPortfolioSnapshot,
-        signals: tuple[AlphaSignal, ...],
+        command: BuildTargetCommand,
     ) -> Result[PortfolioTarget]:
         raise NotImplementedError
 
@@ -27,10 +25,7 @@ class PortfolioPolicy:
 class RiskPolicy:
     def evaluate(
         self,
-        snapshot: AccountPortfolioSnapshot,
-        target: PortfolioTarget,
-        *,
-        at: datetime,
+        command: BuildRiskDecisionCommand,
     ) -> Result[RiskDecision]:
         raise NotImplementedError
 

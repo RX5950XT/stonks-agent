@@ -1,0 +1,17 @@
+policy_version: 1.0.0
+decision_valid_seconds: 60
+max_data_age_seconds: 300
+max_kill_switch_age_seconds: 30
+allowed_asset_classes: [equity, etf]
+max_pending_orders: 20
+max_single_position_weight: "0.25"
+max_sector_weight: "0.40"
+max_asset_class_weight: "0.80"
+max_gross_exposure: "0.80"
+min_net_exposure: "0"
+max_net_exposure: "0.80"
+max_turnover: "0.30"
+max_adv_participation: "0.05"
+max_drawdown: "0.15"
+max_daily_loss: "0.05"
+require_market_open: true

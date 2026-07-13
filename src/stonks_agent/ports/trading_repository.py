@@ -16,7 +16,10 @@ from stonks_agent.domain.portfolio import (
 )
 from stonks_agent.domain.reservations import ReservationMutation
 from stonks_agent.domain.risk import RiskDecision
-from stonks_agent.domain.trading_persistence import ReservationOrderRecord
+from stonks_agent.domain.trading_persistence import (
+    ReservationOrderBatchRecord,
+    ReservationOrderRecord,
+)
 
 
 @runtime_checkable
@@ -34,6 +37,11 @@ class TradingRepositoryPort(Protocol):
     def create_reservation_order(
         self, mutation: ReservationMutation, intent: OrderIntent
     ) -> Result[ReservationOrderRecord]: ...
+
+    def create_reservation_orders(
+        self,
+        pairs: tuple[tuple[ReservationMutation, OrderIntent], ...],
+    ) -> Result[ReservationOrderBatchRecord]: ...
 
     def append_order_event(self, event: OrderEvent) -> Result[OrderEvent]: ...
 

@@ -1,0 +1,10 @@
+schema_version: 1
+algorithm: moving_average
+strategy_id: baseline-moving-average
+strategy_version: 1.0.0
+kind: deterministic
+lookback_bars: 5
+minimum_observations: 5
+formula_version: simple-mean-v1
+deterministic: true
+promotion_state: draft

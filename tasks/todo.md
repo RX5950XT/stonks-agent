@@ -273,8 +273,10 @@
   - [x] TDD：register/idempotency、exact evaluation binding、CAS race、DB clock、hash-chain audit與DB immutability/grant tests。
   - [x] Registry/evaluation/audit schema可downgrade/re-upgrade，Alembic metadata無drift；heavy worker role無strategy mutation權限。
 
-- [ ] **P3.3 Deterministic baselines** — 建立`strategies/baselines/{last_value,moving_average,linear}.py`、manifests與golden tests。（Depends：P3.1；Complexity：M；Risk：Medium）
+- [x] **P3.3 Deterministic baselines** — 建立`strategies/baselines/{last_value,moving_average,linear}.py`、manifests與golden tests。（Depends：P3.1；Complexity：M；Risk：Medium）
   - Kronos、LLM opinions與complex models必須和相同dataset/cost下baselines比較。
+  - [x] TDD：PIT/ordering/positive-price input invariants、manifest loader、三算法golden與deterministic replay hash。
+  - [x] Baseline只產`ForecastSignal`，固定draft research authority；不得產target/order或自稱calibrated/paper eligible。
 
 - [ ] **P3.4 Evaluation engine** — 建立`application/evaluation/{walk_forward,leakage,costs,metrics,calibration,promotion}.py`與`tests/evaluation/`。（Depends：P3.1、P3.3；Complexity：XL；Risk：High）
   - 涵蓋historical universe、publication lag、purged splits/embargo、walk-forward、CPCV/PBO（適用時）、fees/slippage/turnover sensitivity、benchmark alpha、drawdown、calibration。
@@ -671,3 +673,11 @@
 - Immutability / grants：manifest/source/runtime/feature/label/universe/cost/split/parameter hashes與identity由trigger禁止修改；evaluation與audit append-only，reader重驗完整SHA-256 chain與registry projection。`stonks_app`只有registry state/evaluation/version/timestamp columns可update，`stonks_reader`唯讀，`stonks_worker`無strategy table privileges。
 - Verification：focused repository/domain為29 passed、branch coverage 84.27%；完整PostgreSQL gate為854 passed、coverage 88.42%，294 files format、ruff、mypy 176 source files、43 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過；0009 downgrade/re-upgrade與metadata exact match通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.3 deterministic baselines。
+
+### P3 Progress Review — P3.3 — 2026-07-13
+
+- Scope completed：新增closed baseline manifest loader、PIT `BaselineSeries`、共用Decimal statistics與last-value/simple moving-average/OLS linear三個策略；三份versioned YAML固定deterministic、draft與lookback/minimum observations。
+- PIT / determinism：bars必須strictly ordered/unique、positive close且event/availability皆`<= as_of`；lookback不足或linear非正預測fail closed。forecast ID、expected/median return、volatility、downside/max-drawdown、dispersion皆由canonical input與12位Decimal規則決定；同輸入signal/payload hash相同。
+- Authority / comparison：baseline只輸出`ForecastSignal`與`research_only_unevaluated` warning，沒有promotion/target/order/quantity/risk override欄位，也不宣稱calibrated。Kronos、opinion mapper與complex model後續必須在P3.4用相同dataset/cost/split contract對照這三個baseline。
+- Verification：focused baseline/golden為7 passed、branch coverage 89.58%；完整non-PostgreSQL gate為674 passed、187 deselected、coverage 88.16%，300 files format、ruff、mypy 181 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。無migration或DB行為變更，P3.2完整PostgreSQL gate仍為854 passed且Alembic無drift。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.4 evaluation engine。

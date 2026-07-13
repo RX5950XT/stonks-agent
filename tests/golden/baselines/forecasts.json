@@ -1,0 +1,38 @@
+{
+  "last_value": {
+    "model_id": "baseline:baseline-last-value",
+    "model_revision": "1.0.0",
+    "expected_return": "0.000000000000",
+    "median_return": "0.014807692308",
+    "direction_probability": "0.5",
+    "expected_volatility": "0.014645128598",
+    "downside_quantile": "-0.009803921569",
+    "max_drawdown_quantile": "-0.009803921569",
+    "dispersion": "0.014645128598",
+    "path_count": 1
+  },
+  "moving_average": {
+    "model_id": "baseline:baseline-moving-average",
+    "model_revision": "1.0.0",
+    "expected_return": "-0.024761904762",
+    "median_return": "0.014807692308",
+    "direction_probability": "0",
+    "expected_volatility": "0.014645128598",
+    "downside_quantile": "-0.009803921569",
+    "max_drawdown_quantile": "-0.009803921569",
+    "dispersion": "0.014645128598",
+    "path_count": 1
+  },
+  "linear": {
+    "model_id": "baseline:baseline-linear",
+    "model_revision": "1.0.0",
+    "expected_return": "0.020952380952",
+    "median_return": "0.014807692308",
+    "direction_probability": "1",
+    "expected_volatility": "0.014645128598",
+    "downside_quantile": "-0.009803921569",
+    "max_drawdown_quantile": "-0.009803921569",
+    "dispersion": "0.014645128598",
+    "path_count": 1
+  }
+}

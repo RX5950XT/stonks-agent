@@ -1,0 +1,10 @@
+schema_version: 1
+algorithm: linear
+strategy_id: baseline-linear
+strategy_version: 1.0.0
+kind: deterministic
+lookback_bars: 5
+minimum_observations: 5
+formula_version: ols-index-v1
+deterministic: true
+promotion_state: draft

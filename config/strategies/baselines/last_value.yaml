@@ -1,0 +1,10 @@
+schema_version: 1
+algorithm: last_value
+strategy_id: baseline-last-value
+strategy_version: 1.0.0
+kind: deterministic
+lookback_bars: 1
+minimum_observations: 2
+formula_version: last-close-v1
+deterministic: true
+promotion_state: draft

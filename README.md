@@ -28,6 +28,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Canonical research pipeline gate把同一PIT context的deterministic artifact與TradingAgents opinion納入report attribution，再完成structured report、三channel rendering與file delivery；每次結果封存不含secret/error message的immutable audit artifact。Provider/deterministic/report outage為`failed`，TradingAgents outage為`degraded`且可產有限制說明的report，所有result contract都沒有target/order authority。
 - Strategy/signal/evaluation domain固定paper-only promotion graph與exact strategy/data/runtime/policy/evaluation provenance；未註冊、未校準、stale、expired或hash binding不符的alpha一律回零權重。Forecast與strategy-lab ports只接immutable snapshot/artifact inputs，stochastic output必須先封存raw output與sampled paths。
 - PostgreSQL strategy registry以CAS version序列化promotion，evaluation report與audit chain append-only；DB trigger本身驗promotion graph、exact evaluation binding、DB clock與每次mutation的matching audit event。`stonks_app`只有scoped columns權限，heavy worker role沒有strategy table權限。
+- Deterministic last-value、simple moving-average與OLS linear baselines共用PIT ordered-bar contract、frozen draft manifests與exact Decimal golden；輸出是research-only `ForecastSignal`，同輸入可重播相同payload hash，供Kronos/opinion/complex strategy在同dataset/cost evaluation下比較。
 - Local RBAC、process capability/egress deny、secret redaction、統一 API envelope 與 telemetry ports。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 

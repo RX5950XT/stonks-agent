@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2 gate 已通過，P3.1–P3.9 已完成，P3.10 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -316,7 +316,7 @@
   - `QuantResearchJob`只收immutable snapshot、feature/label/universe/cost/split specs；回傳predictions/positions/metrics/artifact hashes/provenance。
   - 不依賴已暫停的官方dataset；由canonical snapshot converter供應資料。
 
-- [ ] **P3.10 Forecast/signal/evaluation API and CLI** — 建立`entrypoints/api/routes/{strategies,signals,evaluations}.py`、`entrypoints/cli_commands/strategy.py`。（Depends：P3.2–P3.9；Complexity：L；Risk：Medium）
+- [x] **P3.10 Forecast/signal/evaluation API and CLI** — 建立`entrypoints/api/routes/{strategies,signals,evaluations}.py`、`entrypoints/cli_commands/strategy.py`。（Depends：P3.2–P3.9；Complexity：L；Risk：Medium）
   - Promotion endpoint需`strategy_reviewer`權限，且不能建立live state。
 
 ### P3 Verification gate
@@ -325,13 +325,13 @@
 - [x] Opinion mapper default disabled；未評估opinion、Kronos或PEAD signal權重必為0。（Depends：P3.5、P3.8）
 - [x] Kronos archived-artifact replay、CPU smoke、可用時GPU schema/tolerance smoke、model checksum與calendar/validity tests通過；fresh stochastic inference不作bit-identical gate。（Depends：P3.6–P3.8）
 - [x] Qlib deterministic job同snapshot/runtime可重播相同artifact hashes；任何stochastic model則重播封存output artifact，worker無core DB/execution credentials。（Depends：P3.9）
-- [ ] Strategy promotion/suspend/retire均有immutable audit event與CAS conflict tests。（Depends：P3.2、P3.10）
+- [x] Strategy promotion/suspend/retire均有immutable audit event與CAS conflict tests。（Depends：P3.2、P3.10）
 
 ### P3 Success criteria
 
-- [ ] 每個可參與paper portfolio的signal都有strategy/evaluation/data/runtime provenance。
-- [ ] Forecast與agent opinion只能經明確promotion path影響target。
-- [ ] 重型ML/quant dependencies完全留在各自worker environment。
+- [x] 每個可參與paper portfolio的signal都有strategy/evaluation/data/runtime provenance。
+- [x] Forecast與agent opinion只能經明確promotion path影響target。
+- [x] 重型ML/quant dependencies完全留在各自worker environment。
 
 ---
 
@@ -745,3 +745,11 @@
 - Runtime / security：Qlib固定commit `d5379c52`與source archive SHA-256 `3aaefc2f...cb2276`，worker source/lock與Python 3.12.12、NumPy 2.2.6、Pandas 2.2.3、scikit-learn 1.7.2綁runtime hash `4219b706...107ca5a`。真實`DataHandlerLP -> DatasetH -> LinearModel(OLS)` HTTP route兩次重播四組artifact hashes完全相同；image為UID 65532、read-only、cap-drop/internal network且無DB/queue/provider/execution credentials。修補`filelock`/`requests`後獨立lock audit為0 vulnerabilities。
 - Verification：focused contracts/converter/worker為24 passed、四個新模組合計branch coverage 86.70%；完整non-PostgreSQL gate為811 passed、187 deselected、coverage 88.52%，341 files format、ruff、core 200 source files與worker 4 files mypy、67 schemas、upstream/license、secret、core與worker locked dependency audit全通過。無migration或DB行為變更。
 - 文件同步：`README.md`、worker README、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.10 forecast/signal/evaluation API與CLI。
+
+### P3 Progress Review — P3.10 / phase gate — 2026-07-13
+
+- Scope completed：新增typed strategy registry/UoW ports與application use cases、read-only strategy/evaluation/audit查詢、signal eligibility、reviewer-only CAS transition API，以及`stonks strategy` show/events/evaluation/transition CLI。Promotion graph使用既有`PromotionState`，schema與CLI都不接受live或order-shaped欄位。
+- Authorization / integrity：API預設deny、request body bounded、actor由authenticated principal產生；transition要求`strategy_reviewer`，成功才commit。Evaluation read重驗row、registry exact binding與current audit hash chain；signal缺strategy/evaluation或binding不符時deterministic weight 0，infra/conflict不偽裝成功。
+- PostgreSQL gate：真實資料庫覆蓋evaluation integrity、promotion → suspend → retire audit sequence、stale CAS零新增event，以及API transition與CLI audit reader共用同一DB-authoritative CAS。Alembic check無drift。
+- Verification：focused API/CLI為13 passed、branch coverage 87.14%；完整non-PostgreSQL gate為820 passed、190 deselected、coverage 88.56%。完整PostgreSQL P3 phase gate為1010 passed、coverage 88.73%，349 files format、ruff、mypy 207 source files、67 schemas、upstream/license、secret、locked dependency audit與Alembic全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate完成；下一項為P4.1 portfolio/risk/reservation/execution domain。

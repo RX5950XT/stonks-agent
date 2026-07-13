@@ -115,3 +115,51 @@ def test_research_cli_requires_database_and_exposes_no_execution_command() -> No
     assert request_result.exit_code != 0
     assert "STONKS_DATABASE_URL" in request_result.output
     assert "traceback" not in request_result.output.lower()
+
+
+def test_strategy_cli_exposes_review_workflow_without_live_or_order_commands() -> None:
+    help_result = runner.invoke(app, ["strategy", "--help"])
+    missing_database = runner.invoke(
+        app,
+        [
+            "strategy",
+            "show",
+            "--strategy-id",
+            "kronos-return",
+            "--strategy-version",
+            "1.0.0",
+        ],
+        env={"STONKS_DATABASE_URL": ""},
+    )
+    live = runner.invoke(
+        app,
+        [
+            "strategy",
+            "transition",
+            "--strategy-id",
+            "kronos-return",
+            "--strategy-version",
+            "1.0.0",
+            "--expected-version",
+            "4",
+            "--current-state",
+            "paper_eligible",
+            "--target-state",
+            "live",
+            "--reason-code",
+            "enable_live",
+            "--database-url",
+            "postgresql+psycopg://unused",
+        ],
+    )
+
+    assert help_result.exit_code == 0
+    for command in ("show", "events", "evaluation", "transition"):
+        assert command in help_result.output
+    assert "order" not in help_result.output.lower()
+    assert "live" not in help_result.output.lower()
+    assert missing_database.exit_code != 0
+    assert "STONKS_DATABASE_URL" in missing_database.output
+    assert live.exit_code != 0
+    assert "invalid value" in live.output.lower()
+    assert "traceback" not in live.output.lower()

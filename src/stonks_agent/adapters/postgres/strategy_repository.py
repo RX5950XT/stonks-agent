@@ -145,6 +145,23 @@ class PostgresStrategyRepository:
             return _failure(ErrorCode.CONFLICT, "Evaluation registration conflicted")
         return Success(report)
 
+    def get_evaluation(self, report_id: UUID) -> Result[EvaluationReport]:
+        row = self._session.get(StrategyEvaluationReportRow, report_id)
+        if row is None:
+            return _failure(ErrorCode.NOT_FOUND, "Evaluation report was not found")
+        report = _evaluation_from_row(row)
+        registry = self._get_row(report.strategy_id, report.strategy_version)
+        if registry is None:
+            return _failure(ErrorCode.CONFLICT, "Evaluation strategy is unavailable")
+        audit = self._validate_current_audit(registry)
+        if isinstance(audit, Failure):
+            return audit
+        if not _evaluation_matches_row(report, row) or not _evaluation_matches_registry(
+            report, registry
+        ):
+            return _failure(ErrorCode.CONFLICT, "Evaluation report integrity failed")
+        return Success(report)
+
     def transition(
         self,
         request: StrategyTransitionRequest,
@@ -436,6 +453,28 @@ def _evaluation_matches_registry(
         and report.strategy_version == registry.strategy_version
         and report.strategy_manifest_hash == registry.manifest_hash
         and report.runtime_hash == registry.runtime_hash
+    )
+
+
+def _evaluation_matches_row(
+    report: EvaluationReport,
+    row: StrategyEvaluationReportRow,
+) -> bool:
+    return (
+        report.report_id == row.report_id
+        and report.strategy_id == row.strategy_id
+        and report.strategy_version == row.strategy_version
+        and report.strategy_manifest_hash == row.strategy_manifest_hash
+        and report.dataset_snapshot_id == row.dataset_snapshot_id
+        and report.data_hash == row.data_hash
+        and report.runtime_hash == row.runtime_hash
+        and report.evaluation_policy_hash == row.evaluation_policy_hash
+        and report.evaluation_hash == row.evaluation_hash
+        and report.report_artifact_ref == f"sha256:{row.report_artifact_hash}"
+        and report.passed == row.passed
+        and report.calibration.value == row.calibration
+        and report.valid_until == row.valid_until
+        and report.created_at == row.created_at
     )
 
 

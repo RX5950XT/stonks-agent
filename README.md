@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub 與 P2 Research control plane 已通過 phase gate；P3 strategy/forecast/evaluation 已完成P3.1–P3.9，後續工作依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub、P2 Research control plane 與 P3 strategy/forecast/evaluation 已通過 phase gate，後續工作依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -28,6 +28,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Canonical research pipeline gate把同一PIT context的deterministic artifact與TradingAgents opinion納入report attribution，再完成structured report、三channel rendering與file delivery；每次結果封存不含secret/error message的immutable audit artifact。Provider/deterministic/report outage為`failed`，TradingAgents outage為`degraded`且可產有限制說明的report，所有result contract都沒有target/order authority。
 - Strategy/signal/evaluation domain固定paper-only promotion graph與exact strategy/data/runtime/policy/evaluation provenance；未註冊、未校準、stale、expired或hash binding不符的alpha一律回零權重。Forecast與strategy-lab ports只接immutable snapshot/artifact inputs，stochastic output必須先封存raw output與sampled paths。
 - PostgreSQL strategy registry以CAS version序列化promotion，evaluation report與audit chain append-only；DB trigger本身驗promotion graph、exact evaluation binding、DB clock與每次mutation的matching audit event。`stonks_app`只有scoped columns權限，heavy worker role沒有strategy table權限。
+- Strategy/evaluation API與`stonks strategy` CLI提供read-only registry、evaluation、audit查詢及reviewer-only transition；actor由authenticated principal產生，live/order-shaped輸入、stale CAS與forged actor皆fail closed。Signal eligibility只接受exact strategy/evaluation/data/runtime provenance，缺失或binding不符固定回零權重。
 - Deterministic last-value、simple moving-average與OLS linear baselines共用PIT ordered-bar contract、frozen draft manifests與exact Decimal golden；輸出是research-only `ForecastSignal`，同輸入可重播相同payload hash，供Kronos/opinion/complex strategy在同dataset/cost evaluation下比較。
 - Point-in-time evaluation engine先拒絕future feature/label、unknown publication lag與survivorship污染，再以purged walk-forward/embargo的out-of-sample observations計算CPCV/PBO、fees/slippage/turnover sensitivity、baseline alpha、drawdown與probability calibration。每項promotion check獨立、policy為content hash，同strategy/snapshot/runtime/policy可重播相同evaluation hash。
 - Opinion-to-alpha mapper預設停用；啟用時仍要求mapper manifest parameters exact綁定policy hash、strategy為`paper_eligible`、evaluation passed且未過期、opinion confidence已校準。Bullish/neutral/bearish只映射成固定signed research value，unknown rating或任何quantity/order-shaped欄位fail closed。
@@ -47,7 +48,7 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 
 `fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。
 
-P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，但strategy/evaluation API與CLI仍由P3.10完成。Research API目前只建立`research_pipeline` job，application-level pipeline已通過P2 gate，但常駐dispatcher與durable全流程transition/commit wiring仍屬P4.7；`stonks-worker claim-once`也不是常駐dispatcher。
+P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。Research API目前只建立`research_pipeline` job，application-level pipeline已通過P2 gate，但常駐dispatcher與durable全流程transition/commit wiring仍屬P4.7；`stonks-worker claim-once`也不是常駐dispatcher。
 
 ## 核心文件
 

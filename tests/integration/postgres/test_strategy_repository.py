@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -8,14 +9,18 @@ from threading import Barrier
 from uuid import UUID
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
+from typer.testing import CliRunner
 
+from stonks_agent.adapters.auth.local_token import LocalTokenAuthenticator
 from stonks_agent.adapters.postgres.strategy_repository import (
     PostgresStrategyRepository,
 )
 from stonks_agent.adapters.postgres.unit_of_work import PostgresUnitOfWork
+from stonks_agent.domain.auth import Role
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.evaluation import (
     MANDATORY_EVALUATION_CHECKS,
@@ -30,6 +35,8 @@ from stonks_agent.domain.strategy import (
     StrategyManifest,
     StrategyTransitionRequest,
 )
+from stonks_agent.entrypoints.api.routes.strategies import create_strategy_app
+from stonks_agent.entrypoints.cli import app as cli_app
 from stonks_contracts.common import ConfidenceCalibration
 
 pytestmark = pytest.mark.postgres
@@ -47,6 +54,7 @@ HASH_D = "d" * 64
 HASH_E = "e" * 64
 HASH_F = "f" * 64
 HASH_9 = "9" * 64
+TOKEN = "strategy-postgres-token-that-is-at-least-32-chars"
 
 
 def manifest() -> StrategyManifest:
@@ -193,6 +201,21 @@ def test_evaluation_requires_exact_strategy_snapshot_and_artifact_binding(
     assert mismatch.error.code is ErrorCode.CONFLICT
 
 
+def test_registered_evaluation_is_read_back_with_verified_registry_binding(
+    strategy_database: Engine,
+) -> None:
+    with Session(strategy_database) as session:
+        repository = PostgresStrategyRepository(session)
+        assert isinstance(repository.register(manifest()), Success)
+        assert isinstance(repository.register_evaluation(evaluation()), Success)
+        session.commit()
+        result = repository.get_evaluation(REPORT_ID)
+
+    assert isinstance(result, Success)
+    assert result.value == evaluation()
+    assert result.value.evaluation_hash == evaluation().evaluation_hash
+
+
 def test_promotion_uses_database_clock_and_builds_verified_hash_chain(
     strategy_database: Engine,
 ) -> None:
@@ -307,6 +330,98 @@ def test_concurrent_cas_allows_exactly_one_paper_state_mutation(
         )
     assert isinstance(events, Success)
     assert [event.sequence for event in events.value] == [1, 2, 3, 4, 5]
+
+
+def test_suspend_then_retire_each_append_audit_and_stale_cas_appends_nothing(
+    strategy_database: Engine,
+) -> None:
+    _promote_to_paper(strategy_database)
+    with Session(strategy_database) as session:
+        repository = PostgresStrategyRepository(session)
+        suspended = repository.transition(
+            transition(PromotionState.PAPER_ELIGIBLE, PromotionState.SUSPENDED, 4)
+        )
+        stale = repository.transition(
+            transition(PromotionState.SUSPENDED, PromotionState.RETIRED, 4)
+        )
+        retired = repository.transition(
+            transition(PromotionState.SUSPENDED, PromotionState.RETIRED, 5)
+        )
+        session.commit()
+        events = repository.list_events(STRATEGY_ID, STRATEGY_VERSION)
+
+    assert isinstance(suspended, Success)
+    assert isinstance(stale, Failure)
+    assert stale.error.code is ErrorCode.CONFLICT
+    assert isinstance(retired, Success)
+    assert isinstance(events, Success)
+    assert [event.to_state for event in events.value[-2:]] == [
+        PromotionState.SUSPENDED,
+        PromotionState.RETIRED,
+    ]
+    assert [event.sequence for event in events.value] == [1, 2, 3, 4, 5, 6]
+
+
+def test_strategy_api_and_cli_share_postgres_cas_and_verified_audit(
+    strategy_database: Engine,
+) -> None:
+    with Session(strategy_database) as session:
+        assert isinstance(
+            PostgresStrategyRepository(session).register(manifest()), Success
+        )
+        session.commit()
+    client = TestClient(
+        create_strategy_app(
+            lambda: PostgresUnitOfWork(strategy_database),
+            LocalTokenAuthenticator(
+                token=TOKEN,
+                subject="reviewer:postgres",
+                roles=frozenset({Role.STRATEGY_REVIEWER}),
+                allowed_hosts=frozenset({"testclient"}),
+            ),
+            clock=lambda: NOW + timedelta(minutes=1),
+        )
+    )
+    body = {
+        "expected_version": 1,
+        "current_state": "draft",
+        "target_state": "evaluating",
+        "evaluation_report_id": None,
+        "evaluation_hash": None,
+        "reason_code": "begin_evaluation",
+    }
+
+    promoted = client.post(
+        f"/v1/strategies/{STRATEGY_ID}/versions/{STRATEGY_VERSION}/transitions",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        json=body,
+    )
+    stale = client.post(
+        f"/v1/strategies/{STRATEGY_ID}/versions/{STRATEGY_VERSION}/transitions",
+        headers={"authorization": f"Bearer {TOKEN}"},
+        json=body,
+    )
+    cli = CliRunner().invoke(
+        cli_app,
+        [
+            "strategy",
+            "events",
+            "--strategy-id",
+            STRATEGY_ID,
+            "--strategy-version",
+            STRATEGY_VERSION,
+            "--database-url",
+            str(strategy_database.url),
+        ],
+    )
+
+    assert promoted.status_code == 200
+    assert promoted.json()["data"]["entry"]["state"] == "evaluating"
+    assert stale.status_code == 409
+    assert cli.exit_code == 0, cli.output
+    events = json.loads(cli.stdout)["data"]
+    assert [event["sequence"] for event in events] == [1, 2]
+    assert events[-1]["actor"] == "reviewer:postgres"
 
 
 def test_registry_identity_and_audit_rows_are_database_immutable(

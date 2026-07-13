@@ -25,9 +25,12 @@ SHA-256 values, symlinks, and untracked entries before loading either component.
 CPU and CUDA use independent `pyproject.toml`/`uv.lock` environments and Docker
 targets (`runtime-cpu`, `runtime-cuda`). The model is warmed exactly once at
 process startup. `/healthz` is liveness, `/readyz` reports load readiness, and
-`/v1/preflight` verifies an exact runtime identity. Canonical forecast I/O and
-immutable sampled-path artifacts are added by P3.7; this environment grants no
-signal promotion or trading authority.
+`/v1/preflight` verifies an exact runtime identity. `/v1/forecast` only accepts
+lease-fenced PIT bars, core-generated exchange session timestamps, exact pinned
+runtime identity, and explicit seeds. Each seed runs sequentially with upstream
+`sample_count=1`; the worker returns every raw path without averaging. Core owns
+artifact persistence, deterministic signal mapping, promotion, and all trading
+authority; this worker has none of those capabilities.
 
 Run the CPU container with a verified host model directory:
 

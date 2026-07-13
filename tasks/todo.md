@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2 gate 已通過，P3.1–P3.6 已完成，P3.7 進行中）
+> 狀態：執行中（P0、P1、P2 gate 已通過，P3.1–P3.7 已完成，P3.8 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -299,10 +299,15 @@
   - [x] CPU/CUDA各自使用獨立locked environment/image target；runtime compose為internal network、read-only、non-root、cap-drop且無DB/provider/execution credentials。
   - [x] Contract/HTTP health與forecast preflight、core heavy-dependency isolation、license/notice/source provenance及container policy tests通過。
 
-- [ ] **P3.7 Kronos canonical input/output adapter** — 實作calendar-aware input、sample path retention、seed policy、OHLC/volume invariant與`ForecastSignal` mapping；建立`tests/golden/kronos/`。（Depends：P1.1、P1.2、P3.6；Complexity：XL；Risk：High）
+- [x] **P3.7 Kronos canonical input/output adapter** — 實作calendar-aware input、sample path retention、seed policy、OHLC/volume invariant與`ForecastSignal` mapping；建立`tests/golden/kronos/`。（Depends：P1.1、P1.2、P3.6；Complexity：XL；Risk：High）
   - Missing/estimated volume降低quality；future timestamps來自exchange calendar。
   - Invalid output、length mismatch、extreme jump、model revision mismatch不產signal。
   - 每次raw sampled paths與runtime/model metadata先封存為immutable artifact；deterministic replay從該artifact開始，不宣稱fresh stochastic re-inference可bit-identical。
+  - [x] TDD：shared worker wire contracts固定lease fence、PIT ordered bars、calendar timestamps、model/tokenizer/runtime identity、seed/sample count與closed authority；unknown/duplicate/out-of-order/future欄位fail closed。
+  - [x] Core request builder只接受canonical `BarSeries`與`ExchangeCalendar`；1d future bars跨週末/假日/DST取session close，missing/estimated volume留下可降級quality，不讓worker自行猜calendar。
+  - [x] Worker逐seed執行`sample_count=1`並保留每條raw path，固定Python/NumPy/PyTorch/CUDA seeds；不使用上游會先平均掉paths的multi-sample輸出。
+  - [x] Core HTTP adapter先封存raw response與sample paths artifacts，再驗fence/identity/length/timestamps/OHLCV/extreme jump並映射research-only `ForecastSignal`；invalid output只回structured failure。
+  - [x] Golden archived-artifact replay、CPU/GPU tolerance、schema snapshots、core無torch與full gate通過後同步文件並提交。
 
 - [ ] **P3.8 Kronos evaluation and promotion** — 以golden跨市場snapshots執行walk-forward、baseline、成本與calibration報告；建立`config/strategies/kronos.yaml`。（Depends：P3.4、P3.7；Complexity：XL；Risk：High）
   - 未達預先固定門檻時保持`shadow`/weight 0，不能為了整合而降低門檻。
@@ -715,3 +720,12 @@
 - Runtime evidence：四個實際Hugging Face檔案共約115 MB均重算SHA-256相符。CPU image以`torch 2.12.1+cpu` warm成功；CUDA image以`torch 2.12.1+cu129`在RTX 3070 Ti完成32→2 bars、OHLCV/amount六欄inference。兩者皆UID 65532；CPU約0.80 GiB、CUDA約11.95 GiB。
 - Security / verification：原選2.11.0因OSV `GHSA-rrmf-rvhw-rf47`受影響而fail closed升至首個fixed 2.12.1；OSV為0 vulnerabilities，CPU/CUDA image內Linux dependency audit均無已知CVE（local `stonks-contracts`與帶build suffix的torch由PyPI scanner跳過，torch另以OSV標準identity補查）。focused為26 passed；完整non-PostgreSQL gate為732 passed、187 deselected、coverage 88.32%，323 files format、ruff、core/worker mypy、43 schemas、upstream/license、secret與core locked audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.7 Kronos canonical input/output adapter。
+
+### P3 Progress Review — P3.7 — 2026-07-13
+
+- Scope completed：新增9個shared Kronos wire models、CPU/CUDA exact core configs、calendar-aware request builder、逐seed native worker forecast route、artifact-first fixed-origin HTTP adapter、deterministic mapper與`tests/golden/kronos/`。`ForecastRequest/ForecastOutputArtifact`另修正revision與artifact SHA-256為不同identity，不再錯誤互相比較。
+- PIT / path retention：builder只接受matching canonical `BarSeries`/`ExchangeCalendar`，1d timestamps跨週末、假日與DST固定取session close。Worker固定Python/NumPy/PyTorch/CUDA seed，每seed以upstream `sample_count=1`序列執行並保留完整paths；per-seed重驗deadline，missing/estimated volume保留quality provenance。
+- Artifact / replay / authority：core先封存raw envelope與不含lease nonce的replay-complete path artifact，再驗generation/nonce、request/result/runtime/model/tokenizer、timestamps、OHLCV、length與step jump。Mapping只產research-only `ForecastSignal`；invalid/late/drift output回structured failure，fresh stochastic inference不宣稱bit-identical。
+- Runtime / tolerance：實際115 MB pinned weights在CPU與RTX 3070 Ti CUDA final source route各完成2 explicit seeds × 2 bars；另以16 paths保存aggregate tolerance golden。Final CPU/CUDA runtime hashes為`c3542191fc3a6137540219098a66be4f3f32c7c7203e52f44018eb4e66dfa866`與`6a2ed7db73e7a2b16c0b4eaa79f8c47fb6d505ce6fa81a5e3f68943e0c6a7223`。
+- Verification：focused contracts/worker/adapter/domain/schema為72 passed，Kronos core adapter coverage 86%；完整non-PostgreSQL gate為772 passed、187 deselected、coverage 88.31%，328 files format、ruff、core 195 source files與worker mypy、52 schemas、upstream/license、secret與core locked dependency audit全通過。
+- 文件同步：`README.md`、worker README、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.8 Kronos evaluation and promotion。

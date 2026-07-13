@@ -1,0 +1,132 @@
+{
+  "as_of": "2026-03-06T21:00:00Z",
+  "dataset_snapshot_id": "10000000-0000-4000-8000-000000000105",
+  "future_timestamps": [
+    "2026-03-09T20:00:00Z",
+    "2026-03-11T20:00:00Z"
+  ],
+  "generated_at": "2026-03-06T21:01:00Z",
+  "input_last_close": "100",
+  "input_volume_quality": "estimated",
+  "input_window_end": "2026-03-06T21:00:00Z",
+  "input_window_start": "2026-03-04T21:00:00Z",
+  "instrument_id": "10000000-0000-4000-8000-000000000104",
+  "interval": "1d",
+  "latency_ms": 50,
+  "paths": [
+    {
+      "path_index": 0,
+      "points": [
+        {
+          "amount": "105105",
+          "close": "105",
+          "high": "106",
+          "low": "104",
+          "open": "105",
+          "schema_version": "1.0.0",
+          "timestamp": "2026-03-09T20:00:00Z",
+          "volume": "1001"
+        },
+        {
+          "amount": "110110",
+          "close": "110",
+          "high": "111",
+          "low": "109",
+          "open": "110",
+          "schema_version": "1.0.0",
+          "timestamp": "2026-03-11T20:00:00Z",
+          "volume": "1001"
+        }
+      ],
+      "schema_version": "1.0.0",
+      "seed": 17
+    },
+    {
+      "path_index": 1,
+      "points": [
+        {
+          "amount": "98098",
+          "close": "98",
+          "high": "99",
+          "low": "97",
+          "open": "98",
+          "schema_version": "1.0.0",
+          "timestamp": "2026-03-09T20:00:00Z",
+          "volume": "1001"
+        },
+        {
+          "amount": "90090",
+          "close": "90",
+          "high": "91",
+          "low": "89",
+          "open": "90",
+          "schema_version": "1.0.0",
+          "timestamp": "2026-03-11T20:00:00Z",
+          "volume": "1001"
+        }
+      ],
+      "schema_version": "1.0.0",
+      "seed": 18
+    },
+    {
+      "path_index": 2,
+      "points": [
+        {
+          "amount": "100100",
+          "close": "100",
+          "high": "101",
+          "low": "99",
+          "open": "100",
+          "schema_version": "1.0.0",
+          "timestamp": "2026-03-09T20:00:00Z",
+          "volume": "1001"
+        },
+        {
+          "amount": "100100",
+          "close": "100",
+          "high": "101",
+          "low": "99",
+          "open": "100",
+          "schema_version": "1.0.0",
+          "timestamp": "2026-03-11T20:00:00Z",
+          "volume": "1001"
+        }
+      ],
+      "schema_version": "1.0.0",
+      "seed": 19
+    }
+  ],
+  "request_id": "10000000-0000-4000-8000-000000000101",
+  "runtime": {
+    "device": "cpu",
+    "inference_code_version": "kronos-path-retention/1.0.0",
+    "manifest_hash": "08da84cbd5cfe0ca9f9dec300589651e77d9ee36f8ee4c1b9047bc62c6f79fc3",
+    "model_artifact_hash": "b082dfcbd8e8c142a725c8bbb99781802f38fec81210e13479effb32b3c3e020",
+    "model_id": "NeoQuasar/Kronos-small",
+    "model_revision": "901c26c1332695a2a8f243eb2f37243a37bea320",
+    "runtime_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "schema_version": "1.0.0",
+    "tokenizer_artifact_hash": "59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee",
+    "tokenizer_id": "NeoQuasar/Kronos-Tokenizer-base",
+    "tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
+    "torch_version": "2.12.1+cpu",
+    "upstream_commit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+    "worker_version": "kronos-worker/0.2.0"
+  },
+  "sampling": {
+    "schema_version": "1.0.0",
+    "seed_policy": "explicit-sequential-v1",
+    "seeds": [
+      17,
+      18,
+      19
+    ],
+    "temperature": "1",
+    "top_k": 0,
+    "top_p": "0.9"
+  },
+  "schema_version": "1.0.0",
+  "warnings": [
+    "input_volume_estimated"
+  ]
+}

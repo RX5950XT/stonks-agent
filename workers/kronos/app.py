@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from stonks_contracts.kronos import KronosWorkerRequest
 from workers.kronos.adapter import KronosPreflightRequest, KronosWorker
 
 
@@ -56,6 +57,25 @@ def create_app(*, worker: KronosWorker, max_request_bytes: int = 65_536) -> Fast
         assert outcome.value is not None
         return _envelope(200, data=outcome.value.model_dump(mode="json"))
 
+    @app.post("/v1/forecast")
+    async def forecast(incoming: Request) -> JSONResponse:
+        rejection = _validate_headers(incoming, max_request_bytes)
+        if rejection is not None:
+            return rejection
+        body = await _read_bounded(incoming, max_request_bytes)
+        if body is None:
+            return _error(413, "request_too_large", "Worker request is too large")
+        try:
+            request = KronosWorkerRequest.model_validate_json(body)
+        except (ValidationError, json.JSONDecodeError):
+            return _error(400, "invalid_request", "Worker request is invalid")
+        outcome = worker.forecast(request)
+        if outcome.error is not None:
+            status = _worker_error_status(outcome.error.code)
+            return _error(status, outcome.error.code, outcome.error.message)
+        assert outcome.value is not None
+        return _envelope(200, data=outcome.value.model_dump(mode="json"))
+
     return app
 
 
@@ -82,6 +102,16 @@ async def _read_bounded(incoming: Request, maximum: int) -> bytes | None:
 
 def _error(status: int, code: str, message: str) -> JSONResponse:
     return _envelope(status, error={"code": code, "message": message})
+
+
+def _worker_error_status(code: str) -> int:
+    if code == "model_not_ready":
+        return 503
+    if code in {"runtime_mismatch", "deadline_expired"}:
+        return 409
+    if code in {"runtime_invalid", "inference_failed"}:
+        return 503
+    return 422
 
 
 def _envelope(

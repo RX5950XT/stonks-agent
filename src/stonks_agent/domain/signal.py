@@ -57,6 +57,10 @@ class ForecastRequest(BaseModel):
     input_window_end: UTCDateTime
     model_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$")
     model_revision: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$")
+    model_artifact_hash: Sha256
+    tokenizer_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$")
+    tokenizer_revision: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$")
+    tokenizer_artifact_hash: Sha256
     runtime_hash: Sha256
     requested_at: UTCDateTime
     deadline_at: UTCDateTime
@@ -84,6 +88,7 @@ class ForecastOutputArtifact(BaseModel):
     raw_output_artifact_ref: ArtifactRef
     sampled_paths_artifact_ref: ArtifactRef | None = None
     model_artifact_hash: Sha256
+    tokenizer_artifact_hash: Sha256
     runtime_hash: Sha256
     data_hash: Sha256
     stochastic: bool
@@ -93,10 +98,6 @@ class ForecastOutputArtifact(BaseModel):
     def validate_artifact(self, info: ValidationInfo) -> Self:
         if self.stochastic and self.sampled_paths_artifact_ref is None:
             raise ValueError("stochastic forecast must archive sampled paths")
-        if self.forecast.model_revision != self.model_artifact_hash:
-            raise ValueError(
-                "forecast model revision does not match model artifact hash"
-            )
         if self.created_at < self.forecast.generated_at:
             raise ValueError("forecast artifact cannot precede generated output")
         request = info.context.get("request") if info.context else None
@@ -270,6 +271,10 @@ def _matches_request(output: ForecastOutputArtifact, request: ForecastRequest) -
         and forecast.input_window_end == request.input_window_end
         and forecast.model_id == request.model_id
         and forecast.model_revision == request.model_revision
+        and forecast.tokenizer_id == request.tokenizer_id
+        and forecast.tokenizer_revision == request.tokenizer_revision
+        and output.model_artifact_hash == request.model_artifact_hash
+        and output.tokenizer_artifact_hash == request.tokenizer_artifact_hash
         and output.runtime_hash == request.runtime_hash
         and output.data_hash == request.data_hash
         and output.created_at <= request.deadline_at

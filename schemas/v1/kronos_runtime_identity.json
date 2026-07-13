@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "KronosProfile": {
+      "enum": [
+        "cpu",
+        "cuda"
+      ],
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Exact code, model, tokenizer, manifest, and runtime identity.",
+  "properties": {
+    "device": {
+      "$ref": "#/$defs/KronosProfile"
+    },
+    "inference_code_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Inference Code Version",
+      "type": "string"
+    },
+    "manifest_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Manifest Hash",
+      "type": "string"
+    },
+    "model_artifact_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Model Artifact Hash",
+      "type": "string"
+    },
+    "model_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_revision": {
+      "pattern": "^[a-f0-9]{40}$",
+      "title": "Model Revision",
+      "type": "string"
+    },
+    "runtime_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Runtime Hash",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tokenizer_artifact_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Tokenizer Artifact Hash",
+      "type": "string"
+    },
+    "tokenizer_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Tokenizer Id",
+      "type": "string"
+    },
+    "tokenizer_revision": {
+      "pattern": "^[a-f0-9]{40}$",
+      "title": "Tokenizer Revision",
+      "type": "string"
+    },
+    "torch_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Torch Version",
+      "type": "string"
+    },
+    "upstream_commit": {
+      "pattern": "^[a-f0-9]{40}$",
+      "title": "Upstream Commit",
+      "type": "string"
+    },
+    "worker_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Worker Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "worker_version",
+    "upstream_commit",
+    "model_id",
+    "model_revision",
+    "model_artifact_hash",
+    "tokenizer_id",
+    "tokenizer_revision",
+    "tokenizer_artifact_hash",
+    "manifest_hash",
+    "runtime_hash",
+    "device",
+    "torch_version",
+    "inference_code_version"
+  ],
+  "title": "KronosRuntimeIdentity",
+  "type": "object"
+}

@@ -19,6 +19,8 @@ NOW = datetime(2026, 7, 13, 2, tzinfo=UTC)
 HASH_A = "a" * 64
 HASH_B = "b" * 64
 HASH_C = "c" * 64
+MODEL_REVISION = "c" * 40
+TOKENIZER_REVISION = "d" * 40
 INSTRUMENT_ID = UUID("00000000-0000-4000-8000-000000000201")
 SNAPSHOT_ID = UUID("00000000-0000-4000-8000-000000000202")
 REQUEST_ID = UUID("00000000-0000-4000-8000-000000000203")
@@ -38,7 +40,11 @@ def forecast_request() -> ForecastRequest:
         input_window_start=NOW - timedelta(days=30),
         input_window_end=NOW,
         model_id="kronos",
-        model_revision=HASH_C,
+        model_revision=MODEL_REVISION,
+        model_artifact_hash=HASH_C,
+        tokenizer_id="kronos-tokenizer",
+        tokenizer_revision=TOKENIZER_REVISION,
+        tokenizer_artifact_hash=HASH_B,
         runtime_hash=HASH_A,
         requested_at=NOW,
         deadline_at=NOW + timedelta(minutes=5),
@@ -65,9 +71,9 @@ def forecast_signal() -> ForecastSignal:
             completeness=Decimal("1"),
         ),
         model_id="kronos",
-        model_revision=HASH_C,
+        model_revision=MODEL_REVISION,
         tokenizer_id="kronos-tokenizer",
-        tokenizer_revision=HASH_C,
+        tokenizer_revision=TOKENIZER_REVISION,
         device="cpu",
         seed_policy="archived-paths",
         inference_code_version="1.0.0",
@@ -87,6 +93,7 @@ def test_forecast_output_requires_exact_request_binding_and_archived_paths() -> 
         raw_output_artifact_ref=f"sha256:{HASH_B}",
         sampled_paths_artifact_ref=f"sha256:{HASH_C}",
         model_artifact_hash=HASH_C,
+        tokenizer_artifact_hash=HASH_B,
         runtime_hash=request.runtime_hash,
         data_hash=request.data_hash,
         stochastic=True,
@@ -94,6 +101,7 @@ def test_forecast_output_requires_exact_request_binding_and_archived_paths() -> 
     )
 
     assert output.sampled_paths_artifact_ref == f"sha256:{HASH_C}"
+    assert output.forecast.model_revision != output.model_artifact_hash
     with pytest.raises(ValidationError, match="forecast output does not match request"):
         ForecastOutputArtifact.model_validate(
             output.model_dump() | {"request_id": UUID(int=999)},

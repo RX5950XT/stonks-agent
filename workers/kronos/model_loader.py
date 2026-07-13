@@ -5,8 +5,10 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import random
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from threading import Lock
 from typing import Any, Literal, Self
@@ -14,6 +16,10 @@ from typing import Any, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from stonks_contracts.common import stable_payload_hash
+from stonks_contracts.kronos import (
+    KronosForecastPoint,
+    KronosWorkerRequest,
+)
 
 type DeviceProfile = Literal["cpu", "cuda"]
 type RuntimeFactory = Callable[["ValidatedModelPaths", DeviceProfile], object]
@@ -85,6 +91,37 @@ def load_model_manifest(path: Path) -> KronosModelManifest:
         return KronosModelManifest.model_validate(payload)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         raise ModelLoadError("model manifest is invalid") from error
+
+
+def compute_runtime_hash(worker_root: Path, profile: DeviceProfile) -> str:
+    """Hash worker source and the selected frozen dependency profile."""
+    selected = [
+        worker_root / name
+        for name in (
+            "adapter.py",
+            "app.py",
+            "model_loader.py",
+            "runtime_app.py",
+            "model-manifest.json",
+        )
+    ]
+    profile_root = (
+        worker_root if profile == "cpu" else worker_root / "profiles" / "cuda"
+    )
+    selected.extend((profile_root / "pyproject.toml", profile_root / "uv.lock"))
+    payload: list[dict[str, str]] = []
+    for path in selected:
+        try:
+            content = path.read_bytes()
+        except OSError as error:
+            raise ModelLoadError("runtime identity file is unavailable") from error
+        payload.append(
+            {
+                "path": path.relative_to(worker_root).as_posix(),
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }
+        )
+    return stable_payload_hash({"profile": profile, "files": payload})
 
 
 def validate_model_root(
@@ -208,6 +245,61 @@ class NativeKronosRuntime:
     tokenizer: Any
     predictor: Any
     profile: DeviceProfile
+
+    def predict_path(
+        self, request: KronosWorkerRequest, *, seed: int
+    ) -> tuple[KronosForecastPoint, ...]:
+        """Run exactly one seeded sample so no upstream path averaging occurs."""
+        torch = importlib.import_module("torch")
+        numpy = importlib.import_module("numpy")
+        pandas = importlib.import_module("pandas")
+        torch.manual_seed(seed)
+        numpy.random.seed(seed % 2**32)
+        random.seed(seed)
+        if self.profile == "cuda":
+            torch.cuda.manual_seed_all(seed)
+        rows = [
+            {
+                "open": float(bar.open),
+                "high": float(bar.high),
+                "low": float(bar.low),
+                "close": float(bar.close),
+                "volume": float(bar.volume or 0),
+                "amount": float(bar.amount or 0),
+            }
+            for bar in request.bars
+        ]
+        x_timestamp = pandas.Series([bar.event_time for bar in request.bars])
+        y_timestamp = pandas.Series(request.future_timestamps)
+        frame = pandas.DataFrame(rows, index=x_timestamp)
+        prediction = self.predictor.predict(
+            frame,
+            x_timestamp=x_timestamp,
+            y_timestamp=y_timestamp,
+            pred_len=request.horizon_bars,
+            T=float(request.sampling.temperature),
+            top_k=request.sampling.top_k,
+            top_p=float(request.sampling.top_p),
+            sample_count=1,
+            verbose=False,
+        )
+        records = prediction.to_dict(orient="records")
+        if len(records) != request.horizon_bars:
+            raise ModelLoadError("Kronos output length mismatch")
+        return tuple(
+            KronosForecastPoint(
+                timestamp=timestamp,
+                open=Decimal(str(record["open"])),
+                high=Decimal(str(record["high"])),
+                low=Decimal(str(record["low"])),
+                close=Decimal(str(record["close"])),
+                volume=Decimal(str(record["volume"])),
+                amount=Decimal(str(record["amount"])),
+            )
+            for timestamp, record in zip(
+                request.future_timestamps, records, strict=True
+            )
+        )
 
 
 def create_native_runtime(

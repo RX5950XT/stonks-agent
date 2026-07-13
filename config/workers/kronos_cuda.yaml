@@ -1,0 +1,24 @@
+policy:
+  policy_id: kronos-cuda-v1
+  profile: cuda
+  origin: http://kronos-cuda:7200
+  endpoint: /v1/forecast
+  timeout_seconds: 120
+  max_response_bytes: 4194304
+  max_request_bytes: 1048576
+  max_transient_retries: 1
+  max_absolute_step_return: "0.5"
+runtime:
+  worker_version: kronos-worker/0.2.0
+  upstream_commit: 67b630e67f6a18c9e9be918d9b4337c960db1e9a
+  model_id: NeoQuasar/Kronos-small
+  model_revision: 901c26c1332695a2a8f243eb2f37243a37bea320
+  model_artifact_hash: b082dfcbd8e8c142a725c8bbb99781802f38fec81210e13479effb32b3c3e020
+  tokenizer_id: NeoQuasar/Kronos-Tokenizer-base
+  tokenizer_revision: 0e0117387f39004a9016484a186a908917e22426
+  tokenizer_artifact_hash: 59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee
+  manifest_hash: 08da84cbd5cfe0ca9f9dec300589651e77d9ee36f8ee4c1b9047bc62c6f79fc3
+  runtime_hash: 6a2ed7db73e7a2b16c0b4eaa79f8c47fb6d505ce6fa81a5e3f68943e0c6a7223
+  device: cuda
+  torch_version: 2.12.1+cu129
+  inference_code_version: kronos-path-retention/1.0.0

@@ -1,0 +1,37 @@
+{
+  "description": "Observed 16-path CPU and RTX 3070 Ti CUDA canonical worker smoke; fresh stochastic inference is not expected to be bit-identical.",
+  "input_last_close": "103.6",
+  "maximum_absolute_difference": {
+    "direction_probability": "0.2",
+    "dispersion": "0.001",
+    "downside_quantile": "0.001",
+    "expected_return": "0.001",
+    "expected_volatility": "0.001",
+    "max_drawdown_quantile": "0.001",
+    "median_return": "0.001"
+  },
+  "path_count": 16,
+  "profiles": {
+    "cpu": {
+      "direction_probability": "0.3125",
+      "dispersion": "0.001783994008801822688413229770",
+      "downside_quantile": "-0.003120867902247586872586872600",
+      "expected_return": "-0.0006677340356539575289575289125",
+      "expected_volatility": "0.001376781888130197586117088696",
+      "max_drawdown_quantile": "-0.003120867902247586872586872600",
+      "median_return": "-0.00058168241876428571428571430",
+      "runtime_hash": "c3542191fc3a6137540219098a66be4f3f32c7c7203e52f44018eb4e66dfa866"
+    },
+    "cuda": {
+      "direction_probability": "0.5",
+      "dispersion": "0.002010415364406856772643794651",
+      "downside_quantile": "-0.002317314442520439189189189200",
+      "expected_return": "0.00005488137941101592664092664375",
+      "expected_volatility": "0.001212775102190295332915363597",
+      "max_drawdown_quantile": "-0.002423997064842210502884631950",
+      "median_return": "-0.00014689530184831081081081075",
+      "runtime_hash": "6a2ed7db73e7a2b16c0b4eaa79f8c47fb6d505ce6fa81a5e3f68943e0c6a7223"
+    }
+  },
+  "schema_version": "1.0.0"
+}

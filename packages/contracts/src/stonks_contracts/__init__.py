@@ -11,6 +11,18 @@ from .execution import (
     OrderIntent,
 )
 from .instrument import InstrumentKey, ProviderSymbol
+from .kronos import (
+    KronosBar,
+    KronosForecastPath,
+    KronosForecastPoint,
+    KronosRuntimeIdentity,
+    KronosSamplePathsArtifact,
+    KronosSamplingPolicy,
+    KronosWorkerRequest,
+    KronosWorkerResponse,
+    KronosWorkerResult,
+    VolumeQuality,
+)
 from .market_data import Bar, BarSeries, DataQuality, DatasetSnapshot, MarketDataQuery
 from .portfolio import (
     CashBalance,
@@ -95,6 +107,15 @@ SCHEMA_MODELS: tuple[type[ContractModel], ...] = (
     TradingAgentsWorkerRequest,
     TradingAgentsWorkerResponse,
     TradingAgentsWorkerResult,
+    KronosBar,
+    KronosSamplingPolicy,
+    KronosRuntimeIdentity,
+    KronosWorkerRequest,
+    KronosForecastPoint,
+    KronosForecastPath,
+    KronosWorkerResult,
+    KronosWorkerResponse,
+    KronosSamplePathsArtifact,
 )
 
 __all__ = [
@@ -119,6 +140,15 @@ __all__ = [
     "InstrumentKey",
     "JournalPosting",
     "JournalTransaction",
+    "KronosBar",
+    "KronosForecastPath",
+    "KronosForecastPoint",
+    "KronosRuntimeIdentity",
+    "KronosSamplePathsArtifact",
+    "KronosSamplingPolicy",
+    "KronosWorkerRequest",
+    "KronosWorkerResponse",
+    "KronosWorkerResult",
     "MarketDataQuery",
     "OrderIntent",
     "PortfolioSnapshot",
@@ -130,5 +160,6 @@ __all__ = [
     "TradingAgentsWorkerRequest",
     "TradingAgentsWorkerResponse",
     "TradingAgentsWorkerResult",
+    "VolumeQuality",
     "stable_payload_hash",
 ]

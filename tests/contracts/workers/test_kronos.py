@@ -4,6 +4,8 @@ import hashlib
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,12 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
+
+from stonks_contracts.kronos import (
+    KronosForecastPoint,
+    KronosWorkerRequest,
+    VolumeQuality,
+)
 
 ROOT = Path(__file__).parents[3]
 WORKER = ROOT / "workers" / "kronos"
@@ -29,8 +37,10 @@ from workers.kronos.model_loader import (  # noqa: E402
     ModelComponent,
     ModelFile,
     ModelLoadError,
+    NativeKronosRuntime,
     ValidatedModelPaths,
     WarmOnceModelLoader,
+    compute_runtime_hash,
     load_model_manifest,
     validate_model_root,
 )
@@ -100,13 +110,96 @@ def _model_root(tmp_path: Path) -> tuple[Path, KronosModelManifest]:
 
 def _policy(manifest: KronosModelManifest) -> KronosWorkerPolicy:
     return KronosWorkerPolicy(
-        worker_version="kronos-worker/0.1.0",
+        worker_version="kronos-worker/0.2.0",
         profile=WorkerDeviceProfile.CPU,
         upstream_commit=manifest.upstream_commit,
+        model_id=manifest.model.repository,
         model_revision=manifest.model.revision,
+        model_artifact_hash=manifest.model.files[1].sha256,
+        tokenizer_id=manifest.tokenizer.repository,
         tokenizer_revision=manifest.tokenizer.revision,
+        tokenizer_artifact_hash=manifest.tokenizer.files[1].sha256,
         manifest_hash=manifest.payload_hash(),
+        runtime_hash="1" * 64,
+        torch_version="2.12.1+cpu",
+        inference_code_version="kronos-path-retention/1.0.0",
     )
+
+
+def _forecast_request(
+    policy: KronosWorkerPolicy, **overrides: object
+) -> KronosWorkerRequest:
+    as_of = datetime(2026, 1, 9, 21, tzinfo=UTC)
+    values: dict[str, object] = {
+        "request_id": "11111111-1111-4111-8111-111111111111",
+        "run_id": "22222222-2222-4222-8222-222222222222",
+        "job_id": "33333333-3333-4333-8333-333333333333",
+        "attempt_generation": 2,
+        "attempt_nonce": "nonce-2",
+        "profile": "cpu",
+        "instrument_id": "44444444-4444-4444-8444-444444444444",
+        "mic": "XNAS",
+        "dataset_snapshot_id": "55555555-5555-4555-8555-555555555555",
+        "snapshot_artifact_ref": f"sha256:{'a' * 64}",
+        "data_hash": "b" * 64,
+        "as_of": as_of,
+        "interval": "1d",
+        "bars": tuple(
+            {
+                "event_time": datetime(2026, 1, day, 21, tzinfo=UTC),
+                "available_at": datetime(2026, 1, day, 21, tzinfo=UTC),
+                "open": "100",
+                "high": "102",
+                "low": "99",
+                "close": "101",
+                "volume": "1000",
+                "amount": "101000",
+                "volume_quality": "observed",
+            }
+            for day in (7, 8, 9)
+        ),
+        "future_timestamps": (
+            datetime(2026, 1, 12, 21, tzinfo=UTC),
+            datetime(2026, 1, 13, 21, tzinfo=UTC),
+        ),
+        "runtime": policy.runtime_identity,
+        "sampling": {
+            "seed_policy": "explicit-sequential-v1",
+            "seeds": (17, 18, 19),
+            "temperature": "1",
+            "top_k": 0,
+            "top_p": "0.9",
+        },
+        "deadline": as_of + timedelta(minutes=5),
+    }
+    values.update(overrides)
+    return KronosWorkerRequest.model_validate(values)
+
+
+class FakePathRuntime:
+    def __init__(self) -> None:
+        self.seeds: list[int] = []
+        self.timestamp_drift = False
+
+    def predict_path(
+        self, request: KronosWorkerRequest, *, seed: int
+    ) -> tuple[KronosForecastPoint, ...]:
+        self.seeds.append(seed)
+        moments = request.future_timestamps
+        if self.timestamp_drift:
+            moments = (request.as_of, *moments[1:])
+        return tuple(
+            KronosForecastPoint(
+                timestamp=moment,
+                open=Decimal("101"),
+                high=Decimal("103"),
+                low=Decimal("100"),
+                close=Decimal("102"),
+                volume=Decimal("1001"),
+                amount=Decimal("102102"),
+            )
+            for moment in moments
+        )
 
 
 def _request(
@@ -270,6 +363,195 @@ def test_preflight_binds_exact_warmed_runtime_without_order_authority(
         )
 
 
+def test_forecast_runs_one_retained_path_per_explicit_seed(tmp_path: Path) -> None:
+    root, manifest = _model_root(tmp_path)
+    runtime = FakePathRuntime()
+    loader = WarmOnceModelLoader(
+        root=root,
+        manifest=manifest,
+        profile="cpu",
+        factory=lambda _paths, _profile: runtime,
+    )
+    policy = _policy(manifest)
+    worker = KronosWorker(
+        policy=policy,
+        loader=loader,
+        clock=lambda: datetime(2026, 1, 9, 21, 1, tzinfo=UTC),
+    )
+    loader.warm()
+
+    outcome = worker.forecast(_forecast_request(policy))
+
+    assert outcome.error is None
+    assert outcome.value is not None
+    assert runtime.seeds == [17, 18, 19]
+    assert tuple(path.seed for path in outcome.value.result.paths) == (17, 18, 19)
+    assert outcome.value.result.input_volume_quality is VolumeQuality.OBSERVED
+    assert outcome.value.result_artifact_hash == outcome.value.result.payload_hash()
+
+
+def test_native_runtime_forces_single_sample_and_exact_seed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, manifest = _model_root(tmp_path)
+    policy = _policy(manifest)
+    incoming = _forecast_request(policy)
+    calls: list[dict[str, object]] = []
+    seeded: list[int] = []
+
+    class FakePrediction:
+        def to_dict(self, *, orient: str) -> list[dict[str, float]]:
+            assert orient == "records"
+            return [
+                {
+                    "open": 101.0,
+                    "high": 103.0,
+                    "low": 100.0,
+                    "close": 102.0,
+                    "volume": 1001.0,
+                    "amount": 102102.0,
+                }
+                for _ in incoming.future_timestamps
+            ]
+
+    class FakePredictor:
+        def predict(self, _frame: object, **kwargs: object) -> FakePrediction:
+            calls.append(kwargs)
+            return FakePrediction()
+
+    class FakeRandom:
+        @staticmethod
+        def seed(value: int) -> None:
+            seeded.append(value)
+
+    class FakeNumpy:
+        random = FakeRandom()
+
+    class FakeCuda:
+        @staticmethod
+        def manual_seed_all(value: int) -> None:
+            seeded.append(value)
+
+    class FakeTorch:
+        cuda = FakeCuda()
+
+        @staticmethod
+        def manual_seed(value: int) -> None:
+            seeded.append(value)
+
+    class FakePandas:
+        @staticmethod
+        def Series(values: object) -> tuple[object, ...]:
+            return tuple(values)  # type: ignore[arg-type]
+
+        @staticmethod
+        def DataFrame(rows: object, *, index: object) -> dict[str, object]:
+            return {"rows": rows, "index": index}
+
+    modules = {"torch": FakeTorch(), "numpy": FakeNumpy(), "pandas": FakePandas()}
+    monkeypatch.setattr(
+        "workers.kronos.model_loader.importlib.import_module",
+        lambda name: modules[name],
+    )
+    monkeypatch.setattr(
+        "workers.kronos.model_loader.random.seed", lambda value: seeded.append(value)
+    )
+    runtime = NativeKronosRuntime(
+        model=object(),
+        tokenizer=object(),
+        predictor=FakePredictor(),
+        profile="cpu",
+    )
+
+    points = runtime.predict_path(incoming, seed=17)
+
+    assert seeded == [17, 17, 17]
+    assert len(points) == incoming.horizon_bars
+    assert calls[0]["sample_count"] == 1
+    assert calls[0]["verbose"] is False
+
+
+def test_forecast_fails_closed_before_or_after_inference_on_drift(
+    tmp_path: Path,
+) -> None:
+    root, manifest = _model_root(tmp_path)
+    runtime = FakePathRuntime()
+    loader = WarmOnceModelLoader(
+        root=root,
+        manifest=manifest,
+        profile="cpu",
+        factory=lambda _paths, _profile: runtime,
+    )
+    policy = _policy(manifest)
+    worker = KronosWorker(
+        policy=policy,
+        loader=loader,
+        clock=lambda: datetime(2026, 1, 9, 21, 1, tzinfo=UTC),
+    )
+    loader.warm()
+    mismatched = policy.runtime_identity.model_copy(update={"runtime_hash": "2" * 64})
+
+    rejected = worker.forecast(_forecast_request(policy, runtime=mismatched))
+    runtime.timestamp_drift = True
+    invalid_output = worker.forecast(_forecast_request(policy))
+
+    assert rejected.error is not None and rejected.error.code == "runtime_mismatch"
+    assert runtime.seeds == [17]
+    assert invalid_output.error is not None
+    assert invalid_output.error.code == "invalid_model_output"
+
+
+def test_forecast_rejects_expired_lease_without_running_model(tmp_path: Path) -> None:
+    root, manifest = _model_root(tmp_path)
+    runtime = FakePathRuntime()
+    loader = WarmOnceModelLoader(
+        root=root,
+        manifest=manifest,
+        profile="cpu",
+        factory=lambda _paths, _profile: runtime,
+    )
+    policy = _policy(manifest)
+    worker = KronosWorker(
+        policy=policy,
+        loader=loader,
+        clock=lambda: datetime(2026, 1, 9, 21, 6, tzinfo=UTC),
+    )
+    loader.warm()
+
+    outcome = worker.forecast(_forecast_request(policy))
+
+    assert outcome.error is not None and outcome.error.code == "deadline_expired"
+    assert runtime.seeds == []
+
+
+def test_forecast_stops_between_seeded_paths_when_deadline_expires(
+    tmp_path: Path,
+) -> None:
+    root, manifest = _model_root(tmp_path)
+    runtime = FakePathRuntime()
+    loader = WarmOnceModelLoader(
+        root=root,
+        manifest=manifest,
+        profile="cpu",
+        factory=lambda _paths, _profile: runtime,
+    )
+    policy = _policy(manifest)
+    moments = iter(
+        (
+            datetime(2026, 1, 9, 21, 1, tzinfo=UTC),
+            datetime(2026, 1, 9, 21, 1, tzinfo=UTC),
+            datetime(2026, 1, 9, 21, 6, tzinfo=UTC),
+        )
+    )
+    worker = KronosWorker(policy=policy, loader=loader, clock=lambda: next(moments))
+    loader.warm()
+
+    outcome = worker.forecast(_forecast_request(policy))
+
+    assert outcome.error is not None and outcome.error.code == "deadline_expired"
+    assert runtime.seeds == [17]
+
+
 def test_http_liveness_readiness_and_bounded_preflight(tmp_path: Path) -> None:
     root, manifest = _model_root(tmp_path)
     loader = WarmOnceModelLoader(
@@ -301,6 +583,33 @@ def test_http_liveness_readiness_and_bounded_preflight(tmp_path: Path) -> None:
     assert accepted.status_code == 200 and accepted.json()["success"] is True
     assert invalid.status_code == 415
     assert oversized.status_code == 413
+
+
+def test_http_forecast_returns_lease_fenced_response(tmp_path: Path) -> None:
+    root, manifest = _model_root(tmp_path)
+    runtime = FakePathRuntime()
+    loader = WarmOnceModelLoader(
+        root=root,
+        manifest=manifest,
+        profile="cpu",
+        factory=lambda _paths, _profile: runtime,
+    )
+    policy = _policy(manifest)
+    worker = KronosWorker(
+        policy=policy,
+        loader=loader,
+        clock=lambda: datetime(2026, 1, 9, 21, 1, tzinfo=UTC),
+    )
+    loader.warm()
+    client = TestClient(create_app(worker=worker, max_request_bytes=65_536))
+
+    response = client.post(
+        "/v1/forecast", json=_forecast_request(policy).model_dump(mode="json")
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["attempt_nonce"] == "nonce-2"
+    assert len(response.json()["data"]["result"]["paths"]) == 3
 
 
 @pytest.mark.parametrize(
@@ -379,6 +688,19 @@ def test_worker_files_keep_profiles_isolated_and_runtime_hardened() -> None:
         assert service["networks"] == ["kronos-internal"]
         assert service["volumes"][0].endswith(":/models:ro")
     assert compose["networks"]["kronos-internal"]["internal"] is True
+
+
+def test_core_worker_config_runtime_hashes_match_selected_frozen_sources() -> None:
+    for profile in ("cpu", "cuda"):
+        payload = yaml.safe_load(
+            (ROOT / "config" / "workers" / f"kronos_{profile}.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert payload["runtime"]["runtime_hash"] == compute_runtime_hash(
+            WORKER,
+            profile,  # type: ignore[arg-type]
+        )
 
 
 def test_kronos_license_notice_and_core_lock_isolation() -> None:

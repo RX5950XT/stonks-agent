@@ -1,0 +1,41 @@
+{
+  "as_of": "2026-03-06T21:00:00Z",
+  "calibration_bucket": null,
+  "dataset_snapshot_id": "10000000-0000-4000-8000-000000000105",
+  "device": "cpu",
+  "direction_probability": "0.3333333333333333333333333333",
+  "dispersion": "0.08164965809277260327324280249",
+  "downside_quantile": "-0.090",
+  "expected_return": "0.0",
+  "expected_volatility": "0.04440116159113368314200172685",
+  "forecast_id": "959eca10-7b5f-57e1-9649-09835b471114",
+  "generated_at": "2026-03-06T21:01:00Z",
+  "horizon_bars": 2,
+  "inference_code_version": "kronos-path-retention/1.0.0",
+  "input_quality": {
+    "completeness": "0.8",
+    "fallback_chain": [],
+    "schema_version": "1.0.0",
+    "status": "estimated",
+    "warnings": [
+      "input_volume_estimated"
+    ]
+  },
+  "input_window_end": "2026-03-06T21:00:00Z",
+  "input_window_start": "2026-03-04T21:00:00Z",
+  "instrument_id": "10000000-0000-4000-8000-000000000104",
+  "interval": "1d",
+  "latency_ms": 50,
+  "max_drawdown_quantile": "-0.090",
+  "median_return": "0.00",
+  "model_id": "NeoQuasar/Kronos-small",
+  "model_revision": "901c26c1332695a2a8f243eb2f37243a37bea320",
+  "path_count": 3,
+  "schema_version": "1.0.0",
+  "seed_policy": "explicit-sequential-v1",
+  "tokenizer_id": "NeoQuasar/Kronos-Tokenizer-base",
+  "tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
+  "validity_warnings": [
+    "input_volume_estimated"
+  ]
+}

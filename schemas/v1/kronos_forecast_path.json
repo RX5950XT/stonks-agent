@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "KronosForecastPoint": {
+      "additionalProperties": false,
+      "description": "One raw forecast bar in one stochastic path.",
+      "properties": {
+        "amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "close": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Close",
+          "type": "string"
+        },
+        "high": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "High",
+          "type": "string"
+        },
+        "low": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Low",
+          "type": "string"
+        },
+        "open": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Open",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "volume": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Volume",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "amount"
+      ],
+      "title": "KronosForecastPoint",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "An unaggregated forecast path tied to one explicit seed.",
+  "properties": {
+    "path_index": {
+      "minimum": 0,
+      "title": "Path Index",
+      "type": "integer"
+    },
+    "points": {
+      "items": {
+        "$ref": "#/$defs/KronosForecastPoint"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Points",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "seed": {
+      "maximum": 9223372036854775807,
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "path_index",
+    "seed",
+    "points"
+  ],
+  "title": "KronosForecastPath",
+  "type": "object"
+}

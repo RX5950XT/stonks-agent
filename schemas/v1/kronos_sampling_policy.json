@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "description": "Explicit deterministic path seeds; the worker runs one seed at a time.",
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "seed_policy": {
+      "const": "explicit-sequential-v1",
+      "title": "Seed Policy",
+      "type": "string"
+    },
+    "seeds": {
+      "items": {
+        "type": "integer"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Seeds",
+      "type": "array"
+    },
+    "temperature": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Temperature",
+      "type": "string"
+    },
+    "top_k": {
+      "maximum": 4096,
+      "minimum": 0,
+      "title": "Top K",
+      "type": "integer"
+    },
+    "top_p": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Top P",
+      "type": "string"
+    }
+  },
+  "required": [
+    "seed_policy",
+    "seeds",
+    "temperature",
+    "top_k",
+    "top_p"
+  ],
+  "title": "KronosSamplingPolicy",
+  "type": "object"
+}

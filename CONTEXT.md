@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub與P2 Research control plane phase gates已完成；P3.1–P3.6 strategy contracts、registry、baselines、evaluation、opinion mapper與Kronos isolated environment已完成，下一目標為P3.7 Kronos canonical input/output adapter。
+- P0 Foundation、P1 Canonical Data Hub與P2 Research control plane phase gates已完成；P3.1–P3.7 strategy contracts、registry、baselines、evaluation、opinion mapper與Kronos isolated environment/canonical adapter已完成，下一目標為P3.8 Kronos evaluation and promotion。
 - P1/P3目前包含PostgreSQL 0001–0009、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -29,6 +29,7 @@
 - P3.4新增versioned content-hash evaluation policy、PIT/leakage/survivorship audit、purged walk-forward/embargo、bounded combinatorial PBO、cost sensitivity、performance metrics、calibration與promotion report。績效只讀walk-forward test union，不把training rows混入；9種mandatory checks各自保存pass/fail reason。污染資料直接Failure且不產report，合法但未達門檻者產`passed=false` rejected evidence。
 - P3.5新增default-disabled content-hash opinion mapper policy與deterministic mapper。只有exact policy/manifest/runtime/evaluation binding、`paper_eligible`、passed/unexpired mapper evaluation與calibrated opinion同時成立才產`AlphaSignal`；rating只映射固定±0.5/0，不接受unknown或quantity-like字串。Signal保存本次current snapshot，evaluation則可來自不同historical snapshot，兩者不再被錯誤要求相同。
 - P3.6新增Kronos-small/Tokenizer-base pinned manifest、source/model/tokenizer SHA-256驗證、local-only warm-once loader與exact runtime preflight。CPU/CUDA各自鎖定PyTorch 2.12.1與獨立image；compose為internal/read-only/non-root/cap-drop，環境拒絕DB/provider/broker/queue/HF token/cache/proxy credentials。四個實際權重檔已重算hash，CPU與RTX 3070 Ti CUDA inference均通過；canonical calendar/path/artifact/signal mapping尚由P3.7完成。
+- P3.7新增closed Kronos wire contracts、calendar-aware canonical builder、逐seed path-retaining worker route與artifact-first core adapter。Future 1d timestamps只由exchange calendar產生；missing/estimated volume降級quality。Raw envelope與lease-secret-free replay artifact先封存，再驗fence/runtime/model/OHLCV/length/extreme jump並以Decimal metrics映射`ForecastSignal`；fresh stochastic inference不作bit-identical宣稱。CPU與RTX 3070 Ti CUDA以final exact runtime hash完成2-path route smoke，另保存16-path aggregate tolerance evidence。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -89,11 +90,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P3.4 focused evaluation/domain為42 passed、branch coverage 90.91%；完整non-PostgreSQL gate為696 passed、187 deselected、coverage 88.33%，313 files format、ruff、mypy 189 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。
 - P3.5 focused mapper/domain為30 passed、mapper branch coverage 87.50%；完整non-PostgreSQL gate為706 passed、187 deselected、coverage 88.32%，317 files format、ruff、mypy 191 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。
 - P3.6 focused worker為26 passed；完整non-PostgreSQL gate為732 passed、187 deselected、coverage 88.32%，323 files format、ruff、core 191 source files與worker 6 files mypy、43 schemas、upstream/license、secret與core locked dependency audit全通過。實際115 MB model files SHA-256相符；CPU `2.12.1+cpu`與RTX 3070 Ti `2.12.1+cu129` images皆UID 65532並完成warm，GPU另完成32→2 bars六欄inference。OSV `torch 2.12.1`為0 vulnerabilities，兩個Linux images dependency audit均無已知CVE。
+- P3.7 focused contracts/worker/adapter/domain/schema為72 passed；Kronos core HTTP adapter單模組coverage 86%。完整non-PostgreSQL gate為772 passed、187 deselected、coverage 88.31%，328 files format、ruff、core 195 source files與worker mypy、52 schemas、upstream/license、secret與core locked dependency audit全通過。實際CPU/CUDA canonical route各保留explicit seeded paths，final runtime hashes為`c3542191...dfa866`與`6a2ed7db...c6a7223`。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P3 與架構藍圖。
-2. 保持 TDD；從P3.7 Kronos canonical input/output adapter開始，完成calendar-aware inputs、seed policy、raw sampled-path artifact-first封存、OHLCV validity/quality與`ForecastSignal` mapping。
+2. 保持 TDD；從P3.8 Kronos evaluation and promotion開始，以跨市場golden snapshots對baseline、cost、drawdown與calibration門檻，未通過時維持`shadow`/weight 0。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

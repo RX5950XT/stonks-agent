@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1 已完成，P4.2 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -343,9 +343,9 @@
 
 ### Tasks
 
-- [ ] **P4.1 Portfolio/risk/reservation/execution domain** — 將P0 primitives升級為`domain/{portfolio,risk,reservations,orders,fills,journal}.py`、`ports/{portfolio_policy,risk_policy,execution,ledger}.py`與property tests。（Depends：P3 gate；Complexity：XL；Risk：High）
-  - Decimal、rounding、order state transitions、sequence/hash與accounting invariants明確。
-  - `RiskDecision`綁account aggregate/portfolio sequence並有expiry；sequence變更必須重評。Risk approval本身不保留資金，必須建立reservation才可形成command。
+- [x] **P4.1 Portfolio/risk/reservation/execution domain** — 將P0 primitives升級為`domain/{portfolio,risk,reservations,orders,fills,journal}.py`、`ports/{portfolio_policy,risk_policy,execution,ledger}.py`與property tests。（Depends：P3 gate；Complexity：XL；Risk：High）
+  - [x] Decimal、rounding、order state transitions、sequence/hash與accounting invariants明確。
+  - [x] `RiskDecision`綁account aggregate/portfolio sequence並有expiry；sequence變更必須重評。Risk approval本身不保留資金，必須建立reservation才可形成command。
 
 - [ ] **P4.2 Trading persistence** — 新增`migrations/versions/0003_paper_trading.py`、repositories與DB permissions。（Depends：P4.1、P1.4；Complexity：XL；Risk：High）
   - 建立account aggregate、cash/position reservations與projections、risk decisions、order intents/events、fills、balanced journal transactions/postings、kill switch。
@@ -753,3 +753,12 @@
 - PostgreSQL gate：真實資料庫覆蓋evaluation integrity、promotion → suspend → retire audit sequence、stale CAS零新增event，以及API transition與CLI audit reader共用同一DB-authoritative CAS。Alembic check無drift。
 - Verification：focused API/CLI為13 passed、branch coverage 87.14%；完整non-PostgreSQL gate為820 passed、190 deselected、coverage 88.56%。完整PostgreSQL P3 phase gate為1010 passed、coverage 88.73%，349 files format、ruff、mypy 207 source files、67 schemas、upstream/license、secret、locked dependency audit與Alembic全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate完成；下一項為P4.1 portfolio/risk/reservation/execution domain。
+
+### P4 Progress Review — P4.1 — 2026-07-13
+
+- Scope completed：新增canonical account snapshot/portfolio target、risk decision、cash/position reservation、order intent/command/event、fill/receipt與balanced journal domain；新增portfolio/risk/canonical execution/ledger typed ports，同時保留P0 wire-compatible `ExecutionPort`。
+- Sequence / authority：RiskDecision exact綁input/normalized target hash、account aggregate與portfolio sequence並有expiry；reservation建立前重驗sequence，成功後只推進一次account sequence。OrderIntent必須等於authorized target delta的instrument/side/quantity/quantum，ExecutionCommand還需open reservation、exact risk/reservation hashes與reservation後sequence，單獨risk approval不能形成command。
+- State / accounting：reservation支援open/partial consume/consume/release/expire immutable hash events；order transitions為closed graph、monotonic cumulative fill與hash chain，valid-until採exclusive execution boundary。Fill receipt重驗account/instrument/side/quantity與event totals。Journal要求posting已依commodity quantum量化、stable ordering，且每種commodity debit/credit exact平衡，transaction sequence/hash chain可重驗。
+- Fail closed：timezone-naive clock、extreme Decimal、hidden fractional amounts、stale sequence、over-consume/overfill、terminal transition、receipt identity drift、mixed quantum、unbalanced或tampered chain皆拒絕；所有mutation use case回structured `Result`。
+- Verification：focused domain/ports為23 passed，新trading modules branch coverage 83%；P0 execution/fake-cycle regression為20 passed。完整non-PostgreSQL gate為843 passed、190 deselected、coverage 88.14%，362 files format、ruff、mypy 217 source files、67 schemas、upstream/license、secret與locked dependency audit全通過。無migration、DB或dependency變更。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.2 trading persistence。

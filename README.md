@@ -9,6 +9,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Python 3.12 + `uv` workspace、frozen lock、ruff、mypy、pytest 與 80% coverage gate。
 - 版本化 frozen Pydantic wire contracts 與 deterministic JSON Schema snapshots。
 - 完整 in-memory paper cycle：evidence → signal → target → risk → cash reservation → next-session fill → balanced journal → report → replay。
+- Canonical paper trading domain已固定account/portfolio/ledger sequences、risk expiry、cash/position reservation、closed order transitions、fill totals與per-commodity double-entry journal。Risk approval不保留資金；只有exact authorized target delta與open reservation可形成paper execution command，stale/naive/tampered inputs皆fail closed。PostgreSQL persistence仍由P4.2完成。
 - Idempotency、同帳戶並行防雙花、job generation/nonce fencing、late-result quarantine。
 - PostgreSQL PIT evidence/snapshot、content-addressed artifacts、Repository/UoW、durable job/outbox/inbox與transaction-owned audit events。
 - DB-authoritative lease/deadline/not-before fencing；caller clock漂移、duplicate/stale result與tampered retry graph皆fail closed。

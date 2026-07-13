@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane與P3 strategy/forecast/evaluation phase gates已完成；下一目標為P4.1 portfolio/risk/reservation/execution domain。
+- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane與P3 strategy/forecast/evaluation phase gates已完成；P4.1 canonical trading domain已完成，下一目標為P4.2 PostgreSQL trading persistence。
 - P1/P3目前包含PostgreSQL 0001–0009、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -33,6 +33,7 @@
 - P3.8新增archived-only Kronos evaluation snapshot/record、US/HK/TW與三baseline identity fence、content hash與artifact-ref binding，以及evaluated forecast-to-alpha mapper。Committed strategy exact綁CPU runtime/model/tokenizer、feature/label/universe/cost/split/mapping hashes與production policy，deployment固定`shadow`、paper weight 0。768筆golden完成4 splits/252 OOS，baseline/cost/calibration未達原門檻而`passed=false`，沒有為整合放寬threshold；只有passed/calibrated/unexpired且exact-bound report可產shadow Alpha，global eligibility仍回零權重。
 - P3.9新增15個shared Qlib job/result schemas、canonical `BarSeries` snapshot converter、fixed Qlib OLS adapter與isolated quant-lab worker。Source commit/archive hash、worker source/lock及Python/NumPy/Pandas/scikit-learn versions皆綁runtime identity；HTTP route實際重播同job得到相同prediction/position/metrics/model hashes。Worker只有research-only output，無promotion/target/order/DB authority；image為UID 65532、read-only、cap-drop/internal network，獨立lock audit 0 vulnerabilities，heavy dependencies未進core。
 - P3.10新增typed strategy registry/UoW ports、reviewer-only strategy transition與read-only strategy/evaluation/audit/signal eligibility API/CLI。Actor由authenticated principal產生，body bounded且預設deny；live/order-shaped輸入、forged actor、stale CAS與evaluation/registry/audit binding drift皆fail closed。真實PostgreSQL驗證promotion/suspend/retire audit sequence與API/CLI共用CAS。
+- P4.1新增canonical portfolio/risk/reservation/order/fill/journal domain與typed policy/execution/ledger ports。Risk綁target/account/portfolio sequence與expiry；reservation原子推進account sequence，order必須exact等於authorized delta，command另要求open reservation與current post-reservation sequence。Reservation/order/journal events具closed state、monotonic sequence與hash；journal每種commodity在explicit quantum下exact平衡。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -97,11 +98,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P3.8 focused evaluation/mapper為15 passed、兩個新模組合計branch coverage 89.76%；P3 regression為137 passed。完整non-PostgreSQL gate為787 passed、187 deselected、coverage 88.34%，332 files format、ruff、mypy 197 source files、52 schemas、upstream/license、secret與locked dependency audit全通過。
 - P3.9 focused contracts/converter/worker為24 passed、四個新模組合計branch coverage 86.70%；真實Qlib image build、health與duplicate HTTP job replay皆通過。完整non-PostgreSQL gate為811 passed、187 deselected、coverage 88.52%，341 files format、ruff、core 200 source files與worker 4 files mypy、67 schemas、upstream/license、secret、core與worker locked dependency audit全通過。
 - P3.10 focused API/CLI為13 passed、branch coverage 87.14%；完整non-PostgreSQL gate為820 passed、190 deselected、coverage 88.56%。完整PostgreSQL P3 gate為1010 passed、coverage 88.73%，349 files format、ruff、mypy 207 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- P4.1 focused domain/ports為23 passed、新模組branch coverage 83%；P0 execution/fake-cycle regression為20 passed。完整non-PostgreSQL gate為843 passed、190 deselected、coverage 88.14%，362 files format、ruff、mypy 217 source files、67 schemas、upstream/license、secret與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P4 與架構藍圖。
-2. 保持 TDD；從P4.1 portfolio/risk/reservation/execution domain開始，先固定Decimal、sequence/hash、order transition、reservation與balanced journal invariants，再實作production code。
+2. 保持 TDD；從P4.2 trading persistence開始，建立account/reservation/risk/order/fill/journal/kill-switch tables、repositories與DB permissions，先以真實PostgreSQL tests固定append-only、CAS/idempotency、sequence/hash與角色權限。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

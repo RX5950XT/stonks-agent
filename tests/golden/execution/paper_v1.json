@@ -1,0 +1,24 @@
+{
+  "limit_buy_touch": {
+    "fill_price": "100.00"
+  },
+  "market_buy_full": {
+    "fees": "0.06",
+    "fill_price": "100.08",
+    "fill_quantity": "5",
+    "reservation_consumed": "500.46",
+    "reservation_released": "499.54",
+    "slippage": "0.08"
+  },
+  "market_buy_partial": {
+    "fees": "0.04",
+    "fill_price": "100.10",
+    "fill_quantity": "3",
+    "reservation_remaining": "699.66"
+  },
+  "market_sell_full": {
+    "fees": "0.05",
+    "fill_price": "99.92",
+    "slippage": "-0.08"
+  }
+}

@@ -1,0 +1,19 @@
+policy_version: "1.0.0"
+execution_model_version: paper-v1
+model_kind: deterministic_next_bar
+realism_claim: reference_model_not_market_replay
+supported_order_types:
+  - limit
+  - market
+supported_time_in_force:
+  - day
+  - gtc
+  - ioc
+max_volume_participation: "0.10"
+half_spread_bps: "2"
+base_slippage_bps: "3"
+market_impact_bps_at_max_participation: "5"
+fee_bps: "1"
+per_unit_fee: "0.00"
+minimum_fee: "0.01"
+fee_quantum: "0.01"

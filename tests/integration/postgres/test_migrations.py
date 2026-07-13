@@ -44,6 +44,7 @@ EXPECTED_TABLES = {
     "order_intent",
     "order_event",
     "paper_fill",
+    "paper_execution_receipt",
     "journal_transaction",
     "journal_posting",
     "paper_kill_switch",
@@ -368,6 +369,7 @@ def test_trading_migration_downgrade_and_reupgrade(
         "order_intent",
         "order_event",
         "paper_fill",
+        "paper_execution_receipt",
         "journal_transaction",
         "journal_posting",
     }
@@ -383,6 +385,7 @@ def test_trading_migration_downgrade_and_reupgrade(
         "trg_reservation_event_chain",
         "trg_journal_transaction_chain",
         "trg_journal_transaction_balanced",
+        "trg_paper_execution_receipt_append_only",
     ):
         assert _trigger_exists(migrated_engine, trigger)
 

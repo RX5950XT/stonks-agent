@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from typing import Self
+from uuid import UUID
 
 from pydantic import Field, model_validator
 
 from stonks_agent.domain._trading import TradingModel
+from stonks_agent.domain.execution_model import PaperExecutionOutcome
 from stonks_agent.domain.orders import OrderIntent
 from stonks_agent.domain.portfolio import PaperAccountEvent
 from stonks_agent.domain.reservations import AccountReservation, ReservationEvent
+from stonks_contracts.common import NonEmptyString, Sha256
 
 
 class ReservationOrderRecord(TradingModel):
@@ -76,4 +79,24 @@ class ReservationOrderBatchRecord(TradingModel):
             or self.account_event.aggregate_ref_id not in decisions
         ):
             raise ValueError("reservation/order batch bindings are invalid")
+        return self
+
+
+class PaperExecutionRecord(TradingModel):
+    account_id: NonEmptyString
+    idempotency_key: NonEmptyString
+    command_id: UUID
+    command_hash: Sha256
+    intent_hash: Sha256
+    outcome: PaperExecutionOutcome
+
+    @model_validator(mode="after")
+    def validate_record(self) -> Self:
+        receipt = self.outcome.receipt
+        if (
+            receipt.account_id != self.account_id
+            or receipt.command_id != self.command_id
+            or receipt.intent_hash != self.intent_hash
+        ):
+            raise ValueError("paper execution record identity does not match receipt")
         return self

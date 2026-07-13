@@ -10,6 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm import Session
 
+from stonks_agent.adapters.postgres import trading_execution
 from stonks_agent.adapters.postgres.models import (
     AccountReservationRow,
     JournalPostingRow,
@@ -61,9 +62,10 @@ from stonks_agent.domain.errors import (
     StructuredError,
     Success,
 )
+from stonks_agent.domain.execution_model import PaperExecutionOutcome
 from stonks_agent.domain.fills import Fill
 from stonks_agent.domain.journal import JournalTransaction, verify_journal_chain
-from stonks_agent.domain.orders import OrderEvent, OrderIntent
+from stonks_agent.domain.orders import ExecutionCommand, OrderEvent, OrderIntent
 from stonks_agent.domain.portfolio import (
     AccountPortfolioSnapshot,
     PaperAccountState,
@@ -76,6 +78,7 @@ from stonks_agent.domain.reservations import (
 )
 from stonks_agent.domain.risk import RiskDecision
 from stonks_agent.domain.trading_persistence import (
+    PaperExecutionRecord,
     ReservationOrderBatchRecord,
     ReservationOrderItem,
     ReservationOrderRecord,
@@ -409,6 +412,40 @@ class PostgresTradingRepository:
                 return _failure(ErrorCode.CONFLICT, "Order event chain is invalid")
             previous_hash = event.event_hash
         return Success(events)
+
+    def get_order_by_idempotency(
+        self, *, account_id: str, idempotency_key: str
+    ) -> Result[OrderIntent]:
+        return trading_execution.get_order_by_idempotency(
+            self._session, account_id=account_id, idempotency_key=idempotency_key
+        )
+
+    def get_reservation(self, reservation_id: UUID) -> Result[AccountReservation]:
+        return trading_execution.get_reservation(self._session, reservation_id)
+
+    def list_fills(self, intent_id: UUID) -> Result[tuple[Fill, ...]]:
+        return trading_execution.list_fills(self._session, intent_id)
+
+    def get_execution_record(
+        self, *, account_id: str, idempotency_key: str
+    ) -> Result[PaperExecutionRecord]:
+        return trading_execution.get_execution_record(
+            self._session, account_id=account_id, idempotency_key=idempotency_key
+        )
+
+    def apply_paper_execution(
+        self,
+        command: ExecutionCommand,
+        outcome: PaperExecutionOutcome,
+        *,
+        expected_account_sequence: int,
+    ) -> Result[PaperExecutionRecord]:
+        return trading_execution.apply_paper_execution(
+            self._session,
+            command,
+            outcome,
+            expected_account_sequence=expected_account_sequence,
+        )
 
     def save_fill(self, fill: Fill) -> Result[Fill]:
         existing = self._session.get(PaperFillRow, fill.fill_id)

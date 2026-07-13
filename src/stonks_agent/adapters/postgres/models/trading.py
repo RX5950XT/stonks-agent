@@ -407,6 +407,35 @@ class PaperFillRow(Base):
     payload: Mapped[dict[str, object]] = mapped_column(JSONB)
 
 
+class PaperExecutionReceiptRow(Base):
+    __tablename__ = "paper_execution_receipt"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id", "idempotency_key", name="uq_paper_execution_idempotency"
+        ),
+        UniqueConstraint("command_id", name="uq_paper_execution_command"),
+        UniqueConstraint("receipt_hash", name="uq_paper_execution_receipt_hash"),
+        UniqueConstraint("outcome_hash", name="uq_paper_execution_outcome_hash"),
+        Index("ix_paper_execution_account_time", "account_id", "created_at"),
+    )
+
+    receipt_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    account_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("paper_account.account_id", ondelete="RESTRICT")
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(256))
+    command_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
+    command_hash: Mapped[str] = mapped_column(String(64))
+    order_intent_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("order_intent.intent_id", ondelete="RESTRICT")
+    )
+    intent_hash: Mapped[str] = mapped_column(String(64))
+    receipt_hash: Mapped[str] = mapped_column(String(64))
+    outcome_hash: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class JournalTransactionRow(Base):
     __tablename__ = "journal_transaction"
     __table_args__ = (

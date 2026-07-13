@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.4 已完成，P4.5 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.5 已完成，P4.6 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -360,11 +360,11 @@
   - [x] Unknown/conflict/stale required state、unsupported asset/order或ledger mismatch一律reject。
   - [x] Risk核准到`OrderIntent`建立必須在per-account serialized transaction/advisory lock內重新確認sequence並原子reserve cash/sellable position；所有open reservations納入available state。
 
-- [ ] **P4.5 Reference paper broker** — 建立`adapters/execution/paper.py`、`domain/execution_model.py`、`config/execution/paper_v1.yaml`與golden fill tests。（Depends：P4.1、P4.4；Complexity：XL；Risk：High）
-  - Market/limit/expiry/partial fill、fees/slippage/spread/volume participation語義版本化。
-  - 只用command後第一個可交易bar；無future bar不製造fill。
-  - 同idempotency key + same payload回同receipt；same key + different payload fail closed。
-  - 每個accepted command必須帶有效reservation；fill/cancel/reject/expire按account序列化並原子consume/release。
+- [x] **P4.5 Reference paper broker** — 建立`adapters/execution/paper.py`、`domain/execution_model.py`、`config/execution/paper_v1.yaml`與golden fill tests。（Depends：P4.1、P4.4；Complexity：XL；Risk：High）
+  - [x] Market/limit/expiry/partial fill、fees/slippage/spread/volume participation語義版本化。
+  - [x] 只用command後第一個可交易bar；無future bar不製造fill。
+  - [x] 同idempotency key + same payload回同receipt；same key + different payload fail closed。
+  - [x] 每個accepted command必須帶有效reservation；fill/cancel/reject/expire按account序列化並原子consume/release。
 
 - [ ] **P4.6 Balanced journal and projections** — 建立`application/ledger/{post,replay,reconcile}.py`、`adapters/postgres/ledger_repository.py`與property tests。（Depends：P4.2、P4.5；Complexity：XL；Risk：High）
   - 每筆transaction至少兩個postings；每種currency/commodity經Decimal quantization後debit/credit sum為零，明確使用cash/inventory/fee/PnL/clearing accounts。
@@ -786,3 +786,11 @@
 - Transaction / reservation：approved path在同一UoW重讀account並重跑risk，保存target/decision後以一次account CAS推進所有cash/position projection sequence，原子建立全部reservations/orders。多buy成本按traded notional分攤並向上量化；sell exact reserve available position。任一不足、partial idempotency或concurrent sequence drift整批rollback。
 - Verification：focused risk/authorization/portfolio/PostgreSQL regression為53 passed；risk evaluator branch coverage 94%、authorization 84%、trading repository 85%。完整PostgreSQL gate為1091 passed、coverage 88.60%，389 files format、ruff、mypy 233 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.5 reference paper broker。
+
+### P4 Progress Review — P4.5 — 2026-07-13
+
+- Scope completed：新增frozen `PaperExecutionPolicy/ExecutionBar/PaperExecutionRequest/PaperExecutionOutcome`、deterministic reference broker、core-owned execution UoW、PostgreSQL execution store、0011 durable receipt、versioned `paper_v1.yaml`與golden fixtures。`PaperExecutionModelPort`只做pure simulation，DB transaction仍由core runner擁有。
+- Fill semantics / PIT：只選`opens_at > issued_at`、`opens_at < valid_until`、`available_at <= as_of`的第一根sorted tradable bar，已知command當根永不成交。Market採adverse spread + base slippage + participation-scaled impact；limit依open price improvement或intrabar touch成交且不越limit。Volume cap、partial fill、DAY/GTC/IOC、expiry、fee bps/per-unit/minimum與所有Decimal quantization皆由content-hash policy固定；無future bar保持accepted pending，不偽造fill。
+- Transaction / idempotency：application先重讀DB-authoritative intent、reservation、account、events/fills，再模擬並於account row lock內重驗sequence/prefix/hash。Order/reservation events、fills、reservation projection consume/release與append-only `paper_execution_receipt`同transaction寫入；same idempotency + exact command重播同record，different payload、concurrent drift、cash/position projection mismatch與incomplete chain全rollback。兩個並行duplicate commands實測只產一筆receipt/fill。
+- Verification：focused application/golden/PostgreSQL為31 passed，四個execution核心模組合計branch coverage 81%。完整PostgreSQL gate為1122 passed、coverage 88.27%，400 files format、ruff、mypy 238 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.6 balanced journal and projections。

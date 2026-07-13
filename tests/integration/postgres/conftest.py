@@ -49,7 +49,8 @@ def clean_database(migrated_engine: Engine) -> Engine:
             text(
                 """
                 truncate table
-                    journal_posting, journal_transaction, paper_fill,
+                    journal_posting, journal_transaction, paper_execution_receipt,
+                    paper_fill,
                     order_event, order_intent, reservation_event,
                     account_reservation, risk_decision, portfolio_target,
                     paper_cash_projection, paper_position_projection,

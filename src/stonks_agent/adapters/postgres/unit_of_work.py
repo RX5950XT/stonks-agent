@@ -12,11 +12,15 @@ from stonks_agent.adapters.postgres.repositories import (
     PostgresEvidenceRepository,
     PostgresWorkflowStore,
 )
+from stonks_agent.adapters.postgres.strategy_repository import (
+    PostgresStrategyRepository,
+)
 
 
 class PostgresUnitOfWork:
     evidence: PostgresEvidenceRepository
     workflows: PostgresWorkflowStore
+    strategies: PostgresStrategyRepository
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -29,6 +33,7 @@ class PostgresUnitOfWork:
         self._session = Session(self._engine, expire_on_commit=False)
         self.evidence = PostgresEvidenceRepository(self._session)
         self.workflows = PostgresWorkflowStore(self._session)
+        self.strategies = PostgresStrategyRepository(self._session)
         self._committed = False
         return self
 

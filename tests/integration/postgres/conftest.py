@@ -49,6 +49,8 @@ def clean_database(migrated_engine: Engine) -> Engine:
             text(
                 """
                 truncate table
+                    strategy_audit_event, strategy_evaluation_report,
+                    strategy_registry,
                     evidence_edge, dataset_snapshot_evidence,
                     run_dataset_snapshot, run_event, job, outbox, inbox,
                     evidence_item, dataset_snapshot, instrument_alias,

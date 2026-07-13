@@ -268,8 +268,10 @@
   - [x] Forecast與strategy-lab ports只接受immutable artifact/snapshot inputs，回傳structured `Result`，不具target/order/risk authority。
   - [x] Focused + full gate通過後同步README/CONTEXT與本review並提交。
 
-- [ ] **P3.2 Strategy registry persistence** — 新增`migrations/versions/0002_strategy_registry.py`、`adapters/postgres/strategy_repository.py`與concurrency tests。（Depends：P3.1、P1.4；Complexity：L；Risk：High）
+- [x] **P3.2 Strategy registry persistence** — 新增`migrations/versions/0009_strategy_registry.py`、`adapters/postgres/strategy_repository.py`與concurrency tests。（Depends：P3.1、P1.4；Complexity：L；Risk：High）
   - Artifact/runtime/data/evaluation hashes不可變；promotion用CAS與audit event。
+  - [x] TDD：register/idempotency、exact evaluation binding、CAS race、DB clock、hash-chain audit與DB immutability/grant tests。
+  - [x] Registry/evaluation/audit schema可downgrade/re-upgrade，Alembic metadata無drift；heavy worker role無strategy mutation權限。
 
 - [ ] **P3.3 Deterministic baselines** — 建立`strategies/baselines/{last_value,moving_average,linear}.py`、manifests與golden tests。（Depends：P3.1；Complexity：M；Risk：Medium）
   - Kronos、LLM opinions與complex models必須和相同dataset/cost下baselines比較。
@@ -661,3 +663,11 @@
 - Replay / PIT：evaluation window與forecast input不得越過`as_of`；evaluation hash排除identity/time等非決定性欄位並正規化checks/metrics/baselines。Stochastic forecast在任何canonical mapping前必須有immutable raw output與sampled-path artifact，fresh inference不宣稱bit-identical。
 - Verification：focused contracts/property tests為32 passed、新模組branch coverage 89.53%；完整non-PostgreSQL gate為667 passed、176 deselected、coverage 88.19%，291 files format、ruff、mypy 175 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。P3.1無migration或DB行為變更，因此未重跑PostgreSQL suite。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.2 PostgreSQL strategy registry persistence。
+
+### P3 Progress Review — P3.2 — 2026-07-13
+
+- Scope completed：新增Alembic 0009的strategy registry/evaluation/audit schema、SQLAlchemy mappings、`PostgresStrategyRepository`與UoW wiring；同strategy/version registration exact-idempotent，evaluation綁定canonical snapshot與finalized artifact。
+- Transaction / authority：promotion使用`state + version` CAS且registry update與audit append同transaction；兩個並行paper state mutation只有一個成功。DB trigger固定allowlisted graph、version+1、exact manifest/runtime/evaluation binding與DB timestamp，deferred constraint要求每個mutation有同sequence/from/to/evaluation/timestamp audit；繞過adapter的無audit update無法commit。
+- Immutability / grants：manifest/source/runtime/feature/label/universe/cost/split/parameter hashes與identity由trigger禁止修改；evaluation與audit append-only，reader重驗完整SHA-256 chain與registry projection。`stonks_app`只有registry state/evaluation/version/timestamp columns可update，`stonks_reader`唯讀，`stonks_worker`無strategy table privileges。
+- Verification：focused repository/domain為29 passed、branch coverage 84.27%；完整PostgreSQL gate為854 passed、coverage 88.42%，294 files format、ruff、mypy 176 source files、43 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過；0009 downgrade/re-upgrade與metadata exact match通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.3 deterministic baselines。

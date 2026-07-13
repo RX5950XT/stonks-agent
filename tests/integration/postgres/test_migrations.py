@@ -30,6 +30,9 @@ EXPECTED_TABLES = {
     "inbox",
     "provider_health",
     "usage_budget",
+    "strategy_registry",
+    "strategy_evaluation_report",
+    "strategy_audit_event",
 }
 ROLE_NAMES = {"stonks_app", "stonks_reader", "stonks_worker"}
 APP_MUTABLE_TABLES = {
@@ -223,6 +226,55 @@ def test_queue_updates_are_limited_to_transition_columns(
         for role in ("stonks_app", "stonks_worker")
         for column in columns
     }
+
+
+def test_strategy_updates_are_app_only_and_column_scoped(
+    migrated_engine: Engine,
+) -> None:
+    with migrated_engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                """
+                select grantee, column_name, privilege_type
+                from information_schema.column_privileges
+                where table_schema = 'public' and table_name = 'strategy_registry'
+                  and grantee in ('stonks_app', 'stonks_worker')
+                  and privilege_type = 'UPDATE'
+                """
+            )
+        ).all()
+
+    assert {(row.grantee, row.column_name, row.privilege_type) for row in rows} == {
+        ("stonks_app", column, "UPDATE")
+        for column in (
+            "state",
+            "evaluation_report_id",
+            "evaluation_hash",
+            "version",
+            "updated_at",
+        )
+    }
+
+
+def test_strategy_registry_migration_downgrade_and_reupgrade(
+    migrated_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    command.downgrade(alembic_config, "0008")
+    try:
+        tables = set(inspect(migrated_engine).get_table_names())
+        assert (
+            not {
+                "strategy_registry",
+                "strategy_evaluation_report",
+                "strategy_audit_event",
+            }
+            & tables
+        )
+    finally:
+        command.upgrade(alembic_config, "head")
+
+    assert _trigger_exists(migrated_engine, "trg_strategy_registry_immutable")
 
 
 @pytest.mark.parametrize("role", ("stonks_app", "stonks_worker"))

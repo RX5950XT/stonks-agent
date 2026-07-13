@@ -12,6 +12,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -436,3 +437,131 @@ class UsageBudgetRow(Base):
     currency: Mapped[str | None] = mapped_column(String(3))
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class StrategyRegistryRow(Base):
+    __tablename__ = "strategy_registry"
+    __table_args__ = (
+        PrimaryKeyConstraint("strategy_id", "strategy_version"),
+        UniqueConstraint("manifest_id", name="uq_strategy_registry_manifest_id"),
+        UniqueConstraint("manifest_hash", name="uq_strategy_registry_manifest_hash"),
+        CheckConstraint("version > 0", name="strategy_registry_version_positive"),
+        CheckConstraint(
+            "(evaluation_report_id is null) = (evaluation_hash is null)",
+            name="strategy_registry_evaluation_binding",
+        ),
+        Index("ix_strategy_registry_state", "state"),
+    )
+
+    strategy_id: Mapped[str] = mapped_column(String(128))
+    strategy_version: Mapped[str] = mapped_column(String(64))
+    manifest_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
+    manifest_hash: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(32))
+    source_artifact_hash: Mapped[str] = mapped_column(
+        String(64), ForeignKey("artifact_manifest.content_hash", ondelete="RESTRICT")
+    )
+    runtime_hash: Mapped[str] = mapped_column(String(64))
+    feature_spec_hash: Mapped[str] = mapped_column(String(64))
+    label_spec_hash: Mapped[str] = mapped_column(String(64))
+    universe_spec_hash: Mapped[str] = mapped_column(String(64))
+    cost_model_hash: Mapped[str] = mapped_column(String(64))
+    split_policy_hash: Mapped[str] = mapped_column(String(64))
+    parameters_hash: Mapped[str] = mapped_column(String(64))
+    owner: Mapped[str] = mapped_column(String(128))
+    deterministic: Mapped[bool] = mapped_column(Boolean)
+    manifest_created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    state: Mapped[str] = mapped_column(String(32))
+    evaluation_report_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    evaluation_hash: Mapped[str | None] = mapped_column(String(64))
+    version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class StrategyEvaluationReportRow(Base):
+    __tablename__ = "strategy_evaluation_report"
+    __table_args__ = (
+        UniqueConstraint("evaluation_hash", name="uq_strategy_evaluation_hash"),
+        ForeignKeyConstraint(
+            ["strategy_id", "strategy_version"],
+            ["strategy_registry.strategy_id", "strategy_registry.strategy_version"],
+            ondelete="RESTRICT",
+        ),
+        Index(
+            "ix_strategy_evaluation_identity",
+            "strategy_id",
+            "strategy_version",
+            "created_at",
+        ),
+    )
+
+    report_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(128))
+    strategy_version: Mapped[str] = mapped_column(String(64))
+    strategy_manifest_hash: Mapped[str] = mapped_column(String(64))
+    dataset_snapshot_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("dataset_snapshot.snapshot_id", ondelete="RESTRICT"),
+    )
+    data_hash: Mapped[str] = mapped_column(String(64))
+    runtime_hash: Mapped[str] = mapped_column(String(64))
+    evaluation_policy_hash: Mapped[str] = mapped_column(String(64))
+    evaluation_hash: Mapped[str] = mapped_column(String(64))
+    report_artifact_hash: Mapped[str] = mapped_column(
+        String(64), ForeignKey("artifact_manifest.content_hash", ondelete="RESTRICT")
+    )
+    passed: Mapped[bool] = mapped_column(Boolean)
+    calibration: Mapped[str] = mapped_column(String(32))
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class StrategyAuditEventRow(Base):
+    __tablename__ = "strategy_audit_event"
+    __table_args__ = (
+        UniqueConstraint(
+            "strategy_id",
+            "strategy_version",
+            "sequence",
+            name="uq_strategy_audit_sequence",
+        ),
+        UniqueConstraint("event_hash", name="uq_strategy_audit_hash"),
+        ForeignKeyConstraint(
+            ["strategy_id", "strategy_version"],
+            ["strategy_registry.strategy_id", "strategy_registry.strategy_version"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("sequence > 0", name="strategy_audit_sequence_positive"),
+        CheckConstraint(
+            "(sequence = 1 and previous_hash is null) or "
+            "(sequence > 1 and previous_hash is not null)",
+            name="strategy_audit_chain_shape",
+        ),
+        CheckConstraint(
+            "(evaluation_report_id is null) = (evaluation_hash is null)",
+            name="strategy_audit_evaluation_binding",
+        ),
+        Index(
+            "ix_strategy_audit_identity",
+            "strategy_id",
+            "strategy_version",
+            "sequence",
+        ),
+    )
+
+    event_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    strategy_id: Mapped[str] = mapped_column(String(128))
+    strategy_version: Mapped[str] = mapped_column(String(64))
+    sequence: Mapped[int] = mapped_column(Integer)
+    event_type: Mapped[str] = mapped_column(String(72))
+    from_state: Mapped[str | None] = mapped_column(String(32))
+    to_state: Mapped[str] = mapped_column(String(32))
+    reason_code: Mapped[str] = mapped_column(String(128))
+    actor: Mapped[str] = mapped_column(String(128))
+    evaluation_report_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    evaluation_hash: Mapped[str | None] = mapped_column(String(64))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    previous_hash: Mapped[str | None] = mapped_column(String(64))
+    event_hash: Mapped[str] = mapped_column(String(64))

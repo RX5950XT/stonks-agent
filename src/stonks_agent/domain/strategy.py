@@ -150,5 +150,40 @@ class StrategyTransitionRequest(BaseModel):
         return self
 
 
+class StrategyAuditEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    event_id: UUID
+    strategy_id: NonEmptyString
+    strategy_version: NonEmptyString
+    sequence: int = Field(ge=1)
+    event_type: str = Field(pattern=r"^strategy\.[a-z_]{1,63}$")
+    from_state: PromotionState | None
+    to_state: PromotionState
+    reason_code: str = Field(pattern=r"^[a-z][a-z0-9_.-]{0,127}$")
+    actor: str = Field(pattern=r"^[a-z][a-z0-9_.:@-]{0,127}$")
+    evaluation_report_id: UUID | None = None
+    evaluation_hash: Sha256 | None = None
+    occurred_at: UTCDateTime
+    previous_hash: Sha256 | None = None
+    event_hash: Sha256
+
+    @model_validator(mode="after")
+    def validate_chain_shape(self) -> Self:
+        if (self.sequence == 1) != (self.previous_hash is None):
+            raise ValueError("only the genesis strategy event may omit previous hash")
+        has_report = self.evaluation_report_id is not None
+        if has_report != (self.evaluation_hash is not None):
+            raise ValueError("audit evaluation id and hash must be bound together")
+        return self
+
+
+class StrategyMutationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    entry: StrategyRegistryEntry
+    event: StrategyAuditEvent
+
+
 def can_transition(current: PromotionState, target: PromotionState) -> bool:
     return target in _ALLOWED_TRANSITIONS[current]

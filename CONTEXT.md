@@ -5,8 +5,8 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub與P2 Research control plane phase gates已完成；P3.1 strategy/signal/evaluation contracts已完成，下一目標為P3.2 PostgreSQL strategy registry persistence。
-- P1包含PostgreSQL 0001–0008、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
+- P0 Foundation、P1 Canonical Data Hub與P2 Research control plane phase gates已完成；P3.1–P3.2 strategy contracts與PostgreSQL registry已完成，下一目標為P3.3 deterministic forecast baselines。
+- P1/P3目前包含PostgreSQL 0001–0009、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
 - Financial Datasets與OpenBB已驗證read-only observation contracts與共用daily query；canonical materialization目前只宣稱replay source。`stonks-worker`只提供claim-once，不宣稱常駐dispatcher。
@@ -24,6 +24,7 @@
 - P2.11新增paper-only `ResearchRunRequest`、atomic PostgreSQL run/job/snapshot link、verified run-event reader、queue-only API與CLI。SSE支援`Last-Event-ID`且只投影通過完整hash-chain驗證的canonical events；payload先secret redaction。Report API/CLI只讀source/license/sensitivity/template metadata符合renderer contract的artifact，任意LLM raw/prompt artifact不得經此能力讀取。
 - P2.12新增`ResearchPipelineCommand/Result`與application pipeline gate；同一PIT context先驗deterministic artifact與TradingAgents opinion的run/as-of/evidence scope，再把兩者ID注入structured report attribution、完成三channel render與file delivery。每次succeeded/degraded/failed結果皆封存public-safe immutable audit；provider/deterministic/report outage fail，TradingAgents outage degrade，任何contract均無target/order。此為application-level gate，production常駐dispatcher與durable transition/commit仍由P4.7負責。
 - P3.1新增immutable `StrategyManifest/StrategyRegistryEntry/EvaluationRequest/EvaluationReport/AlphaSignal/ForecastRequest/ForecastOutputArtifact`與runtime-checkable ports。Promotion graph不含live；evaluation與signal綁定exact manifest/data/runtime/policy hashes。任何unregistered、uncalibrated、stale、expired、non-paper-eligible或binding mismatch signal皆deterministic回零權重；stochastic forecast缺raw/path artifact即fail closed。
+- P3.2新增0009 strategy registry/evaluation/audit tables、Postgres repository與UoW wiring。Registration idempotency、evaluation snapshot/artifact/hash binding、CAS promotion與hash-chain reader皆structured fail closed；DB triggers另行限制graph、version+1、DB clock、append-only rows與deferred matching audit，adapter被繞過也不能無audit commit。App update只限state/evaluation/version columns，worker無strategy grants。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -79,11 +80,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P2.11後non-PostgreSQL gate為640 passed、176 deselected、coverage 88.10%；完整PostgreSQL gate為816 passed、coverage 88.52%，Alembic無drift。focused API/CLI/SSE/report reader為12 passed、branch coverage 82.20%；另有4個真實PostgreSQL tests覆蓋atomic submit、PIT snapshot、idempotency、event chain與CLI enqueue，locked audit無已知CVE。
 - P2.12後non-PostgreSQL gate為642 passed、176 deselected、coverage 88.12%；完整PostgreSQL gate為818 passed、coverage 88.54%，Alembic無drift。focused pipeline為2 E2E、branch coverage 87.16%，涵蓋snapshot→dual research→report/render/file delivery與provider/deterministic/TradingAgents/LLM outage audit；locked audit無已知CVE。
 - P3.1 focused contracts/property tests為32 passed、新模組branch coverage 89.53%；完整non-PostgreSQL gate為667 passed、176 deselected、coverage 88.19%，291 files format、ruff、mypy 175 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。
+- P3.2 focused repository/domain為29 passed、branch coverage 84.27%；完整PostgreSQL gate為854 passed、coverage 88.42%，294 files format、ruff、mypy 176 source files、43 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P3 與架構藍圖。
-2. 保持 TDD；從P3.2 strategy registry persistence開始，CAS transition與immutable audit event必須在同一PostgreSQL transaction完成。
+2. 保持 TDD；從P3.3 deterministic baselines開始，last-value/moving-average/linear都必須只讀PIT snapshot並產artifact-first forecast，與後續Kronos使用同evaluation contract。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

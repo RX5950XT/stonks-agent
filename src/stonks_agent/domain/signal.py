@@ -252,8 +252,6 @@ def _evaluation_binding_matches(
         and signal.strategy_id == evaluation.strategy_id
         and signal.strategy_version == evaluation.strategy_version
         and signal.strategy_manifest_hash == evaluation.strategy_manifest_hash
-        and signal.dataset_snapshot_id == evaluation.dataset_snapshot_id
-        and signal.data_hash == evaluation.data_hash
         and signal.runtime_hash == evaluation.runtime_hash
         and signal.evaluation_policy_hash == evaluation.evaluation_policy_hash
     )

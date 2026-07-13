@@ -1,0 +1,8 @@
+enabled: false
+strategy_id: opinion-to-alpha
+strategy_version: 1.0.0
+bullish_value: "0.5"
+neutral_value: "0"
+bearish_value: "-0.5"
+stale_minutes: 60
+expires_minutes: 120

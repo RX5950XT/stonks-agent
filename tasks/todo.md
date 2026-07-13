@@ -285,9 +285,11 @@
   - [x] Purged walk-forward/embargo、bounded CPCV/PBO、cost sensitivity、benchmark/drawdown與probability calibration都有deterministic tests。
   - [x] Promotion report exact綁定strategy/snapshot/runtime/policy；同輸入不同report ID/time仍產相同evaluation hash。
 
-- [ ] **P3.5 Opinion-to-alpha policy** — 建立`application/signals/opinion_to_alpha.py`、`config/policies/opinion_mappers.yaml`與tests。（Depends：P3.1、P3.4；Complexity：L；Risk：High）
+- [x] **P3.5 Opinion-to-alpha policy** — 建立`application/signals/opinion_to_alpha.py`、`config/policies/opinion_mappers.yaml`與tests。（Depends：P3.1、P3.4；Complexity：L；Risk：High）
   - Default disabled；只有mapper本身有evaluation、opinion confidence有校準且strategy=`paper_eligible`時才產`AlphaSignal`。
   - 無法把rating字串或LLM quantity直接映射為order/target。
+  - [x] TDD：disabled/unknown rating/uncalibrated/non-paper/failed-or-expired evaluation全部不產signal。
+  - [x] Enabled mapper使用固定signed values與exact policy/strategy/evaluation/runtime/current-data provenance，輸出仍無target/order authority。
 
 - [ ] **P3.6 Kronos isolated worker environment** — 建立`workers/kronos/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,model_loader.py,adapter.py}`、pinned model manifest/checksums。（Depends：P0.3、P3.1；Complexity：XL；Risk：High）
   - Pin code、tokenizer、model revisions/hash；模型warm一次，禁止request-time任意下載。
@@ -693,3 +695,11 @@
 - Promotion：point-in-time、leakage、survivorship、reproducibility、baseline、cost、drawdown、calibration、overfitting均為獨立mandatory checks。污染是Failure；合法但未過門檻是immutable `passed=false` report。Report exact綁定manifest/snapshot/data/runtime/policy，report ID/artifact/time不進evaluation hash，因此同輸入可deterministic replay。
 - Verification：focused evaluation/domain為42 passed、branch coverage 90.91%；完整non-PostgreSQL gate為696 passed、187 deselected、coverage 88.33%，313 files format、ruff、mypy 189 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。無migration或DB行為變更；P3.2 strategy repository PostgreSQL tests另做focused regression。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.5 opinion-to-alpha policy。
+
+### P3 Progress Review — P3.5 — 2026-07-13
+
+- Scope completed：新增frozen/content-hash `OpinionToAlphaPolicy`、default-disabled YAML、closed command與deterministic mapper；policy固定bullish=0.5、neutral=0、bearish=-0.5及stale/expiry windows。
+- Gates / provenance：disabled、unknown recommendation、uncalibrated confidence、non-`paper_eligible`、failed/expired/mismatched evaluation或policy/manifest parameters mismatch全部structured fail且不產signal。成功signal exact保存mapper strategy/evaluation/runtime、current data snapshot/hash、opinion raw artifact與evidence refs。
+- Authority correction：mapper不讀LLM quantity且輸出schema拒絕quantity/target/order/risk override。P3.1 eligibility修正為current inference snapshot不必等於historical evaluation snapshot；仍要求evaluation ID/hash、manifest/runtime/policy exact binding，因此不放寬promotion或risk authority。
+- Verification：focused mapper/domain為30 passed、mapper branch coverage 87.50%；完整non-PostgreSQL gate為706 passed、187 deselected、coverage 88.32%，317 files format、ruff、mypy 191 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。無migration或DB行為變更。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.6 Kronos isolated worker。

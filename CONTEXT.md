@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub與P2 Research control plane phase gates已完成；P3.1–P3.4 strategy contracts、PostgreSQL registry、deterministic baselines與PIT evaluation engine已完成，下一目標為P3.5 opinion-to-alpha policy。
+- P0 Foundation、P1 Canonical Data Hub與P2 Research control plane phase gates已完成；P3.1–P3.5 strategy contracts、registry、baselines、evaluation與opinion mapper已完成，下一目標為P3.6 Kronos isolated worker。
 - P1/P3目前包含PostgreSQL 0001–0009、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -27,6 +27,7 @@
 - P3.2新增0009 strategy registry/evaluation/audit tables、Postgres repository與UoW wiring。Registration idempotency、evaluation snapshot/artifact/hash binding、CAS promotion與hash-chain reader皆structured fail closed；DB triggers另行限制graph、version+1、DB clock、append-only rows與deferred matching audit，adapter被繞過也不能無audit commit。App update只限state/evaluation/version columns，worker無strategy grants。
 - P3.3新增last-value、5-bar simple moving-average與5-bar OLS index-trend baselines；共用frozen manifest loader與PIT `BaselineSeries`，拒絕duplicate/future/unavailable/non-positive prices與不足lookback。所有統計採Decimal 12位quantization，輸出draft/research-only `ForecastSignal`，同輸入signal與payload hash deterministic。
 - P3.4新增versioned content-hash evaluation policy、PIT/leakage/survivorship audit、purged walk-forward/embargo、bounded combinatorial PBO、cost sensitivity、performance metrics、calibration與promotion report。績效只讀walk-forward test union，不把training rows混入；9種mandatory checks各自保存pass/fail reason。污染資料直接Failure且不產report，合法但未達門檻者產`passed=false` rejected evidence。
+- P3.5新增default-disabled content-hash opinion mapper policy與deterministic mapper。只有exact policy/manifest/runtime/evaluation binding、`paper_eligible`、passed/unexpired mapper evaluation與calibrated opinion同時成立才產`AlphaSignal`；rating只映射固定±0.5/0，不接受unknown或quantity-like字串。Signal保存本次current snapshot，evaluation則可來自不同historical snapshot，兩者不再被錯誤要求相同。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -85,11 +86,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P3.2 focused repository/domain為29 passed、branch coverage 84.27%；完整PostgreSQL gate為854 passed、coverage 88.42%，294 files format、ruff、mypy 176 source files、43 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P3.3 focused baseline/golden為7 passed、branch coverage 89.58%；完整non-PostgreSQL gate為674 passed、187 deselected、coverage 88.16%，300 files format、ruff、mypy 181 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。
 - P3.4 focused evaluation/domain為42 passed、branch coverage 90.91%；完整non-PostgreSQL gate為696 passed、187 deselected、coverage 88.33%，313 files format、ruff、mypy 189 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。
+- P3.5 focused mapper/domain為30 passed、mapper branch coverage 87.50%；完整non-PostgreSQL gate為706 passed、187 deselected、coverage 88.32%，317 files format、ruff、mypy 191 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P3 與架構藍圖。
-2. 保持 TDD；從P3.5 opinion-to-alpha policy開始，default disabled，只有mapper evaluation、calibrated opinion與`paper_eligible` exact bindings同時成立才產alpha，任何LLM quantity/rating都不能變成target/order。
+2. 保持 TDD；從P3.6 Kronos isolated worker開始，先固定source/model/tokenizer revisions與checksums、offline warm-once loader、CPU/CUDA分離profile及無DB/broker credentials的hardened runtime。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

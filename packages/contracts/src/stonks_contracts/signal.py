@@ -32,6 +32,7 @@ class PromotionState(StrEnum):
     REJECTED = "rejected"
     SHADOW = "shadow"
     PAPER_ELIGIBLE = "paper_eligible"
+    SUSPENDED = "suspended"
     RETIRED = "retired"
 
 

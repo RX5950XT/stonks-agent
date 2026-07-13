@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from stonks_contracts import CANONICAL_CHAIN
 from stonks_contracts.common import ContractModel
 from stonks_contracts.research import AgentOpinion, AnalysisBundle, ResearchArtifact
+from stonks_contracts.signal import PromotionState
 
 FORBIDDEN_AUTHORITY_TOKENS = ("order", "qty", "quantity", "execution")
 
@@ -53,3 +54,8 @@ def test_canonical_chain_has_no_trade_intent() -> None:
         "JournalTransaction",
         "AnalysisReport",
     )
+
+
+def test_wire_promotion_state_includes_suspension_but_never_live() -> None:
+    assert PromotionState.SUSPENDED.value == "suspended"
+    assert "live" not in {state.value for state in PromotionState}

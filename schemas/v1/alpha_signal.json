@@ -7,6 +7,7 @@
         "rejected",
         "shadow",
         "paper_eligible",
+        "suspended",
         "retired"
       ],
       "title": "PromotionState",

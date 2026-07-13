@@ -261,9 +261,12 @@
 
 ### Tasks
 
-- [ ] **P3.1 Strategy/signal/evaluation domain** — 實作`domain/{strategy,signal,evaluation}.py`、`ports/{forecast,strategy_lab}.py`與property tests。（Depends：P2 gate；Complexity：L；Risk：High）
+- [x] **P3.1 Strategy/signal/evaluation domain** — 實作`domain/{strategy,signal,evaluation}.py`、`ports/{forecast,strategy_lab}.py`與property tests。（Depends：P2 gate；Complexity：L；Risk：High）
   - Promotion state固定`draft -> evaluating -> rejected|shadow -> paper_eligible -> suspended|retired`。
   - 未註冊evaluation report、expired/stale/un-calibrated signal預設權重0。
+  - [x] TDD：先固定promotion transition、provenance binding、PIT/expiry/calibration與零權重fail-closed properties。
+  - [x] Forecast與strategy-lab ports只接受immutable artifact/snapshot inputs，回傳structured `Result`，不具target/order/risk authority。
+  - [x] Focused + full gate通過後同步README/CONTEXT與本review並提交。
 
 - [ ] **P3.2 Strategy registry persistence** — 新增`migrations/versions/0002_strategy_registry.py`、`adapters/postgres/strategy_repository.py`與concurrency tests。（Depends：P3.1、P1.4；Complexity：L；Risk：High）
   - Artifact/runtime/data/evaluation hashes不可變；promotion用CAS與audit event。
@@ -650,3 +653,11 @@
 - Upstream / dependency：模板為clean implementation，未複製daily_stock_analysis片段，不新增其MIT notice；core新增輕量Jinja2 3.1.6並更新frozen lock，locked runtime audit無已知CVE。
 - Verification：focused為6 passed、branch coverage 90%；完整non-PostgreSQL gate為619 passed、172 deselected、coverage 88.28%，259 files format、ruff、mypy 150 source files、43 schemas、upstream/license/secret與locked dependency audit全通過。無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2.1–P2.12與phase gate已完成；下一項為P3.1 forecast contracts。Production常駐dispatcher與durable全流程transition仍屬P4.7，不在P2 gate冒充完成。
+
+### P3 Progress Review — P3.1 — 2026-07-13
+
+- Scope completed：新增frozen strategy manifest/registry、fixed promotion graph、artifact-only evaluation request/report、provenance-complete alpha、artifact-first forecast request/output與runtime-checkable forecast/strategy-lab ports；wire promotion enum同步加入`suspended`且永遠沒有live state。
+- Eligibility / authority：paper weight只有exact strategy/data/runtime/evaluation-policy/report binding、`paper_eligible`、passed evaluation、calibrated且fresh時才可使用confidence；unregistered、shadow/suspended、failed/expired evaluation、uncalibrated、stale/expired或hash mismatch一律deterministic weight 0。所有contracts拒絕target/order/quantity/risk override欄位。
+- Replay / PIT：evaluation window與forecast input不得越過`as_of`；evaluation hash排除identity/time等非決定性欄位並正規化checks/metrics/baselines。Stochastic forecast在任何canonical mapping前必須有immutable raw output與sampled-path artifact，fresh inference不宣稱bit-identical。
+- Verification：focused contracts/property tests為32 passed、新模組branch coverage 89.53%；完整non-PostgreSQL gate為667 passed、176 deselected、coverage 88.19%，291 files format、ruff、mypy 175 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。P3.1無migration或DB行為變更，因此未重跑PostgreSQL suite。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.2 PostgreSQL strategy registry persistence。

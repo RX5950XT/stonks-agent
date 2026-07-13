@@ -1,0 +1,10 @@
+# {{ subject | md }} — {{ conclusion }}
+
+{{ labels.score }} {{ score }} · {{ labels.confidence }} {{ confidence }} · {{ labels.as_of }} `{{ as_of }}`
+{% for claim in claims[:3] %}
+- **{{ claim.certainty }}{% if claim.data_quality %}/{{ claim.data_quality }}{% endif %}** {{ claim.brief_assertion | md }}
+{% endfor %}
+{% if data_limitations %}
+{{ labels.limitations }}: {% for item in data_limitations[:5] %}`{{ item }}`{% if not loop.last %}, {% endif %}{% endfor %}
+{% endif %}
+`research_only_no_execution_authority`

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="{{ language }}">
+<head><meta charset="utf-8"><title>{{ subject }}</title></head>
+<body>
+  <main>
+    <h1>{{ subject }}</h1>
+    <p><strong>{{ labels.outlook }}:</strong> {{ conclusion }}</p>
+    <p>{{ labels.as_of }}: <time>{{ as_of }}</time> · {{ labels.score }}: {{ score }} · {{ labels.confidence }}: {{ confidence }}</p>
+    <h2>{{ labels.claims }}</h2>
+    <ul>
+    {% for claim in claims %}
+      <li data-certainty="{{ claim.certainty }}"{% if claim.data_quality %} data-quality="{{ claim.data_quality }}"{% endif %}><strong>{{ claim.certainty }}{% if claim.data_quality %}/{{ claim.data_quality }}{% endif %}</strong> — {{ claim.assertion }}{% if claim.evidence_refs %}<br><small>{{ labels.evidence }}: {{ claim.evidence_refs | join(', ') }}</small>{% endif %}</li>
+    {% endfor %}
+    </ul>
+    <h2>{{ labels.limitations }}</h2>
+    <ul>{% for item in data_limitations %}<li>{{ item }}</li>{% else %}<li>{{ labels.none }}</li>{% endfor %}</ul>
+    <h2>{{ labels.guardrails }}</h2>
+    <ul>{% for item in action_guardrails %}<li>{{ item }}</li>{% endfor %}</ul>
+  </main>
+</body>
+</html>

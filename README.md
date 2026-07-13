@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation 與 P1 Canonical Data Hub 已通過 phase gate；P2 Research control plane 已完成 bounded research、structured LLM、TradingAgents worker/core adapter、draft PEAD/event-study、evidence assembler與structured report integrity，後續工作依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation 與 P1 Canonical Data Hub 已通過 phase gate；P2 Research control plane 已完成 bounded research、structured LLM、TradingAgents worker/core adapter、draft PEAD/event-study、evidence/report integrity與deterministic multi-channel rendering，後續工作依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -22,6 +22,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - ai-hedge-fund MIT selective port：PIT PEAD filing清理與pure-Python/Decimal event study（OLS、abnormal returns、CAR、Student t-test、seeded bootstrap）。策略固定`draft`、confidence 0，通過正式evaluation前不可成為paper target。
 - Versioned analysis context assembler：只讀canonical repository一次，依capability組裝evidence blocks；PIT、sensitivity、license與redistribution scope fail closed，missing/stale/conflict/fallback/estimated/partial/fetch_failed不會被扁平化成假success。
 - Structured `AnalysisReport` JSON truth：factual claim必須有citation與derived quality；stale/estimated/conflict只能是qualified，hypothesis不得偽裝evidenced fact。LLM只填closed draft，outlook、claim IDs、evidence union與paper/research guardrails由core決定。
+- Sandboxed fixed Jinja templates從同一`AnalysisReport`重建full/brief Markdown與email HTML；Markdown/HTML escaping、quality qualifiers、language labels、channel byte caps與content-addressed rendering hashes均deterministic。
 - Local RBAC、process capability/egress deny、secret redaction、統一 API envelope 與 telemetry ports。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 

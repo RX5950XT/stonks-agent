@@ -1,0 +1,32 @@
+# AAPL
+
+- 資料截止: `2026-07-13T06:00:00Z`
+- 研究展望: `bullish_outlook`
+- 分數: 0.7
+- 信心: 0.5
+
+## 研究主張
+
+- **observed/available** — Canonical close is 100\. (證據: `34000000-0000-4000-8000-000000000002`)
+
+- **qualified/stale** — Old product news may remain relevant\. (證據: `34000000-0000-4000-8000-000000000003`)
+
+## 風險
+
+- Evidence coverage is narrow\.
+
+## 催化因素
+
+- Product cycle
+
+## 資料限制
+
+- `news:stale`
+
+- `market:conflict`
+
+## 安全界線
+
+- `research_only_no_execution_authority`
+
+- `paper_only_execution_mode`

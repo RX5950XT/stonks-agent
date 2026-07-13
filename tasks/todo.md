@@ -222,7 +222,7 @@
   - `AnalysisReport` JSON為truth；每個claim/evidence ref完整，estimated/stale/conflict不可寫成確定事實。
   - LLM invalid JSON、missing citation、數值越界與decision guardrail均fail/retry bounded。
 
-- [ ] **P2.9 Jinja renderers and templates** — 建立`templates/{full.md.j2,brief.md.j2,email.html.j2}`、`adapters/reporting/jinja.py`、`tests/golden/reports/`。（Depends：P2.8、P0.3；Complexity：M；Risk：Medium）
+- [x] **P2.9 Jinja renderers and templates** — 建立`templates/{full.md.j2,brief.md.j2,email.html.j2}`、`adapters/reporting/jinja.py`、`tests/golden/reports/`。（Depends：P2.8、P0.3；Complexity：M；Risk：Medium）
   - 若移植DSA模板片段，保留MIT notice與來源commit；否則clean implementation。
   - Render snapshot涵蓋missing/stale/conflict、多語、long symbol/channel limit與escaping。
 
@@ -637,3 +637,12 @@
 - Prompt / retry：safe messages只含subject/as-of、quality blocks、limitations與allowed IDs；raw evidence payload只放`untrusted_blocks`。score/confidence wire schema強制0..1字串；真實fake structured adapter測試證明invalid output最多repair一次，兩次無效即失敗且不產report。model failure/exception/identity mismatch皆安全失敗且不洩漏內容。
 - Verification：focused為7 passed、branch coverage 90%；完整non-PostgreSQL gate為613 passed、172 deselected、coverage 88.27%，256 files format、ruff、mypy 148 source files、43 schemas、upstream/license與secret gates全通過。無dependency、migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2 gate尚未完成，下一項為P2.9 Jinja renderers/templates。
+
+### P2 Progress Review — P2.9 — 2026-07-13
+
+- Scope completed：新增sandboxed fixed-template Jinja adapter、clean `full.md.j2`、`brief.md.j2`、`email.html.j2`與三份golden snapshots；`AnalysisReport.renderings`保存format、template version、content hash/ref，rendered bytes存content-addressed artifact store。
+- Determinism / channels：三個channel都只從同一`AnalysisReport` JSON truth建構，不讀context、LLM或provider；rerender已帶renderings的report仍產生相同bytes/hashes。template version、format、report ID、media type與artifact metadata固定，channel產物可獨立重建驗證。
+- Safety / UX：Jinja使用sandbox、StrictUndefined與固定startup-loaded paths；HTML autoescape、Markdown special-char escape、subject/brief deterministic truncation、zh-TW/en labels與observed/qualified/hypothesis + quality標籤都有測試。full Markdown 64KiB、brief 4KiB、email 128KiB上限在任何artifact write前檢查；unsupported language或missing template fail closed。
+- Upstream / dependency：模板為clean implementation，未複製daily_stock_analysis片段，不新增其MIT notice；core新增輕量Jinja2 3.1.6並更新frozen lock，locked runtime audit無已知CVE。
+- Verification：focused為6 passed、branch coverage 90%；完整non-PostgreSQL gate為619 passed、172 deselected、coverage 88.28%，259 files format、ruff、mypy 150 source files、43 schemas、upstream/license/secret與locked dependency audit全通過。無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2 gate尚未完成，下一項為P2.10 delivery ports。

@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation 與 P1 Canonical Data Hub phase gates已完成；P2.1–P2.8 bounded research、structured LLM、TradingAgents worker/core adapter、draft PEAD/event-study、evidence assembler與report integrity已完成，下一目標為P2.9 Jinja renderers/templates。
+- P0 Foundation 與 P1 Canonical Data Hub phase gates已完成；P2.1–P2.9 bounded research、structured LLM、TradingAgents worker/core adapter、draft PEAD/event-study、evidence/report integrity與Jinja renderers已完成，下一目標為P2.10 delivery ports。
 - P1包含PostgreSQL 0001–0008、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -19,6 +19,7 @@
 - P2.6選擇性重寫ai-hedge-fund MIT PEAD/event-study：PEAD只接受proven PIT filing、依report period dedup且排除future/unknown/stale/retrospective event；event study不用NumPy/SciPy，以Decimal/pure Python提供market-model OLS、CAR、Student t-test與seeded bootstrap。輸出永遠是draft `AlphaSignal`、confidence 0，無target/order authority。
 - P2.7新增versioned immutable `AnalysisContext`與read-only evidence assembler；單次canonical query後依capability建立quality block，驗證subject/as-of、unique IDs、sensitivity/license/redistribution policy與block-ref exact coverage。DSA的available/missing/not_supported/fallback/stale/estimated/partial/fetch_failed vocabulary以既有自有`DataQualityStatus`吸收，另保留canonical conflict。
 - P2.8擴充`AnalysisReport`為claim-linked JSON truth；structured draft只有outlook/score/confidence/claims等research欄位，core deterministic注入claim IDs、citation union、guardrails、model/prompt/policy與raw generation artifact refs。available evidence才可observed；fallback/estimated/stale/partial/missing/fetch_failed/conflict一律qualified，hypothesis不得帶fact metadata。
+- P2.9新增sandboxed fixed-template Jinja adapter與clean full/brief Markdown、email HTML templates；所有輸出只讀同一`AnalysisReport`，autoescape/Markdown escape、quality qualifier、zh-TW/en labels、subject/brief truncation、channel byte caps、artifact metadata與render hash皆固定。未複製DSA template片段，因此無新增上游notice義務。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -47,7 +48,7 @@
 8. AI-Trader 只作 external community HTTP adapter；不提交 canonical paper/copy order。
 9. OpenBB、Kronos、TradingAgents、Qlib、RD-Agent、LEAN/Nautilus 各自獨立 lock/image，不進 core environment。
 
-## P0 / P1 / P2.1–P2.8 可重跑證據
+## P0 / P1 / P2.1–P2.9 可重跑證據
 
 ```powershell
 uv sync --frozen
@@ -69,11 +70,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P2.6後完整non-PostgreSQL gate為598 passed、172 deselected、coverage 88.27%；focused PEAD/event-study為14 passed、branch coverage 90.74%。PIT、after-close、duplicate filing/day、freshness、retrospective filter、golden、seed replay與MIT notice gates皆通過，core dependency未增加。
 - P2.7後完整non-PostgreSQL gate為606 passed、172 deselected、coverage 88.23%；focused assembler為8 passed、branch coverage 84.35%。read-once、deterministic hash、PIT/repository scope、policy exclusions、missing/stale/conflict與infra failure tests皆通過。
 - P2.8後完整non-PostgreSQL gate為613 passed、172 deselected、coverage 88.27%；focused generator/integrity為7 passed、branch coverage 90%。citation/quality/certainty、numeric bounds、prompt injection isolation、execution language、identity mismatch、model outage與bounded repair tests皆通過；43 schemas current。
+- P2.9後完整non-PostgreSQL gate為619 passed、172 deselected、coverage 88.28%；focused renderer為6 passed、branch coverage 90%。三channel golden、stable replay hash、escaping、stale/conflict qualifier、多語、long subject、byte cap與startup template checks通過；Jinja2 3.1.6 locked audit無已知CVE。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P2 與架構藍圖。
-2. 保持 TDD；從P2.9 Jinja renderers/templates開始，所有channel必須只由同一`AnalysisReport`重建，並覆蓋escaping、long symbol與quality qualifiers。
+2. 保持 TDD；從P2.10 delivery ports開始，console/file預設可用，email/webhook未配置不阻擋報告；所有side effect須idempotency、receipt與redacted error。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-TW">
+<head><meta charset="utf-8"><title>AAPL</title></head>
+<body>
+  <main>
+    <h1>AAPL</h1>
+    <p><strong>研究展望:</strong> bullish_outlook</p>
+    <p>資料截止: <time>2026-07-13T06:00:00Z</time> · 分數: 0.7 · 信心: 0.5</p>
+    <h2>研究主張</h2>
+    <ul>
+    
+      <li data-certainty="observed" data-quality="available"><strong>observed/available</strong> — Canonical close is 100.<br><small>證據: 34000000-0000-4000-8000-000000000002</small></li>
+    
+      <li data-certainty="qualified" data-quality="stale"><strong>qualified/stale</strong> — Old product news may remain relevant.<br><small>證據: 34000000-0000-4000-8000-000000000003</small></li>
+    
+    </ul>
+    <h2>資料限制</h2>
+    <ul><li>news:stale</li><li>market:conflict</li></ul>
+    <h2>安全界線</h2>
+    <ul><li>research_only_no_execution_authority</li><li>paper_only_execution_mode</li></ul>
+  </main>
+</body>
+</html>

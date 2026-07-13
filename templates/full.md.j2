@@ -1,0 +1,33 @@
+# {{ subject | md }}
+
+- {{ labels.as_of }}: `{{ as_of }}`
+- {{ labels.outlook }}: `{{ conclusion }}`
+- {{ labels.score }}: {{ score }}
+- {{ labels.confidence }}: {{ confidence }}
+
+## {{ labels.claims }}
+{% for claim in claims %}
+- **{{ claim.certainty }}{% if claim.data_quality %}/{{ claim.data_quality }}{% endif %}** — {{ claim.assertion | md }}{% if claim.evidence_refs %} ({{ labels.evidence }}: {% for ref in claim.evidence_refs %}`{{ ref }}`{% if not loop.last %}, {% endif %}{% endfor %}){% endif %}
+{% endfor %}
+## {{ labels.risks }}
+{% for item in risks %}
+- {{ item | md }}
+{% else %}
+- {{ labels.none }}
+{% endfor %}
+## {{ labels.catalysts }}
+{% for item in catalysts %}
+- {{ item | md }}
+{% else %}
+- {{ labels.none }}
+{% endfor %}
+## {{ labels.limitations }}
+{% for item in data_limitations %}
+- `{{ item }}`
+{% else %}
+- {{ labels.none }}
+{% endfor %}
+## {{ labels.guardrails }}
+{% for item in action_guardrails %}
+- `{{ item }}`
+{% endfor %}

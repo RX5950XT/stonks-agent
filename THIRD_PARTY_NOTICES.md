@@ -33,6 +33,19 @@ MIT License使用；完整copyright與license text收錄於
 本策略固定為`draft`、confidence 0，只能產生research-only `AlphaSignal`；沒有
 portfolio sizing、risk override、order或execution authority。
 
+## KRONOS-MIT-WORKER
+
+Optional `workers/kronos/` 是與core lock隔離的MIT Kronos forecast worker，
+使用ShiYu的Kronos commit
+`67b630e67f6a18c9e9be918d9b4337c960db1e9a`；Copyright (c) 2025 ShiYu。
+source archive、Kronos-small模型與Kronos-Tokenizer-base的revision、size與
+SHA-256固定於`workers/kronos/model-manifest.json`。完整MIT license與notice會
+放進CPU/CUDA images。
+
+模型只在process startup從唯讀本機目錄驗證並warm一次，runtime不下載模型；
+PyTorch與Kronos code不進core dependency graph。模型輸出沒有target、risk、order、
+broker、ledger或execution authority，且模型/資料權利仍須由部署者另行確認。
+
 ## OPENBB-AGPL-3.0-SIDECAR
 
 Optional `sidecars/openbb/` 是與 Apache-2.0 core 分離發行的

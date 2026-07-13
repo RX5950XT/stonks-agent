@@ -1,0 +1,43 @@
+{
+  "manifest_version": "1.0.0",
+  "max_context": 512,
+  "model": {
+    "component_id": "Kronos-small",
+    "directory": "kronos-small",
+    "files": [
+      {
+        "path": "config.json",
+        "sha256": "5e0f6a605d5f81b5c9b559fe5cf716a1acb041c744e6f41bd05b097b7a685396",
+        "size_bytes": 228
+      },
+      {
+        "path": "model.safetensors",
+        "sha256": "b082dfcbd8e8c142a725c8bbb99781802f38fec81210e13479effb32b3c3e020",
+        "size_bytes": 98980656
+      }
+    ],
+    "repository": "NeoQuasar/Kronos-small",
+    "revision": "901c26c1332695a2a8f243eb2f37243a37bea320"
+  },
+  "source_archive_sha256": "969719e47b2134d8a56533784508b6d859bd1c9aacb1b62e4a504cb4fc096021",
+  "tokenizer": {
+    "component_id": "Kronos-Tokenizer-base",
+    "directory": "kronos-tokenizer-base",
+    "files": [
+      {
+        "path": "config.json",
+        "sha256": "2366e7ccfec76cbc19cf3c4c1b9c5d901be336ca1e83f2d2292c9bff381b77a2",
+        "size_bytes": 301
+      },
+      {
+        "path": "model.safetensors",
+        "sha256": "59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee",
+        "size_bytes": 15842368
+      }
+    ],
+    "repository": "NeoQuasar/Kronos-Tokenizer-base",
+    "revision": "0e0117387f39004a9016484a186a908917e22426"
+  },
+  "upstream_commit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+  "upstream_repository": "https://github.com/shiyu-coder/Kronos"
+}

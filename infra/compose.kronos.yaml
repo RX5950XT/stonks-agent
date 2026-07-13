@@ -1,0 +1,37 @@
+services:
+  kronos-cpu:
+    build:
+      context: ..
+      dockerfile: workers/kronos/Dockerfile
+      target: runtime-cpu
+    environment:
+      STONKS_KRONOS_MODEL_ROOT: /models
+      STONKS_KRONOS_PROFILE: cpu
+    volumes:
+      - "${STONKS_KRONOS_MODEL_ROOT:?set a verified Kronos model directory}:/models:ro"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [kronos-internal]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+
+  kronos-cuda:
+    build:
+      context: ..
+      dockerfile: workers/kronos/Dockerfile
+      target: runtime-cuda
+    environment:
+      STONKS_KRONOS_MODEL_ROOT: /models
+      STONKS_KRONOS_PROFILE: cuda
+    volumes:
+      - "${STONKS_KRONOS_MODEL_ROOT:?set a verified Kronos model directory}:/models:ro"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [kronos-internal]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    gpus: all
+
+networks:
+  kronos-internal:
+    internal: true

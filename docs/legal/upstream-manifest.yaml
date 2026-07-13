@@ -106,8 +106,8 @@ upstreams:
       source_copy_allowed: true
       in_core_allowed: false
     notice:
-      required: false
-      id: null
+      required: true
+      id: KRONOS-MIT-WORKER
 
   - id: daily-stock-analysis
     repository: https://github.com/ZhuLinsen/daily_stock_analysis

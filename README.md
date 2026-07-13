@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub 與 P2 Research control plane 已通過 phase gate；P3 strategy/forecast/evaluation 已開始，後續工作依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub 與 P2 Research control plane 已通過 phase gate；P3 strategy/forecast/evaluation 已完成P3.1–P3.6，後續工作依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -31,6 +31,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Deterministic last-value、simple moving-average與OLS linear baselines共用PIT ordered-bar contract、frozen draft manifests與exact Decimal golden；輸出是research-only `ForecastSignal`，同輸入可重播相同payload hash，供Kronos/opinion/complex strategy在同dataset/cost evaluation下比較。
 - Point-in-time evaluation engine先拒絕future feature/label、unknown publication lag與survivorship污染，再以purged walk-forward/embargo的out-of-sample observations計算CPCV/PBO、fees/slippage/turnover sensitivity、baseline alpha、drawdown與probability calibration。每項promotion check獨立、policy為content hash，同strategy/snapshot/runtime/policy可重播相同evaluation hash。
 - Opinion-to-alpha mapper預設停用；啟用時仍要求mapper manifest parameters exact綁定policy hash、strategy為`paper_eligible`、evaluation passed且未過期、opinion confidence已校準。Bullish/neutral/bearish只映射成固定signed research value，unknown rating或任何quantity/order-shaped欄位fail closed。
+- Pinned Kronos-small/Tokenizer-base isolated worker以本機唯讀model root做file size/SHA-256/symlink/untracked-entry驗證並在startup warm一次，禁止request-time download。CPU與CUDA使用獨立PyTorch 2.12.1 locks/images；non-root/read-only/internal-network runtime無DB/provider/broker/execution credentials。CPU及RTX 3070 Ti CUDA inference均以實際115 MB權重通過smoke；目前worker只開health/readiness與exact runtime preflight，canonical forecast mapping留在P3.7。
 - Local RBAC、process capability/egress deny、secret redaction、統一 API envelope 與 telemetry ports。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 

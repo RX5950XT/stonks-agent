@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1 gate 已通過，P2 進行中）
+> 狀態：執行中（P0、P1、P2 gate 已通過，P3.1–P3.6 已完成，P3.7 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -291,9 +291,13 @@
   - [x] TDD：disabled/unknown rating/uncalibrated/non-paper/failed-or-expired evaluation全部不產signal。
   - [x] Enabled mapper使用固定signed values與exact policy/strategy/evaluation/runtime/current-data provenance，輸出仍無target/order authority。
 
-- [ ] **P3.6 Kronos isolated worker environment** — 建立`workers/kronos/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,model_loader.py,adapter.py}`、pinned model manifest/checksums。（Depends：P0.3、P3.1；Complexity：XL；Risk：High）
+- [x] **P3.6 Kronos isolated worker environment** — 建立`workers/kronos/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py,model_loader.py,adapter.py}`、pinned model manifest/checksums。（Depends：P0.3、P3.1；Complexity：XL；Risk：High）
   - Pin code、tokenizer、model revisions/hash；模型warm一次，禁止request-time任意下載。
   - CPU與CUDA profiles分開；核心不安裝torch。
+  - [x] TDD：固定manifest schema、source archive SHA-256、模型/tokenizer revision與file SHA-256；缺檔、symlink、size/hash drift一律在load前fail closed。
+  - [x] Warm-once loader只接受唯一本機唯讀model root；禁止repo ID、URL、`HF_HOME` cache fallback與request-time download，並對concurrent startup只載入一次。
+  - [x] CPU/CUDA各自使用獨立locked environment/image target；runtime compose為internal network、read-only、non-root、cap-drop且無DB/provider/execution credentials。
+  - [x] Contract/HTTP health與forecast preflight、core heavy-dependency isolation、license/notice/source provenance及container policy tests通過。
 
 - [ ] **P3.7 Kronos canonical input/output adapter** — 實作calendar-aware input、sample path retention、seed policy、OHLC/volume invariant與`ForecastSignal` mapping；建立`tests/golden/kronos/`。（Depends：P1.1、P1.2、P3.6；Complexity：XL；Risk：High）
   - Missing/estimated volume降低quality；future timestamps來自exchange calendar。
@@ -703,3 +707,11 @@
 - Authority correction：mapper不讀LLM quantity且輸出schema拒絕quantity/target/order/risk override。P3.1 eligibility修正為current inference snapshot不必等於historical evaluation snapshot；仍要求evaluation ID/hash、manifest/runtime/policy exact binding，因此不放寬promotion或risk authority。
 - Verification：focused mapper/domain為30 passed、mapper branch coverage 87.50%；完整non-PostgreSQL gate為706 passed、187 deselected、coverage 88.32%，317 files format、ruff、mypy 191 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。無migration或DB行為變更。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.6 Kronos isolated worker。
+
+### P3 Progress Review — P3.6 — 2026-07-13
+
+- Scope completed：新增Kronos-small/Tokenizer-base pinned manifest、file size/SHA-256驗證、symlink/untracked-entry拒絕、thread-safe warm-once loader、exact runtime preflight與bounded HTTP health/readiness；runtime只讀本機`/models`，不接受repo ID、URL、HF cache fallback或request-time download。
+- Isolation / licensing：CPU與CUDA各有獨立PyTorch index、`pyproject.toml`/`uv.lock`與Docker target；compose採internal network、read-only、UID 65532、cap-drop ALL、no-new-privileges及唯讀model mount，無DB/provider/broker/queue/execution credentials。Kronos MIT source archive、license、model/tokenizer revisions與hash已加入notice/manifest，core lock仍無torch。
+- Runtime evidence：四個實際Hugging Face檔案共約115 MB均重算SHA-256相符。CPU image以`torch 2.12.1+cpu` warm成功；CUDA image以`torch 2.12.1+cu129`在RTX 3070 Ti完成32→2 bars、OHLCV/amount六欄inference。兩者皆UID 65532；CPU約0.80 GiB、CUDA約11.95 GiB。
+- Security / verification：原選2.11.0因OSV `GHSA-rrmf-rvhw-rf47`受影響而fail closed升至首個fixed 2.12.1；OSV為0 vulnerabilities，CPU/CUDA image內Linux dependency audit均無已知CVE（local `stonks-contracts`與帶build suffix的torch由PyPI scanner跳過，torch另以OSV標準identity補查）。focused為26 passed；完整non-PostgreSQL gate為732 passed、187 deselected、coverage 88.32%，323 files format、ruff、core/worker mypy、43 schemas、upstream/license、secret與core locked audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.7 Kronos canonical input/output adapter。

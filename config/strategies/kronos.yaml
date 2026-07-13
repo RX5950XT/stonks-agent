@@ -1,0 +1,53 @@
+schema_version: 1
+manifest:
+  manifest_id: 10000000-0000-4000-8000-000000000820
+  strategy_id: kronos-forecast
+  strategy_version: 1.0.0
+  kind: forecast_mapper
+  source_artifact_ref: sha256:1d31d9bbdefa6ab4df0f45349d512cd068971a6731e01c201077f9afaf529cda
+  runtime_hash: c3542191fc3a6137540219098a66be4f3f32c7c7203e52f44018eb4e66dfa866
+  feature_spec_hash: 0f340f46255ca9507d4a97f3591d96a098de65e8c28dbfb14011de43d4a5aa22
+  label_spec_hash: 6d2431c8fd2f072cb28605518fc3e504c5c287529949495338451f0cf17ec034
+  universe_spec_hash: 9dc5e618eb8ff83fa7fa20de2031eb7dcbd3f2caed250876882c3a134046540d
+  cost_model_hash: 9e99aa03a7cab17b7d6dcee9b31a587f5aef7961f0956a7097dcf54aefd85063
+  split_policy_hash: 0874cee672ccbe35f64ade0bbd7c34fe007d543caab0b56e5d1c300ccdba3b0e
+  parameters_hash: 19c863988587e40076982924ff593e926a737da43d19ddf731c6412f1add3c26
+  owner: quant-research
+  deterministic: false
+  created_at: 2026-07-13T02:00:00Z
+model_id: NeoQuasar/Kronos-small
+model_revision: 901c26c1332695a2a8f243eb2f37243a37bea320
+model_artifact_hash: b082dfcbd8e8c142a725c8bbb99781802f38fec81210e13479effb32b3c3e020
+tokenizer_id: NeoQuasar/Kronos-Tokenizer-base
+tokenizer_revision: 0e0117387f39004a9016484a186a908917e22426
+tokenizer_artifact_hash: 59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee
+evaluation_policy_hash: 0874cee672ccbe35f64ade0bbd7c34fe007d543caab0b56e5d1c300ccdba3b0e
+required_baselines:
+  - baseline-last-value/1.0.0
+  - baseline-moving-average/1.0.0
+  - baseline-linear/1.0.0
+required_markets: [US, HK, TW]
+deployment_state: shadow
+paper_weight: "0"
+feature_spec:
+  input_artifact_schema: kronos-sample-paths/1.0.0
+  predicted_return_field: expected_return
+  probability_field: direction_probability
+  interval: 1d
+  horizon_bars: 1
+label_spec:
+  label: close_to_close_return
+  benchmark: historical_market_benchmark
+  horizon_bars: 1
+  publication_lag: proven
+universe_spec:
+  markets: [US, HK, TW]
+  historical_membership_required: true
+cost_spec:
+  fee_bps: "1"
+  slippage_bps: "5"
+  cost_multipliers: ["0.5", "1", "2"]
+mapping:
+  max_absolute_alpha: "0.25"
+  stale_minutes: 1440
+  expires_minutes: 2880

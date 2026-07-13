@@ -1,0 +1,20 @@
+{
+  "calibration": "uncalibrated",
+  "failed_checks": [
+    "baseline_comparison",
+    "calibration",
+    "cost_sensitivity"
+  ],
+  "markets": [
+    "HK",
+    "TW",
+    "US"
+  ],
+  "metrics": {
+    "brier_score:overall": "0.250000000000",
+    "calibration_error:overall": "0E-12",
+    "out_of_sample_observations:overall": "252",
+    "walk_forward_splits:overall": "4"
+  },
+  "passed": false
+}

@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "ClaimCertainty": {
+      "enum": [
+        "observed",
+        "qualified",
+        "hypothesis"
+      ],
+      "title": "ClaimCertainty",
+      "type": "string"
+    },
+    "DataQualityStatus": {
+      "enum": [
+        "available",
+        "missing",
+        "not_supported",
+        "fallback",
+        "stale",
+        "estimated",
+        "partial",
+        "fetch_failed",
+        "conflict"
+      ],
+      "title": "DataQualityStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assertion": {
+      "minLength": 1,
+      "title": "Assertion",
+      "type": "string"
+    },
+    "certainty": {
+      "$ref": "#/$defs/ClaimCertainty"
+    },
+    "claim_id": {
+      "format": "uuid",
+      "title": "Claim Id",
+      "type": "string"
+    },
+    "data_quality": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DataQualityStatus"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "evidence_refs": {
+      "default": [],
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "claim_id",
+    "assertion",
+    "certainty",
+    "data_quality"
+  ],
+  "title": "ReportClaim",
+  "type": "object"
+}

@@ -20,7 +20,7 @@ from .portfolio import (
     Position,
     TargetAllocation,
 )
-from .report import AnalysisReport, ReportRendering
+from .report import AnalysisReport, ClaimCertainty, ReportClaim, ReportRendering
 from .research import (
     AgentOpinion,
     AnalysisBundle,
@@ -90,6 +90,7 @@ SCHEMA_MODELS: tuple[type[ContractModel], ...] = (
     RunEvent,
     ReportRendering,
     AnalysisReport,
+    ReportClaim,
     SignedEvidenceArtifact,
     TradingAgentsWorkerRequest,
     TradingAgentsWorkerResponse,
@@ -106,6 +107,7 @@ __all__ = [
     "AnalysisBundle",
     "AnalysisReport",
     "BarSeries",
+    "ClaimCertainty",
     "ContractModel",
     "DatasetSnapshot",
     "EvidenceItem",
@@ -121,6 +123,7 @@ __all__ = [
     "OrderIntent",
     "PortfolioSnapshot",
     "PortfolioTarget",
+    "ReportClaim",
     "ResearchArtifact",
     "RiskDecision",
     "SignedEvidenceArtifact",

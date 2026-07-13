@@ -218,7 +218,7 @@
 - [x] **P2.7 Analysis context/evidence assembler** — 建立`application/reporting/evidence_assembler.py`、`domain/analysis_context.py`與tests。（Depends：P1.2、P2.1；Complexity：M；Risk：Medium）
   - 吸收DSA quality vocabulary但使用自有versioned schema；assembler只讀canonical evidence，不自行抓資料。
 
-- [ ] **P2.8 Structured report generator and integrity policy** — 建立`application/reporting/{generate,integrity_policy}.py`、`domain/report.py`、`tests/reporting/test_integrity.py`。（Depends：P2.3、P2.7；Complexity：L；Risk：High）
+- [x] **P2.8 Structured report generator and integrity policy** — 建立`application/reporting/{generate,integrity_policy}.py`、`domain/report.py`、`tests/reporting/test_integrity.py`。（Depends：P2.3、P2.7；Complexity：L；Risk：High）
   - `AnalysisReport` JSON為truth；每個claim/evidence ref完整，estimated/stale/conflict不可寫成確定事實。
   - LLM invalid JSON、missing citation、數值越界與decision guardrail均fail/retry bounded。
 
@@ -628,3 +628,12 @@
 - Contract integrity：requirements/capabilities/policies、block refs/sources與context evidence IDs皆unique；所有block refs必須exact cover context evidence，available block不可無evidence。missing/stale/conflict等只是輸入品質，不冒充analysis/job/delivery狀態。
 - Verification：focused為8 passed、branch coverage 84.35%；完整non-PostgreSQL gate為606 passed、172 deselected、coverage 88.23%，252 files format、ruff、mypy 145 source files、schema、upstream/license與secret gates全通過。無dependency、migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2 gate尚未完成，下一項為P2.8 report generator/integrity policy。
+
+### P2 Progress Review — P2.8 — 2026-07-13
+
+- Scope completed：新增closed `ReportDraft/DraftClaim/GenerateReportRequest`、`ReportClaim/ClaimCertainty` wire contract、structured report generator與deterministic integrity policy；`AnalysisReport`新增claims與exact raw generation artifact ref，schema snapshots更新為43個。
+- JSON truth / citations：每個非hypothesis claim必須引用context內evidence且quality精確等於引用refs的最差block狀態；只有available可`observed`，其他狀態只能`qualified`。Hypothesis必須無citation/data quality；unknown ref、missing citation、quality/certainty mismatch皆`model_output_invalid`。
+- Authority / provenance：LLM draft不含conclusion free text、guardrail、ID、rendering或order欄位；core從outlook enum建立conclusion，deterministic產生claim IDs/evidence union，固定注入research-only、paper-only與deterministic portfolio/risk guardrails，並保存generator/model/prompt/policy版本與raw output artifact ref。直接execution語言或extra order schema fail closed。
+- Prompt / retry：safe messages只含subject/as-of、quality blocks、limitations與allowed IDs；raw evidence payload只放`untrusted_blocks`。score/confidence wire schema強制0..1字串；真實fake structured adapter測試證明invalid output最多repair一次，兩次無效即失敗且不產report。model failure/exception/identity mismatch皆安全失敗且不洩漏內容。
+- Verification：focused為7 passed、branch coverage 90%；完整non-PostgreSQL gate為613 passed、172 deselected、coverage 88.27%，256 files format、ruff、mypy 148 source files、43 schemas、upstream/license與secret gates全通過。無dependency、migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2 gate尚未完成，下一項為P2.9 Jinja renderers/templates。

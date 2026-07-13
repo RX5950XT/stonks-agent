@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane與P3 strategy/forecast/evaluation phase gates已完成；P4.1–P4.7 trading domain、PostgreSQL persistence、deterministic portfolio、hard risk gate、reference paper broker、balanced journal/projections與durable workflow state machine已完成，下一目標為P4.8 outcome monitoring and reflection evidence。
+- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane與P3 strategy/forecast/evaluation phase gates已完成；P4.1–P4.8 trading domain、PostgreSQL persistence、deterministic portfolio、hard risk gate、paper execution/ledger、durable workflow與outcome monitoring已完成，下一目標為P4.9 kill-switch and operator use cases。
 - P1/P3/P4目前包含PostgreSQL 0001–0012、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、paper account/trading ledger與execution receipts、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -40,6 +40,7 @@
 - P4.5新增frozen execution bar/request/policy/outcome、deterministic next-bar broker、core-owned execution UoW與0011 append-only durable receipt。Broker嚴格要求bar `opens_at > issued_at`且`available_at <= as_of`，market/limit、DAY/GTC/IOC、expiry、spread/slippage/impact、fees與volume participation/partial fill皆由content-hash policy固定；pending不製造fill。Persistence在account row lock內重驗intent/reservation/sequence、原子append order/reservation events、fills與receipt並consume/release projection；concurrent duplicate重播同receipt，payload/projection drift rollback。
 - P4.6新增immutable account opening snapshot、versioned average-cost ledger policy、deterministic fill journal、replay/reconciliation use cases、PostgreSQL generic ledger projections與0012 migration。BUY/SELL以cash/inventory value與units/fee/realized PnL/clearing accounts逐commodity exact平衡；opening position因缺basis而禁止SELL。Execution現在於同一account-serialized UoW寫fill、journal、settled cash/position、ledger head、receipt與event，deferred DB guard拒絕任一fill/journal缺邊。Receipt replay重驗完整graph；gap、tamper、projection/order-state drift先rollback，再由獨立transaction啟動singleton global kill switch。
 - P4.7新增frozen canonical cycle stage/reference/state/result contracts、core runner與PostgreSQL paper-cycle store。Stage prefix固定為evidence、research/opinion、signal、target、risk、order、receipt、ledger、report；每一checkpoint保存stably sorted ID/hash refs及state hash，加入既有run-event/outbox hash chain。所有load/checkpoint/retry/dead-letter/complete都以DB clock重驗job generation/nonce/owner/lease/deadline與run input hash；cancel有version CAS與actor/reason audit。完整state封存content-addressed result artifact。Execution receipt commit後、checkpoint前crash再以新generation重領，會先重播既有receipt並完成ledger/reconciliation，實測無duplicate fill/journal/receipt。
+- P4.8新增frozen PIT mark/valuation/outcome/reflection contracts與三個monitoring use cases。Mark-to-market只接受settled ledger、單一base currency與每個open position的exact available mark；NAV、fees、realized PnL、position values及hash可deterministic replay。Outcome exact綁approved historical decision/target、strict valuation path、benchmark與fill refs，fee delta必須等於fills總費用，再封存為derived EvidenceItem。Reflection request只allow該outcome evidence，candidate必須是新`ResearchArtifact`且引用它，不能改寫歷史交易物件。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -111,11 +112,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P4.5 focused application/golden/PostgreSQL為31 passed，四個execution核心模組合計branch coverage 81%。完整PostgreSQL gate為1122 passed、coverage 88.27%，400 files format、ruff、mypy 238 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P4.6 focused ledger/execution/PostgreSQL為53 passed，五個核心模組合計branch coverage 80.98%、reconciliation 95%。完整PostgreSQL gate為1144 passed、coverage 87.92%，412 files format、ruff、mypy 243 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P4.7 focused domain/application/PostgreSQL/E2E為21 passed，三個workflow核心模組合計branch coverage 85.57%、runner 91%。完整PostgreSQL gate為1157 passed、coverage 87.78%，419 files format、ruff、mypy 246 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- P4.8 focused monitoring為11 passed，domain/application四個新模組branch coverage 82.27%。完整PostgreSQL gate為1168 passed、coverage 87.64%，429 files format、ruff、mypy 251 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P4 與架構藍圖。
-2. 保持 TDD；從P4.8 outcome monitoring and reflection evidence開始，先固定mark-to-market、benchmark alpha、drawdown、fees/fills/outcome evidence的immutable contracts與PIT tests，再限制reflection只形成新的ResearchArtifact。
+2. 保持 TDD；從P4.9 kill-switch and operator use cases開始，先固定activate/reconcile/resume的角色、audit與fail-closed state transitions，再接CLI/API。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

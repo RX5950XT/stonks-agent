@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.7 已完成，P4.8 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.8 已完成，P4.9 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -374,8 +374,8 @@
   - [x] Flow固定`Evidence -> Research/Opinion/Signal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt -> Ledger -> Report`。
   - [x] Execution retry先query idempotency receipt；crash injection不得重複下單。
 
-- [ ] **P4.8 Outcome monitoring and reflection evidence** — 建立`application/monitoring/{mark_to_market,outcomes,reflection_context}.py`與tests。（Depends：P4.6、P2.8；Complexity：L；Risk：Medium）
-  - 保存raw return、benchmark alpha、drawdown、fees、fills與outcome evidence；LLM reflection只是新ResearchArtifact，不改歷史decision。
+- [x] **P4.8 Outcome monitoring and reflection evidence** — 建立`application/monitoring/{mark_to_market,outcomes,reflection_context}.py`與tests。（Depends：P4.6、P2.8；Complexity：L；Risk：Medium）
+  - [x] 保存raw return、benchmark alpha、drawdown、fees、fills與outcome evidence；LLM reflection只是新ResearchArtifact，不改歷史decision。
 
 - [ ] **P4.9 Kill-switch and operator use cases** — 建立`application/operations/{activate_kill_switch,reconcile,resume}.py`、CLI/API routes與audit tests。（Depends：P4.4–P4.7；Complexity：L；Risk：High）
   - 啟動後拒絕新commands並取消可取消pending orders；不刪ledger或隱藏fills。
@@ -810,3 +810,11 @@
 - Crash / idempotency：真實PostgreSQL E2E在reference broker已commit receipt/fill/journal後、workflow checkpoint前刻意crash；lease expiry後新generation重領，execution use case先query/驗證既有receipt與ledger graph再繼續。最終仍只有1 receipt、1 fill、1 journal，9 stage checkpoints + completion均有matching outbox；完整completion replay不重跑handler。
 - Verification：focused domain/application/PostgreSQL/E2E為21 passed，三個workflow核心模組合計branch coverage 85.57%、runner 91%。完整PostgreSQL gate為1157 passed、coverage 87.78%，419 files format、ruff、mypy 246 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P4.8 outcome monitoring and reflection evidence。
+
+### P4 Progress Review — P4.8 — 2026-07-13
+
+- Scope completed：新增frozen `PointInTimeMark/PortfolioValuation/OutcomeEvidence/ReflectionContext` contracts，以及mark-to-market、outcome calculation/artifact persistence與reflection boundary use cases。NAV snapshot exact綁ledger sequence/hash/projection、base currency、currency quantum與每個open position mark；valuation/outcome/context都有stable content hash。
+- PIT / reconciliation：mark必須`event_time <= available_at <= valuation as_of`，missing/extra/future/foreign mark、future ledger與cross-currency state皆fail closed。Outcome固定strict valuation path、approved historical decision/target與benchmark identity，計算12位Decimal raw/benchmark return、alpha與path max drawdown；cumulative ledger fee delta必須等於decision-bound fill refs總費用。
+- Evidence / authority：完整outcome payload先以canonical JSON bytes封存content-addressed artifact，再建立derived `EvidenceItem`與完整source evidence lineage。Reflection只建立allowlist為該outcome evidence的新`ResearchRequest`；回傳必須是identity/scope/time完全一致且實際引用outcome的新`ResearchArtifact`，domain schema不含target/order/quantity/risk override，歷史decision hash保持不變。
+- Verification：focused monitoring為11 passed，四個新模組branch coverage 82.27%。完整PostgreSQL gate為1168 passed、coverage 87.64%，429 files format、ruff、mypy 251 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。無migration或dependency變更。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P4.9 kill-switch and operator use cases。

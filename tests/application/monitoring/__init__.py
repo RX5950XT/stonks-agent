@@ -1,0 +1,1 @@
+"""Outcome monitoring application tests."""

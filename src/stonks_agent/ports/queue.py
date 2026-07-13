@@ -13,6 +13,7 @@ from stonks_agent.domain.job import (
     JobLease,
     JobRecord,
 )
+from stonks_agent.ports.artifact_store import ArtifactManifest
 
 
 @runtime_checkable
@@ -32,4 +33,5 @@ class QueuePort(Protocol):
         request: CompleteJob,
         *,
         now: datetime,
+        artifact: ArtifactManifest | None = None,
     ) -> Result[JobCompletionReceipt]: ...

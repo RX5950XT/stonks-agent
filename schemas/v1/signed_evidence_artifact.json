@@ -1,0 +1,67 @@
+{
+  "$defs": {
+    "EvidenceCategory": {
+      "enum": [
+        "market",
+        "fundamentals",
+        "news",
+        "sentiment",
+        "macro"
+      ],
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A short-lived capability for exactly one content-addressed evidence item.",
+  "properties": {
+    "artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Artifact Ref",
+      "type": "string"
+    },
+    "available_at": {
+      "title": "Available At",
+      "type": "string"
+    },
+    "category": {
+      "$ref": "#/$defs/EvidenceCategory"
+    },
+    "evidence_id": {
+      "format": "uuid",
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "expires_at": {
+      "title": "Expires At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "signed_url": {
+      "maxLength": 4096,
+      "minLength": 20,
+      "title": "Signed Url",
+      "type": "string"
+    },
+    "untrusted_content": {
+      "const": true,
+      "default": true,
+      "title": "Untrusted Content",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "artifact_ref",
+    "signed_url",
+    "expires_at",
+    "available_at",
+    "category"
+  ],
+  "title": "SignedEvidenceArtifact",
+  "type": "object"
+}

@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation 與 P1 Canonical Data Hub phase gates已完成；P2.1–P2.4 research contracts、bounded orchestrator、structured-output LLM adapters與isolated TradingAgents worker已完成，下一目標為P2.5 core HTTP adapter與late-result fencing。
+- P0 Foundation 與 P1 Canonical Data Hub phase gates已完成；P2.1–P2.5 research contracts、bounded orchestrator、structured-output LLM adapters，以及isolated TradingAgents worker/core fenced HTTP adapter已完成，下一目標為P2.6 PEAD/event-study adoption。
 - P1包含PostgreSQL 0001–0008、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -15,6 +15,7 @@
 - P2.2新增read-only PIT context builder、typed planning/final turn loop、pre-authorized parallel read tools與deterministic artifact builder；external content永遠維持untrusted，uncited claim降為hypothesis，budget/deadline/model/tool/scope錯誤皆hard-stop。
 - P2.3新增frozen model policy、offline fake、OpenAI-compatible Chat Completions與Anthropic Messages adapters；固定HTTPS origin/endpoint、exact raw response artifact-first、local JSON Schema validation、bounded transient retry/invalid-output repair、deadline與cache-aware token/cost accounting均fail closed。
 - P2.4新增pinned TradingAgents獨立worker；所有上游data tools改為request-scoped PIT canonical evidence facade，profile-per-process並serialize global config，唯一輸出為`AnalysisBundle/AgentOpinion`。獨立138-package lock、Apache notice與hardened image已驗證，heavy runtime未進core lock。
+- P2.5改用shared signed-artifact wire contracts；core fixed-origin adapter驗證profile、artifact origin/expiry、generation/nonce、result hash與nested research context。worker只經fixed internal artifact service取內容並核對SHA-256；canonical completion由core PostgreSQL transaction一起寫artifact metadata/event/outbox/job ack，DB拒絕的stale result只進隔離audit port。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -43,7 +44,7 @@
 8. AI-Trader 只作 external community HTTP adapter；不提交 canonical paper/copy order。
 9. OpenBB、Kronos、TradingAgents、Qlib、RD-Agent、LEAN/Nautilus 各自獨立 lock/image，不進 core environment。
 
-## P0 / P1 / P2.1–P2.4 可重跑證據
+## P0 / P1 / P2.1–P2.5 可重跑證據
 
 ```powershell
 uv sync --frozen
@@ -61,11 +62,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P2.2後完整`verify.py`為500 passed、171 PostgreSQL tests deselected、branch coverage 87.62%；focused research tests為31 passed、application/adapters branch coverage 88%。
 - P2.3後完整`verify.py`為550 passed、171 PostgreSQL tests deselected、branch coverage 88.08%；focused LLM contract/security tests為50 passed、branch coverage 92.55%，Mypy檢查134 source files。OpenAI/Anthropic只做official-wire mock contract，尚未做credentialed live smoke。
 - P2.4後完整`verify.py`為570 passed、171 PostgreSQL tests deselected、core branch coverage 88.08%；focused worker tests為20 passed、branch coverage 95.77%。worker image已在UID 65532、read-only、cap-drop ALL、network none下通過health；model proxy outage回structured 503，不產生偽造success/order。
+- P2.5後non-PostgreSQL gate為584 passed、172 deselected、coverage 88.18%；完整PostgreSQL gate為756 passed、coverage 88.59%，Alembic無drift。focused worker為21 passed/84.48%（含contracts），core HTTP/runner為13 tests；worker lock audit無已知CVE，image `stonks-tradingagents-worker:p2.5`在UID 65532、read-only、cap-drop ALL、no-new-privileges下health通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P2 與架構藍圖。
-2. 保持 TDD；從P2.5 TradingAgents core HTTP adapter開始，完成generation/nonce、artifact hash、deadline與late-result fencing。
+2. 保持 TDD；從P2.6 PEAD/event-study開始，只移植MIT允許且有來源commit/notice的pure stats，先做PIT與golden tests。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

@@ -34,6 +34,7 @@ from stonks_agent.domain.job import (
     JobRecord,
     JobStatus,
 )
+from stonks_agent.ports.artifact_store import ArtifactManifest
 from stonks_contracts.common import stable_payload_hash
 
 
@@ -118,11 +119,12 @@ class PostgresJobQueue:
         request: CompleteJob,
         *,
         now: datetime,
+        artifact: ArtifactManifest | None = None,
     ) -> Result[JobCompletionReceipt]:
         if now.tzinfo is None or now.utcoffset() is None:
             return _failure(ErrorCode.INVALID_INPUT, "Completion time is invalid")
         try:
-            return self._complete_transaction(request)
+            return self._complete_transaction(request, artifact)
         except (IntegrityError, ValueError):
             return _failure(ErrorCode.CONFLICT, "Job completion audit conflicts")
         except SQLAlchemyError:
@@ -131,6 +133,7 @@ class PostgresJobQueue:
     def _complete_transaction(
         self,
         request: CompleteJob,
+        artifact: ArtifactManifest | None,
     ) -> Result[JobCompletionReceipt]:
         with Session(self._engine, expire_on_commit=False) as session, session.begin():
             row = session.scalar(
@@ -147,13 +150,14 @@ class PostgresJobQueue:
                 if _database_now(session) is None:
                     return _database_time_failure("Job completion")
                 return completed_job_receipt(session, row, request)
-            return _complete_active_job(session, row, request)
+            return _complete_active_job(session, row, request, artifact)
 
 
 def _complete_active_job(
     session: Session,
     row: JobRow,
     request: CompleteJob,
+    manifest: ArtifactManifest | None,
 ) -> Result[JobCompletionReceipt]:
     lease_until = row.lease_until
     invalid_lease = (
@@ -165,6 +169,11 @@ def _complete_active_job(
     )
     if invalid_lease or lease_until is None:
         return _failure(ErrorCode.CONFLICT, "Job lease is stale or invalid")
+    if manifest is not None and row.job_type != "tradingagents_research":
+        return _failure(
+            ErrorCode.CAPABILITY_DENIED,
+            "Only TradingAgents research jobs may register worker artifacts",
+        )
     run = session.scalar(
         select(WorkflowRunRow)
         .where(WorkflowRunRow.run_id == row.run_id)
@@ -172,6 +181,15 @@ def _complete_active_job(
     )
     if run is None:
         return _failure(ErrorCode.CONFLICT, "Owning run was not found")
+    database_now = _database_now(session)
+    if database_now is None:
+        return _database_time_failure("Job completion")
+    if lease_until <= database_now or row.deadline_at <= database_now:
+        return _failure(ErrorCode.CONFLICT, "Job lease is stale or invalid")
+    if manifest is not None:
+        registered = _register_result_artifact(session, request, manifest, database_now)
+        if isinstance(registered, Failure):
+            return registered
     artifact = session.scalar(
         select(ArtifactManifestRow)
         .where(ArtifactManifestRow.content_hash == request.result_artifact_hash)
@@ -179,14 +197,61 @@ def _complete_active_job(
     )
     if artifact is None:
         return _failure(ErrorCode.NOT_FOUND, "Result artifact was not finalized")
-    database_now = _database_now(session)
-    if database_now is None:
-        return _database_time_failure("Job completion")
-    if lease_until <= database_now or row.deadline_at <= database_now:
-        return _failure(ErrorCode.CONFLICT, "Job lease is stale or invalid")
     receipt = commit_job_result(session, row, run, artifact, request, database_now)
     session.flush()
     return Success(receipt)
+
+
+def _register_result_artifact(
+    session: Session,
+    request: CompleteJob,
+    manifest: ArtifactManifest,
+    database_now: datetime,
+) -> Result[bool]:
+    if (
+        manifest.content_hash != request.result_artifact_hash
+        or not 1 <= manifest.size_bytes <= 2_097_152
+        or manifest.finalized_at > database_now
+        or manifest.metadata.source != "tradingagents-isolated-worker"
+        or manifest.metadata.media_type != "application/json"
+        or manifest.metadata.license_tag != "Apache-2.0"
+        or manifest.metadata.sensitivity.value != "internal"
+        or dict(manifest.metadata.attributes)
+        != {"schema": "tradingagents-worker-result/1.0.0"}
+    ):
+        return _failure(ErrorCode.CONFLICT, "Result artifact metadata is invalid")
+    candidate = ArtifactManifestRow(
+        content_hash=manifest.content_hash,
+        size_bytes=manifest.size_bytes,
+        media_type=manifest.metadata.media_type,
+        license_tag=manifest.metadata.license_tag,
+        sensitivity=manifest.metadata.sensitivity.value,
+        source=manifest.metadata.source,
+        finalized_at=manifest.finalized_at,
+        storage_uri=manifest.storage_uri,
+        metadata_payload=manifest.metadata.model_dump(mode="json"),
+    )
+    existing = session.get(ArtifactManifestRow, manifest.content_hash)
+    if existing is None:
+        session.add(candidate)
+        session.flush()
+        return Success(True)
+    matches = all(
+        getattr(existing, field) == getattr(candidate, field)
+        for field in (
+            "size_bytes",
+            "media_type",
+            "license_tag",
+            "sensitivity",
+            "source",
+            "finalized_at",
+            "storage_uri",
+            "metadata_payload",
+        )
+    )
+    if not matches:
+        return _failure(ErrorCode.CONFLICT, "Result artifact metadata conflicts")
+    return Success(True)
 
 
 def _same_or_conflicting_job(

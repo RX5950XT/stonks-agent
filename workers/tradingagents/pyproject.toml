@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 license = "Apache-2.0"
 dependencies = [
     "fastapi>=0.128,<1",
+    "httpx>=0.28.1,<1",
     "pydantic>=2.12.5,<3",
     "stonks-contracts",
     "tradingagents @ https://github.com/TauricResearch/TradingAgents/archive/01477f9afb7a47b849ed4c9259d3a9a4738d9fda.tar.gz",

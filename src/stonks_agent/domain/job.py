@@ -101,3 +101,17 @@ class JobCompletionReceipt(BaseModel):
     sequence: int = Field(ge=1)
     result_artifact_hash: Sha256
     completed_at: UTCDateTime
+
+
+class QuarantinedWorkerResult(BaseModel):
+    """Non-canonical audit record for a result that lost its lease fence."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_id: UUID
+    run_id: UUID
+    request_id: UUID
+    attempt_generation: int = Field(ge=1)
+    result_artifact_hash: Sha256
+    reason: NonEmptyString
+    observed_at: UTCDateTime

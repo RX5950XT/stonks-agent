@@ -20,7 +20,8 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY workers/__init__.py /workspace/workers/__init__.py
 COPY workers/tradingagents/__init__.py workers/tradingagents/app.py \
-     workers/tradingagents/adapter.py workers/tradingagents/runtime.py \
+     workers/tradingagents/adapter.py workers/tradingagents/artifacts.py \
+     workers/tradingagents/runtime.py \
      workers/tradingagents/runtime_app.py ./
 COPY workers/tradingagents/NOTICE.md /usr/share/doc/stonks-tradingagents-worker/NOTICE.md
 COPY LICENSE /usr/share/licenses/stonks-tradingagents-worker/LICENSE

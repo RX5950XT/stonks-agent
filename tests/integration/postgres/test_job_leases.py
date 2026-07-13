@@ -9,9 +9,12 @@ from sqlalchemy import Connection, Engine, text
 
 from stonks_agent.adapters.postgres.job_queue import PostgresJobQueue
 from stonks_agent.adapters.postgres.unit_of_work import PostgresUnitOfWork
+from stonks_agent.domain.artifact import ArtifactMetadata
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.job import CompleteJob, EnqueueJob
 from stonks_agent.domain.workflow import CreateWorkflowRun
+from stonks_agent.ports.artifact_store import ArtifactManifest
+from stonks_contracts.evidence import Sensitivity
 
 AS_OF = datetime(2026, 1, 2, 21, tzinfo=UTC)
 RUN_ID = UUID("40000000-0000-4000-8000-000000000001")
@@ -114,6 +117,74 @@ def test_crash_after_commit_retry_does_not_duplicate_event_or_outbox(
     assert retried == first
     assert table_count(clean_database, "run_event") == 1
     assert table_count(clean_database, "outbox") == 1
+
+
+def test_completion_atomically_registers_worker_artifact_event_outbox_and_ack(
+    clean_database: Engine,
+) -> None:
+    now = database_now(clean_database)
+    seed_run(clean_database, now)
+    queue = PostgresJobQueue(clean_database)
+    unwrap(
+        queue.enqueue(
+            enqueue(now=now).model_copy(update={"job_type": "tradingagents_research"})
+        )
+    )
+    lease = unwrap(
+        queue.claim(
+            worker_id="core-runner",
+            now=now,
+            lease_for=timedelta(seconds=30),
+        )
+    )
+    manifest = ArtifactManifest(
+        content_hash=RESULT_HASH,
+        size_bytes=1,
+        metadata=ArtifactMetadata(
+            media_type="application/json",
+            license_tag="Apache-2.0",
+            sensitivity=Sensitivity.INTERNAL,
+            source="tradingagents-isolated-worker",
+            attributes=(("schema", "tradingagents-worker-result/1.0.0"),),
+        ),
+        finalized_at=now,
+        storage_uri=f"artifact://sha256/{RESULT_HASH}",
+    )
+
+    completed = queue.complete(
+        CompleteJob(
+            job_id=JOB_ID,
+            worker_id="core-runner",
+            attempt_generation=lease.attempt_generation,
+            attempt_nonce=lease.attempt_nonce,
+            result_artifact_hash=RESULT_HASH,
+        ),
+        now=now,
+        artifact=manifest,
+    )
+
+    assert isinstance(completed, Success)
+    with clean_database.connect() as connection:
+        state = connection.execute(
+            text(
+                "select j.status, j.result_artifact_hash, a.source, "
+                "count(distinct e.event_id), count(distinct o.outbox_id) "
+                "from job j join artifact_manifest a "
+                "on a.content_hash = j.result_artifact_hash "
+                "join run_event e using (run_id) "
+                "join outbox o on o.aggregate_id = j.run_id::text "
+                "where j.job_id = :job_id "
+                "group by j.status, j.result_artifact_hash, a.source"
+            ),
+            {"job_id": JOB_ID},
+        ).one()
+    assert state == (
+        "succeeded",
+        RESULT_HASH,
+        "tradingagents-isolated-worker",
+        1,
+        1,
+    )
 
 
 def test_idempotency_key_rejects_different_job_payload(clean_database: Engine) -> None:
@@ -409,6 +480,12 @@ def enqueue(
 
 
 def seed_run_and_artifact(engine: Engine, now: datetime) -> None:
+    seed_run(engine, now)
+    with engine.begin() as connection:
+        insert_artifact(connection, now)
+
+
+def seed_run(engine: Engine, now: datetime) -> None:
     with PostgresUnitOfWork(engine) as uow:
         created = uow.workflows.create(
             CreateWorkflowRun(
@@ -423,8 +500,6 @@ def seed_run_and_artifact(engine: Engine, now: datetime) -> None:
         )
         assert isinstance(created, Success)
         uow.commit()
-    with engine.begin() as connection:
-        insert_artifact(connection, now)
 
 
 def insert_artifact(connection: Connection, now: datetime) -> None:

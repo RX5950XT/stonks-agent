@@ -207,7 +207,7 @@
   - Production/paper/backtest profile只能讀`allowed_evidence_ids`對應的scoped artifacts，使用canonical tool facade且預設network egress deny；不得呼叫upstream current-news/social/data tools污染PIT run。
   - Callback記錄model/tool latency、tokens、warnings與source refs。
 
-- [ ] **P2.5 TradingAgents core adapter** — 建立`adapters/research/tradingagents_http.py`、`config/workers/tradingagents.yaml`與timeout/retry/schema-drift tests。（Depends：P2.4；Complexity：M；Risk：High）
+- [x] **P2.5 TradingAgents core adapter** — 建立`adapters/research/tradingagents_http.py`、`config/workers/tradingagents.yaml`與timeout/retry/schema-drift tests。（Depends：P2.4；Complexity：M；Risk：High）
   - Core只傳evidence refs/signed artifact URLs；worker不能自行寫DB。
   - Request/response帶lease generation、attempt nonce與artifact hash；core job runner驗證後才在單一transaction寫metadata/event/outbox並ack，late result只進隔離audit。
 
@@ -236,7 +236,7 @@
 ### P2 Verification gate
 
 - [x] Fake LLM、prompt-injection fixtures、tool scope/timeout/output-limit與budget exhaustion tests全部通過。（Depends：P2.1–P2.3）
-- [ ] TradingAgents pinned worker contract測試證明只回`AnalysisBundle/AgentOpinion`，且worker無execution/DB credentials、無任意data egress、無late-result commit能力。（Depends：P2.4、P2.5）
+- [x] TradingAgents pinned worker contract測試證明只回`AnalysisBundle/AgentOpinion`，且worker無execution/DB credentials、無任意data egress、無late-result commit能力。（Depends：P2.4、P2.5）
 - [ ] PEAD/event-study golden與PIT tests通過，notice完整。（Depends：P2.6）
 - [ ] 每個report claim都能解析到evidence；所有channel render可由同一report重建且hash穩定。（Depends：P2.7–P2.10）
 - [ ] Provider/LLM/TradingAgents outage時run能degrade/fail/report，不產生偽造success或order。（Depends：P2.11）
@@ -600,3 +600,12 @@
 - Verification：focused contract/security為20 passed、worker branch coverage 95.77%；完整`scripts/verify.py`為570 passed、171 PostgreSQL tests deselected、core branch coverage 88.08%，235 files format、ruff、mypy 134 source files、schema、upstream/license、secret與core locked audit全通過。Docker image `stonks-tradingagents-worker:test`成功重建；UID 65532、read-only rootfs、cap-drop ALL、no-new-privileges、network none health smoke通過，無model-proxy時analyze明確回503 `runtime_failed`且不偽造success/order。
 - Phase status：P2 gate尚未完成；下一項為P2.5 TradingAgents core HTTP adapter與lease generation/attempt nonce late-result fencing。P2.4無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
 - 文件同步：`README.md`、`THIRD_PARTY_NOTICES.md`、legal manifest、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。
+
+### P2 Progress Review — P2.5 — 2026-07-13
+
+- Scope completed：新增4個versioned shared wire schemas、signed evidence capability、fixed-origin core HTTP adapter、worker artifact resolver與core-owned `process_tradingagents_lease`；request/response帶request/run/job、generation、nonce與deterministic result artifact hash，research payload仍只有`AnalysisBundle + AgentOpinion`。
+- Security / fencing：core與worker各自固定worker/artifact origins，禁止redirect/compression/任意URL，限制request/response/artifact bytes、deadline與bounded transient retry；artifact capability path/hash/expiry、profile、exact evidence scope、nested run/instrument/as-of/horizon/citations、response schema與hash全部fail closed。worker仍拒絕DB/Postgres/queue/broker/direct provider keys且沒有completion port。
+- Transaction / late result：只有core `PostgresJobQueue.complete`可在重新驗證DB clock、lease owner、generation/nonce/deadline後，同一transaction註冊TradingAgents artifact metadata、append hash-chained event/outbox、更新job並ack；stale conflict不寫canonical graph，只送`LateResultAuditPort`隔離紀錄。真實PostgreSQL integration test驗證metadata/event/outbox/ack原子完成。
+- Verification：focused worker為21 passed、branch coverage 84.48%（含shared contracts），core HTTP/runner為13 tests；non-PostgreSQL完整gate為584 passed、172 deselected、coverage 88.18%，PostgreSQL完整gate為756 passed、coverage 88.59%，242 files format、ruff、mypy 138 source files、42 schemas、upstream/secret與Alembic drift全通過。worker dependency audit除本地`stonks-contracts`無PyPI條目而skip外無已知CVE；image `stonks-tradingagents-worker:p2.5`重建成功並以UID 65532、read-only、cap-drop ALL、no-new-privileges通過health smoke。
+- Honest boundary：尚未提供常駐research dispatcher與production artifact capability signer；本項完成的是strict adapter、worker fetch boundary與transaction-owned completion contract，不宣稱production服務已部署。P2 gate尚未完成，下一項為P2.6 PEAD/event-study。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且SHA-256仍一致，規範無需變更。

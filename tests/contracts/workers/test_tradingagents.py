@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib
 import sys
 import tomllib
@@ -9,6 +10,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from uuid import UUID
 
+import httpx
 import pytest
 import yaml
 from fastapi.testclient import TestClient
@@ -19,9 +21,11 @@ WORKER = ROOT / "workers" / "tradingagents"
 sys.path.insert(0, str(ROOT))
 
 from stonks_contracts.common import ModelUsage  # noqa: E402
+from stonks_contracts.tradingagents import SignedEvidenceArtifact  # noqa: E402
 from workers.tradingagents import runtime as runtime_module  # noqa: E402
 from workers.tradingagents.adapter import (  # noqa: E402
     EvidenceCategory,
+    ResolvedTradingAgentsRequest,
     RuntimeAnalysis,
     RuntimeTelemetry,
     ScopedEvidence,
@@ -34,6 +38,7 @@ from workers.tradingagents.adapter import (  # noqa: E402
     validate_worker_environment,
 )
 from workers.tradingagents.app import create_app  # noqa: E402
+from workers.tradingagents.artifacts import FixedOriginArtifactResolver  # noqa: E402
 from workers.tradingagents.runtime import (  # noqa: E402
     MODEL_PROXY_ORIGIN,
     PinnedTradingAgentsRuntime,
@@ -50,25 +55,33 @@ REQUEST_ID = UUID("00000000-0000-4000-8000-000000000301")
 RUN_ID = UUID("00000000-0000-4000-8000-000000000302")
 INSTRUMENT_ID = UUID("00000000-0000-4000-8000-000000000303")
 EVIDENCE_ID = UUID("00000000-0000-4000-8000-000000000304")
+JOB_ID = UUID("00000000-0000-4000-8000-000000000305")
 
 
-def evidence(**overrides: object) -> ScopedEvidence:
+def evidence(**overrides: object) -> SignedEvidenceArtifact:
     values: dict[str, object] = {
         "evidence_id": EVIDENCE_ID,
         "artifact_ref": f"sha256:{'a' * 64}",
         "available_at": NOW - timedelta(minutes=1),
         "category": EvidenceCategory.MARKET,
-        "content": '{"close":"100.00"}',
+        "signed_url": (
+            f"http://artifact-service:8080/v1/artifacts/{'a' * 64}"
+            "?expires=1783857900&signature=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ),
+        "expires_at": NOW + timedelta(minutes=5),
         "untrusted_content": True,
     }
     values.update(overrides)
-    return ScopedEvidence.model_validate(values)
+    return SignedEvidenceArtifact.model_validate(values)
 
 
 def analysis_request(**overrides: object) -> TradingAgentsRequest:
     values: dict[str, object] = {
         "request_id": REQUEST_ID,
         "run_id": RUN_ID,
+        "job_id": JOB_ID,
+        "attempt_generation": 2,
+        "attempt_nonce": "nonce-a",
         "profile": WorkerProfile.PAPER,
         "instrument_id": INSTRUMENT_ID,
         "symbol": "AAPL",
@@ -80,6 +93,33 @@ def analysis_request(**overrides: object) -> TradingAgentsRequest:
     }
     values.update(overrides)
     return TradingAgentsRequest.model_validate(values)
+
+
+def resolved_request(**overrides: object) -> ResolvedTradingAgentsRequest:
+    values = analysis_request().model_dump(mode="python")
+    for key in ("schema_version", "job_id", "attempt_generation", "attempt_nonce"):
+        values.pop(key)
+    values["evidence"] = (
+        ScopedEvidence(
+            evidence_id=EVIDENCE_ID,
+            artifact_ref=f"sha256:{'a' * 64}",
+            available_at=NOW - timedelta(minutes=1),
+            category=EvidenceCategory.MARKET,
+            content='{"close":"100.00"}',
+            untrusted_content=True,
+        ),
+    )
+    values.update(overrides)
+    return ResolvedTradingAgentsRequest.model_validate(values)
+
+
+class FakeArtifacts:
+    def __init__(self, content: str = '{"close":"100.00"}') -> None:
+        self.content = content
+
+    def resolve(self, artifact: SignedEvidenceArtifact) -> str:
+        assert artifact.evidence_id == EVIDENCE_ID
+        return self.content
 
 
 def policy(**overrides: object) -> WorkerPolicy:
@@ -97,10 +137,10 @@ def policy(**overrides: object) -> WorkerPolicy:
 
 class RecordingRuntime:
     def __init__(self, *, error: Exception | None = None) -> None:
-        self.requests: list[TradingAgentsRequest] = []
+        self.requests: list[ResolvedTradingAgentsRequest] = []
         self.error = error
 
-    def run(self, request: TradingAgentsRequest) -> RuntimeAnalysis:
+    def run(self, request: ResolvedTradingAgentsRequest) -> RuntimeAnalysis:
         self.requests.append(request)
         if self.error is not None:
             raise self.error
@@ -124,20 +164,25 @@ class RecordingRuntime:
 
 def test_success_returns_only_analysis_bundle_and_agent_opinion() -> None:
     runtime = RecordingRuntime()
-    worker = TradingAgentsWorker(policy=policy(), runtime=runtime, clock=lambda: NOW)
+    worker = TradingAgentsWorker(
+        policy=policy(), runtime=runtime, artifacts=FakeArtifacts(), clock=lambda: NOW
+    )
 
     result = worker.analyze(analysis_request())
 
     assert isinstance(result, WorkerSuccess)
-    assert result.value.analysis_bundle.run_id == RUN_ID
-    assert result.value.analysis_bundle.source_refs == (EVIDENCE_ID,)
-    assert result.value.analysis_bundle.worker_version == "tradingagents-worker/0.1.0"
-    assert result.value.agent_opinion.recommendation == "Overweight"
-    assert result.value.agent_opinion.confidence == Decimal("0")
-    assert result.value.agent_opinion.evidence_refs == (EVIDENCE_ID,)
-    assert runtime.requests == [analysis_request()]
-    payload = result.value.model_dump(mode="json")
-    assert set(payload) == {"analysis_bundle", "agent_opinion"}
+    assert result.value.result.analysis_bundle.run_id == RUN_ID
+    assert result.value.result.analysis_bundle.source_refs == (EVIDENCE_ID,)
+    assert (
+        result.value.result.analysis_bundle.worker_version
+        == "tradingagents-worker/0.1.0"
+    )
+    assert result.value.result.agent_opinion.recommendation == "Overweight"
+    assert result.value.result.agent_opinion.confidence == Decimal("0")
+    assert result.value.result.agent_opinion.evidence_refs == (EVIDENCE_ID,)
+    assert runtime.requests == [resolved_request()]
+    payload = result.value.result.model_dump(mode="json")
+    assert set(payload) == {"schema_version", "analysis_bundle", "agent_opinion"}
     assert not _forbidden_authority_keys(payload)
 
 
@@ -161,7 +206,9 @@ def test_request_rejects_scope_future_duplicates_injection_and_order_fields(
 
 def test_profile_deadline_and_size_fail_before_runtime() -> None:
     runtime = RecordingRuntime()
-    worker = TradingAgentsWorker(policy=policy(), runtime=runtime, clock=lambda: NOW)
+    worker = TradingAgentsWorker(
+        policy=policy(), runtime=runtime, artifacts=FakeArtifacts(), clock=lambda: NOW
+    )
 
     mismatched = worker.analyze(analysis_request(profile=WorkerProfile.BACKTEST))
     expired = worker.analyze(analysis_request(deadline=NOW - timedelta(seconds=1)))
@@ -169,6 +216,7 @@ def test_profile_deadline_and_size_fail_before_runtime() -> None:
     oversized = TradingAgentsWorker(
         policy=small_policy,
         runtime=runtime,
+        artifacts=FakeArtifacts(),
         clock=lambda: NOW,
     ).analyze(analysis_request())
 
@@ -183,7 +231,9 @@ def test_profile_deadline_and_size_fail_before_runtime() -> None:
 
 def test_runtime_exception_is_generic_and_never_leaks_secret() -> None:
     runtime = RecordingRuntime(error=RuntimeError("token=must-not-leak"))
-    worker = TradingAgentsWorker(policy=policy(), runtime=runtime, clock=lambda: NOW)
+    worker = TradingAgentsWorker(
+        policy=policy(), runtime=runtime, artifacts=FakeArtifacts(), clock=lambda: NOW
+    )
 
     result = worker.analyze(analysis_request())
 
@@ -194,7 +244,7 @@ def test_runtime_exception_is_generic_and_never_leaks_secret() -> None:
 
 def test_runtime_source_refs_must_remain_inside_request_scope() -> None:
     class BadRuntime:
-        def run(self, request: TradingAgentsRequest) -> RuntimeAnalysis:
+        def run(self, request: ResolvedTradingAgentsRequest) -> RuntimeAnalysis:
             return RuntimeAnalysis(
                 recommendation="Hold",
                 thesis="Out of scope",
@@ -204,6 +254,7 @@ def test_runtime_source_refs_must_remain_inside_request_scope() -> None:
     result = TradingAgentsWorker(
         policy=policy(),
         runtime=BadRuntime(),
+        artifacts=FakeArtifacts(),
         clock=lambda: NOW,
     ).analyze(analysis_request())
 
@@ -217,6 +268,7 @@ def test_api_uses_standard_envelope_and_bounded_body() -> None:
         worker=TradingAgentsWorker(
             policy=policy(),
             runtime=runtime,
+            artifacts=FakeArtifacts(),
             clock=lambda: NOW,
         ),
         max_request_bytes=8_192,
@@ -255,6 +307,7 @@ def test_api_maps_runtime_and_media_failures_without_leaking() -> None:
     failing = TradingAgentsWorker(
         policy=policy(),
         runtime=RecordingRuntime(error=RuntimeError("secret=hidden")),
+        artifacts=FakeArtifacts(),
         clock=lambda: NOW,
     )
     app = create_app(worker=failing)
@@ -341,7 +394,7 @@ def test_runtime_config_and_evidence_facade_are_fixed_and_fail_closed() -> None:
             "tool_vendors": {"get_stock_data": "alpha_vantage"},
         }
     )
-    grouped = _content_by_category(analysis_request())
+    grouped = _content_by_category(resolved_request())
 
     assert config["backend_url"] == MODEL_PROXY_ORIGIN
     assert config["llm_provider"] == "openai_compatible"
@@ -416,7 +469,7 @@ def test_pinned_runtime_maps_fake_upstream_without_execution_authority(
 
     result = PinnedTradingAgentsRuntime(
         selected_analysts=("market", "fundamentals")
-    ).run(analysis_request())
+    ).run(resolved_request())
 
     assert result.recommendation == "Buy"
     assert result.thesis == "Evidence-scoped thesis"
@@ -434,7 +487,7 @@ def test_canonical_facade_replaces_every_upstream_data_tool(
     monkeypatch.setitem(sys.modules, "langchain_core.tools", tools)
     upstream = SimpleNamespace()
 
-    _install_canonical_facade(upstream, analysis_request())
+    _install_canonical_facade(upstream, resolved_request())
 
     assert "UNTRUSTED EVIDENCE" in upstream.get_stock_data("AAPL", "x", "y")
     assert "UNTRUSTED EVIDENCE" in upstream.get_indicators("AAPL", "rsi", "x")
@@ -455,6 +508,8 @@ def test_runtime_entrypoint_builds_one_profile_per_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("STONKS_WORKER_PROFILE", "backtest")
+    monkeypatch.delenv("STONKS_TEST_DATABASE_URL", raising=False)
+    monkeypatch.delenv("STONKS_DATABASE_URL", raising=False)
     sys.modules.pop("workers.tradingagents.runtime_app", None)
 
     loaded = importlib.import_module("workers.tradingagents.runtime_app")
@@ -488,6 +543,68 @@ def test_profiles_are_separate_fail_closed_processes_with_internal_network() -> 
         assert service["networks"] == ["tradingagents-internal"]
         assert service["tmpfs"] == ["/tmp:rw,noexec,nosuid,size=64m"]
     assert compose["networks"]["tradingagents-internal"]["internal"] is True
+
+
+def test_artifact_resolver_enforces_origin_hash_redirect_and_size() -> None:
+    content = b'{"close":"100.00"}'
+    digest = hashlib.sha256(content).hexdigest()
+    capability = evidence(
+        artifact_ref=f"sha256:{digest}",
+        signed_url=(
+            f"http://artifact-service:8080/v1/artifacts/{digest}"
+            "?expires=1783857900&signature=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ),
+    )
+
+    def ok(incoming: httpx.Request) -> httpx.Response:
+        assert incoming.headers["Accept-Encoding"] == "identity"
+        return httpx.Response(200, content=content, request=incoming)
+
+    with httpx.Client(transport=httpx.MockTransport(ok)) as client:
+        resolver = FixedOriginArtifactResolver(
+            client=client,
+            origin="http://artifact-service:8080",
+            max_bytes=1024,
+            timeout_seconds=1,
+            clock=lambda: NOW,
+        )
+        assert resolver.resolve(capability) == content.decode()
+        with pytest.raises(ValueError, match="scope"):
+            resolver.resolve(
+                capability.model_copy(
+                    update={
+                        "signed_url": capability.signed_url.replace(
+                            "artifact-service:8080", "attacker:8080"
+                        )
+                    }
+                )
+            )
+        small = FixedOriginArtifactResolver(
+            client=client,
+            origin="http://artifact-service:8080",
+            max_bytes=1,
+            timeout_seconds=1,
+            clock=lambda: NOW,
+        )
+        with pytest.raises(ValueError, match="exceeds"):
+            small.resolve(capability)
+
+    with httpx.Client(
+        transport=httpx.MockTransport(
+            lambda incoming: httpx.Response(
+                302, headers={"location": "http://attacker"}, request=incoming
+            )
+        )
+    ) as client:
+        resolver = FixedOriginArtifactResolver(
+            client=client,
+            origin="http://artifact-service:8080",
+            max_bytes=1,
+            timeout_seconds=1,
+            clock=lambda: NOW,
+        )
+        with pytest.raises(ValueError, match="rejected"):
+            resolver.resolve(capability)
 
 
 def _forbidden_authority_keys(value: object) -> set[str]:

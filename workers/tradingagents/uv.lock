@@ -1703,6 +1703,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "stonks-contracts" },
     { name = "tradingagents" },
@@ -1721,6 +1722,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.128,<1" },
+    { name = "httpx", specifier = ">=0.28.1,<1" },
     { name = "pydantic", specifier = ">=2.12.5,<3" },
     { name = "stonks-contracts", directory = "../../packages/contracts" },
     { name = "tradingagents", url = "https://github.com/TauricResearch/TradingAgents/archive/01477f9afb7a47b849ed4c9259d3a9a4738d9fda.tar.gz" },

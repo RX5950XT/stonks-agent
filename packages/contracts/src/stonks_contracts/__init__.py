@@ -31,6 +31,12 @@ from .research import (
 )
 from .risk import AccountReservation, RiskCheck, RiskDecision
 from .signal import AlphaSignal, ForecastSignal
+from .tradingagents import (
+    SignedEvidenceArtifact,
+    TradingAgentsWorkerRequest,
+    TradingAgentsWorkerResponse,
+    TradingAgentsWorkerResult,
+)
 from .workflow import Run, RunEvent
 
 CANONICAL_CHAIN = (
@@ -84,6 +90,10 @@ SCHEMA_MODELS: tuple[type[ContractModel], ...] = (
     RunEvent,
     ReportRendering,
     AnalysisReport,
+    SignedEvidenceArtifact,
+    TradingAgentsWorkerRequest,
+    TradingAgentsWorkerResponse,
+    TradingAgentsWorkerResult,
 )
 
 __all__ = [
@@ -113,5 +123,9 @@ __all__ = [
     "PortfolioTarget",
     "ResearchArtifact",
     "RiskDecision",
+    "SignedEvidenceArtifact",
+    "TradingAgentsWorkerRequest",
+    "TradingAgentsWorkerResponse",
+    "TradingAgentsWorkerResult",
     "stable_payload_hash",
 ]

@@ -19,6 +19,12 @@ from stonks_contracts.common import (
     UTCDateTime,
 )
 from stonks_contracts.research import AgentOpinion, AnalysisBundle
+from stonks_contracts.tradingagents import (
+    SignedEvidenceArtifact,
+    TradingAgentsWorkerRequest,
+    TradingAgentsWorkerResponse,
+    TradingAgentsWorkerResult,
+)
 
 UPSTREAM_COMMIT = "01477f9afb7a47b849ed4c9259d3a9a4738d9fda"
 WORKER_VERSION = "tradingagents-worker/0.1.0"
@@ -49,7 +55,7 @@ class ScopedEvidence(BaseModel):
     untrusted_content: Literal[True] = True
 
 
-class TradingAgentsRequest(BaseModel):
+class ResolvedTradingAgentsRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     request_id: UUID
@@ -120,15 +126,18 @@ class RuntimeAnalysis(BaseModel):
     telemetry: RuntimeTelemetry
 
 
+TradingAgentsRequest = TradingAgentsWorkerRequest
+
+
+class ArtifactResolver(Protocol):
+    def resolve(self, artifact: SignedEvidenceArtifact) -> str: ...
+
+
 class TradingAgentsRuntime(Protocol):
-    def run(self, request: TradingAgentsRequest) -> RuntimeAnalysis: ...
+    def run(self, request: ResolvedTradingAgentsRequest) -> RuntimeAnalysis: ...
 
 
-class WorkerResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    analysis_bundle: AnalysisBundle
-    agent_opinion: AgentOpinion
+WorkerResponse = TradingAgentsWorkerResponse
 
 
 class WorkerError(BaseModel):
@@ -154,17 +163,19 @@ type WorkerResult = WorkerSuccess | WorkerFailure
 
 
 class TradingAgentsWorker:
-    __slots__ = ("_clock", "_lock", "_policy", "_runtime")
+    __slots__ = ("_artifacts", "_clock", "_lock", "_policy", "_runtime")
 
     def __init__(
         self,
         *,
         policy: WorkerPolicy,
         runtime: TradingAgentsRuntime,
+        artifacts: ArtifactResolver,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._policy = policy
         self._runtime = runtime
+        self._artifacts = artifacts
         self._clock = clock or _utc_now
         self._lock = RLock()
 
@@ -177,8 +188,16 @@ class TradingAgentsWorker:
         if preflight is not None:
             return preflight
         try:
+            resolved = self._resolve(request)
+            total_bytes = sum(
+                len(item.content.encode("utf-8")) for item in resolved.evidence
+            )
+            if total_bytes > self._policy.max_evidence_bytes:
+                return _failure(
+                    "evidence_too_large", "Evidence context exceeds worker limit"
+                )
             with self._lock:
-                analysis = self._runtime.run(request)
+                analysis = self._runtime.run(resolved)
         except Exception:
             return _failure("runtime_failed", "TradingAgents runtime failed")
         if not set(analysis.telemetry.source_refs) <= set(request.allowed_evidence_ids):
@@ -190,18 +209,36 @@ class TradingAgentsWorker:
             return _failure("deadline_exceeded", "Worker deadline exceeded")
         return WorkerSuccess(value=_map_response(request, analysis, self._policy))
 
+    def _resolve(self, request: TradingAgentsRequest) -> ResolvedTradingAgentsRequest:
+        evidence = tuple(
+            ScopedEvidence(
+                evidence_id=item.evidence_id,
+                artifact_ref=item.artifact_ref,
+                available_at=item.available_at,
+                category=item.category,
+                content=self._artifacts.resolve(item),
+                untrusted_content=True,
+            )
+            for item in request.evidence
+        )
+        return ResolvedTradingAgentsRequest(
+            request_id=request.request_id,
+            run_id=request.run_id,
+            profile=request.profile,
+            instrument_id=request.instrument_id,
+            symbol=request.symbol,
+            as_of=request.as_of,
+            horizon=request.horizon,
+            allowed_evidence_ids=request.allowed_evidence_ids,
+            evidence=evidence,
+            deadline=request.deadline,
+        )
+
     def _preflight(self, request: TradingAgentsRequest) -> WorkerFailure | None:
-        if request.profile is not self._policy.profile:
+        if request.profile != self._policy.profile:
             return _failure("profile_mismatch", "Worker profile does not match request")
         if self._deadline_exceeded(request):
             return _failure("deadline_exceeded", "Worker deadline exceeded")
-        total_bytes = sum(
-            len(item.content.encode("utf-8")) for item in request.evidence
-        )
-        if total_bytes > self._policy.max_evidence_bytes:
-            return _failure(
-                "evidence_too_large", "Evidence context exceeds worker limit"
-            )
         return None
 
     def _deadline_exceeded(self, request: TradingAgentsRequest) -> bool:
@@ -258,7 +295,7 @@ def _map_response(
         )
     )
     opinion_id = uuid5(request.request_id, "tradingagents:opinion")
-    return WorkerResponse(
+    result = TradingAgentsWorkerResult(
         analysis_bundle=AnalysisBundle(
             bundle_id=uuid5(request.run_id, "tradingagents:bundle"),
             run_id=request.run_id,
@@ -284,6 +321,15 @@ def _map_response(
             model_version=policy.upstream_commit,
             warnings=warnings,
         ),
+    )
+    return WorkerResponse(
+        request_id=request.request_id,
+        run_id=request.run_id,
+        job_id=request.job_id,
+        attempt_generation=request.attempt_generation,
+        attempt_nonce=request.attempt_nonce,
+        result_artifact_hash=result.payload_hash(),
+        result=result,
     )
 
 

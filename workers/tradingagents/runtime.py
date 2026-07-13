@@ -10,9 +10,9 @@ from typing import Any
 from stonks_contracts.common import ModelUsage
 from workers.tradingagents.adapter import (
     EvidenceCategory,
+    ResolvedTradingAgentsRequest,
     RuntimeAnalysis,
     RuntimeTelemetry,
-    TradingAgentsRequest,
 )
 
 MODEL_PROXY_ORIGIN = "http://model-proxy:8000/v1"
@@ -27,7 +27,7 @@ class PinnedTradingAgentsRuntime:
     def __init__(self, *, selected_analysts: tuple[str, ...]) -> None:
         self._selected_analysts = selected_analysts
 
-    def run(self, request: TradingAgentsRequest) -> RuntimeAnalysis:
+    def run(self, request: ResolvedTradingAgentsRequest) -> RuntimeAnalysis:
         graph_module, graph_class, default_config = _load_upstream()
         _install_canonical_facade(graph_module, request)
         callback = _TelemetryCallback()
@@ -93,7 +93,9 @@ def _runtime_config(default: dict[str, Any]) -> dict[str, Any]:
     return config
 
 
-def _install_canonical_facade(module: Any, request: TradingAgentsRequest) -> None:
+def _install_canonical_facade(
+    module: Any, request: ResolvedTradingAgentsRequest
+) -> None:
     from langchain_core.tools import tool
 
     content = _content_by_category(request)
@@ -174,7 +176,9 @@ def _install_canonical_facade(module: Any, request: TradingAgentsRequest) -> Non
     module.resolve_instrument_identity = lambda ticker: _identity(ticker, request)
 
 
-def _content_by_category(request: TradingAgentsRequest) -> dict[EvidenceCategory, str]:
+def _content_by_category(
+    request: ResolvedTradingAgentsRequest,
+) -> dict[EvidenceCategory, str]:
     grouped: dict[EvidenceCategory, list[str]] = {
         category: [] for category in EvidenceCategory
     }
@@ -188,7 +192,7 @@ def _content_by_category(request: TradingAgentsRequest) -> dict[EvidenceCategory
     }
 
 
-def _identity(ticker: str, request: TradingAgentsRequest) -> dict[str, str]:
+def _identity(ticker: str, request: ResolvedTradingAgentsRequest) -> dict[str, str]:
     _require_symbol(ticker, request.symbol)
     return {"symbol": request.symbol, "name": request.symbol}
 

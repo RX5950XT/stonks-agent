@@ -13,6 +13,8 @@ import typer
 from stonks_agent.adapters.fakes.platform import build_fake_run_service
 from stonks_agent.application.workflows.run_cycle import RunCycleRequest
 from stonks_agent.entrypoints.cli_commands.data import app as data_app
+from stonks_agent.entrypoints.cli_commands.report import app as report_app
+from stonks_agent.entrypoints.cli_commands.research import app as research_app
 
 app = typer.Typer(
     add_completion=False,
@@ -20,6 +22,8 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(data_app, name="data", help="Canonical data ingestion commands.")
+app.add_typer(research_app, name="research", help="Queued research commands.")
+app.add_typer(report_app, name="report", help="Read-only report commands.")
 
 
 @app.callback()

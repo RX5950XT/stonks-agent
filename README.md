@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation 與 P1 Canonical Data Hub 已通過 phase gate；P2 Research control plane 已完成 bounded research、structured LLM、TradingAgents worker/core adapter、draft PEAD/event-study、evidence/report integrity、deterministic rendering與artifact-backed delivery，後續工作依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation 與 P1 Canonical Data Hub 已通過 phase gate；P2.1–P2.11已完成 bounded research、structured LLM、TradingAgents worker/core adapter、draft PEAD/event-study、evidence/report integrity、render/delivery與queue-only research API/CLI，後續工作依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -24,6 +24,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Structured `AnalysisReport` JSON truth：factual claim必須有citation與derived quality；stale/estimated/conflict只能是qualified，hypothesis不得偽裝evidenced fact。LLM只填closed draft，outlook、claim IDs、evidence union與paper/research guardrails由core決定。
 - Sandboxed fixed Jinja templates從同一`AnalysisReport`重建full/brief Markdown與email HTML；Markdown/HTML escaping、quality qualifiers、language labels、channel byte caps與content-addressed rendering hashes均deterministic。
 - Artifact-backed delivery ports以fenced outbox lease驅動console/file/email/webhook；每個adapter重驗content hash與idempotency identity，file固定root且拒絕覆寫不同artifact，webhook固定HTTPS URL、禁止redirect並做bounded retry。未配置email/webhook只留下`skipped` receipt，不偽裝已送達。
+- Queue-only research API/CLI以PostgreSQL transaction原子建立run/job/snapshot link；API request thread不執行長任務。Canonical run events先驗完整hash chain，再以可重接的SSE `Last-Event-ID`投影並redact secrets；report read只接受renderer產生且metadata完整的typed artifact，拒絕任意raw prompt/model artifact。
 - Local RBAC、process capability/egress deny、secret redaction、統一 API envelope 與 telemetry ports。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 
@@ -37,7 +38,7 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 
 `fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。
 
-P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供常駐research dispatcher或production artifact capability signer；`stonks-worker claim-once`也不是常駐dispatcher。
+P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供常駐canonical research dispatcher或production artifact capability signer；research API目前只建立`research_pipeline` job，`stonks-worker claim-once`也不是常駐dispatcher，因此P2整體phase gate尚未宣稱完成。
 
 ## 核心文件
 

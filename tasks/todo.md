@@ -230,7 +230,7 @@
   - Chunking、rate limit、retry/outbox、receipt與redacted errors一致；console/file為default。
   - Email/webhook未配置時不阻擋報告產生。
 
-- [ ] **P2.11 Research/report API and CLI** — 建立`entrypoints/api/routes/{research,reports}.py`、`entrypoints/cli_commands/{research,report}.py`與SSE run-event projection。（Depends：P2.2–P2.10；Complexity：L；Risk：Medium）
+- [x] **P2.11 Research/report API and CLI** — 建立`entrypoints/api/routes/{research,reports}.py`、`entrypoints/cli_commands/{research,report}.py`與SSE run-event projection。（Depends：P2.2–P2.10；Complexity：L；Risk：Medium）
   - API不直接執行長任務，只建立job並stream/read canonical events。
 
 ### P2 Verification gate
@@ -244,8 +244,8 @@
 ### P2 Success criteria
 
 - [ ] 單一instrument可從snapshot完成deterministic + TradingAgents research並產生可稽核report。
-- [ ] Agent opinion與community-like文字沒有任何直接execution path。
-- [ ] Dexter與AI-Trader source/prompt/assets未進repository；DSA/ai-hedge-fund採用均有notice。
+- [x] Agent opinion與community-like文字沒有任何直接execution path。
+- [x] Dexter與AI-Trader source/prompt/assets未進repository；DSA/ai-hedge-fund採用均有notice。
 
 ---
 
@@ -645,4 +645,4 @@
 - Safety / UX：Jinja使用sandbox、StrictUndefined與固定startup-loaded paths；HTML autoescape、Markdown special-char escape、subject/brief deterministic truncation、zh-TW/en labels與observed/qualified/hypothesis + quality標籤都有測試。full Markdown 64KiB、brief 4KiB、email 128KiB上限在任何artifact write前檢查；unsupported language或missing template fail closed。
 - Upstream / dependency：模板為clean implementation，未複製daily_stock_analysis片段，不新增其MIT notice；core新增輕量Jinja2 3.1.6並更新frozen lock，locked runtime audit無已知CVE。
 - Verification：focused為6 passed、branch coverage 90%；完整non-PostgreSQL gate為619 passed、172 deselected、coverage 88.28%，259 files format、ruff、mypy 150 source files、43 schemas、upstream/license/secret與locked dependency audit全通過。無migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
-- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2 gate尚未完成，下一項為P2.11 research/report API與CLI。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2.1–P2.11已完成；P2 phase gate仍缺canonical research dispatcher整體E2E與outage run-state證據，不能宣稱P2完成。

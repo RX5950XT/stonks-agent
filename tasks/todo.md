@@ -211,7 +211,7 @@
   - Core只傳evidence refs/signed artifact URLs；worker不能自行寫DB。
   - Request/response帶lease generation、attempt nonce與artifact hash；core job runner驗證後才在單一transaction寫metadata/event/outbox並ack，late result只進隔離audit。
 
-- [ ] **P2.6 ai-hedge-fund alpha/event-study adoption** — 建立`strategies/{pead.py,manifest.yaml}`、`analytics/event_study.py`、`tests/golden/{pead,event_study}/`並更新notice。（Depends：P1.2、P0.3；Complexity：L；Risk：High）
+- [x] **P2.6 ai-hedge-fund alpha/event-study adoption** — 建立`strategies/{pead.py,manifest.yaml}`、`analytics/event_study.py`、`tests/golden/{pead,event_study}/`並更新notice。（Depends：P1.2、P0.3；Complexity：L；Risk：High）
   - 只移植MIT允許且有實作/測試的PEAD與pure stats；不採v1 LLM portfolio/risk或v2 scaffold。
   - Filing date/freshness/duplicate filing與PIT tests必須通過；未完成evaluation前strategy state=`draft`。
 
@@ -237,7 +237,7 @@
 
 - [x] Fake LLM、prompt-injection fixtures、tool scope/timeout/output-limit與budget exhaustion tests全部通過。（Depends：P2.1–P2.3）
 - [x] TradingAgents pinned worker contract測試證明只回`AnalysisBundle/AgentOpinion`，且worker無execution/DB credentials、無任意data egress、無late-result commit能力。（Depends：P2.4、P2.5）
-- [ ] PEAD/event-study golden與PIT tests通過，notice完整。（Depends：P2.6）
+- [x] PEAD/event-study golden與PIT tests通過，notice完整。（Depends：P2.6）
 - [ ] 每個report claim都能解析到evidence；所有channel render可由同一report重建且hash穩定。（Depends：P2.7–P2.10）
 - [ ] Provider/LLM/TradingAgents outage時run能degrade/fail/report，不產生偽造success或order。（Depends：P2.11）
 
@@ -609,3 +609,13 @@
 - Verification：focused worker為21 passed、branch coverage 84.48%（含shared contracts），core HTTP/runner為13 tests；non-PostgreSQL完整gate為584 passed、172 deselected、coverage 88.18%，PostgreSQL完整gate為756 passed、coverage 88.59%，242 files format、ruff、mypy 138 source files、42 schemas、upstream/secret與Alembic drift全通過。worker dependency audit除本地`stonks-contracts`無PyPI條目而skip外無已知CVE；image `stonks-tradingagents-worker:p2.5`重建成功並以UID 65532、read-only、cap-drop ALL、no-new-privileges通過health smoke。
 - Honest boundary：尚未提供常駐research dispatcher與production artifact capability signer；本項完成的是strict adapter、worker fetch boundary與transaction-owned completion contract，不宣稱production服務已部署。P2 gate尚未完成，下一項為P2.6 PEAD/event-study。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且SHA-256仍一致，規範無需變更。
+
+### P2 Progress Review — P2.6 — 2026-07-13
+
+- Scope completed：新增`PEADStrategy`、frozen PIT earnings event contract、draft strategy manifest、pure-Python/Decimal market-model event study、CAR、Student t-test、seeded percentile bootstrap與兩組deterministic golden fixtures；未引入NumPy、SciPy或上游application/data client。
+- PIT / authority：PEAD只使用同instrument、proven且`available_at <= as_of`的quarterly BEAT/MISS；依report period deterministic dedup（8-K優先），排除future、unknown availability、超過4日freshness與filing lag >=45日的retrospective rows。所有PEAD輸出固定`promotion_state=draft`、confidence 0，只具`alpha_signal` authority，不能建立target/risk/order。
+- Event-study integrity：caller必須提供canonical aligned returns與calendar-resolved event day；return availability不得早於trading day或晚於as-of，event return不得早於filing availability。duplicate day、future/after-close leakage、missing event day、短estimation window、non-finite/invalid stats皆fail closed；OLS、abnormal return、CAR與bootstrap replay有golden/seed證據。
+- License：來源固定ai-hedge-fund commit `3a18702cb25777fb4bdb4b2527a0c868bc8297f4`；`AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY`已登錄manifest/THIRD_PARTY_NOTICES，完整Virat Singh copyright與MIT text已收錄。
+- Verification：focused為14 passed、branch coverage 90.74%；完整non-PostgreSQL gate為598 passed、172 deselected、coverage 88.27%，248 files format、ruff、mypy 142 source files、schema、upstream/license與secret gates全通過。無dependency、migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
+- Honest boundary：PEAD尚未完成universe、cost、walk-forward/PBO與out-of-sample evaluation，明確維持draft且不可paper eligible。P2 gate尚未完成，下一項為P2.7 evidence assembler。
+- 文件同步：`README.md`、`THIRD_PARTY_NOTICES.md`、legal manifest/notice、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。

@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0.0",
+  "signal_id": "5fc15a64-028d-527a-a138-66479d1f5c95",
+  "strategy_id": "pead",
+  "strategy_version": "1.0.0",
+  "instrument_id": "30000000-0000-4000-8000-000000000001",
+  "as_of": "2026-05-03T14:00:00Z",
+  "horizon": "4 calendar days",
+  "value": "1",
+  "confidence": "0",
+  "expires_at": "2026-05-05T12:01:00.000001Z",
+  "direction": "long",
+  "evidence_refs": [
+    "30000000-0000-4000-8000-000000000002"
+  ],
+  "forecast_refs": [],
+  "evaluation_report_id": null,
+  "reason_codes": [
+    "eps_surprise:BEAT",
+    "source:8-K",
+    "report_period:2026-03-31",
+    "research_only_unevaluated"
+  ],
+  "promotion_state": "draft"
+}

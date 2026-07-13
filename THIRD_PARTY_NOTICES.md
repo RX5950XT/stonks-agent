@@ -21,6 +21,18 @@ Worker只把上游Trader、Portfolio Manager與risk debate結果轉成
 `AnalysisBundle/AgentOpinion` research output，不授予target、risk、order、broker、
 ledger或execution authority。TradingAgents runtime packages不進core dependency graph。
 
+## AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY
+
+`src/stonks_agent/strategies/pead.py`與
+`src/stonks_agent/analytics/event_study.py`選擇性移植並重寫
+Virat Singh 的 `virattt/ai-hedge-fund` PEAD清理規則與event-study pure statistics，
+來源固定於commit `3a18702cb25777fb4bdb4b2527a0c868bc8297f4`。原作與衍生部分依
+MIT License使用；完整copyright與license text收錄於
+`docs/legal/notices/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md`。
+
+本策略固定為`draft`、confidence 0，只能產生research-only `AlphaSignal`；沒有
+portfolio sizing、risk override、order或execution authority。
+
 ## OPENBB-AGPL-3.0-SIDECAR
 
 Optional `sidecars/openbb/` 是與 Apache-2.0 core 分離發行的

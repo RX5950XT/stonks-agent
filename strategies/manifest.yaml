@@ -1,0 +1,13 @@
+version: 1
+strategies:
+  - strategy_id: pead
+    strategy_version: 1.0.0
+    state: draft
+    implementation: stonks_agent.strategies.pead:PEADStrategy
+    upstream: https://github.com/virattt/ai-hedge-fund
+    upstream_commit: 3a18702cb25777fb4bdb4b2527a0c868bc8297f4
+    license: MIT
+    notice_id: AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY
+    output_authority: [alpha_signal]
+    evaluation_required: true
+    paper_eligible: false

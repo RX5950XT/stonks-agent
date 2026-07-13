@@ -52,8 +52,8 @@ upstreams:
       source_copy_allowed: true
       in_core_allowed: true
     notice:
-      required: false
-      id: null
+      required: true
+      id: AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY
 
   - id: dexter
     repository: https://github.com/virattt/dexter

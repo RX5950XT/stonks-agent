@@ -11,6 +11,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - 完整 in-memory paper cycle：evidence → signal → target → risk → cash reservation → next-session fill → balanced journal → report → replay。
 - Canonical paper trading domain已固定account/portfolio/ledger sequences、risk expiry、cash/position reservation、closed order transitions、fill totals與per-commodity double-entry journal。Risk approval不保留資金；只有exact authorized target delta與open reservation可形成paper execution command，stale/naive/tampered inputs皆fail closed。
 - PostgreSQL paper fund persistence以account CAS與matching hash-chained event原子保存cash/position projections、target/risk、reservation/order、fill與balanced journal。Order idempotency、append-only chains、deferred journal balance及column-scoped grants由DB保護；worker沒有任何trading table權限，corrupt persisted payload回structured conflict。
+- Deterministic portfolio baseline以versioned content-hash policy固定strategy/version ensemble weights、calibrated confidence、deadband、shrinkage、turnover penalty、long-only position bound與Decimal rounding。Missing signal不重新正規化；target stable排序並保存calculation hash、turnover與per-instrument cost diagnostics，future/ineligible/binding drift輸入皆fail closed。
 - Idempotency、同帳戶並行防雙花、job generation/nonce fencing、late-result quarantine。
 - PostgreSQL PIT evidence/snapshot、content-addressed artifacts、Repository/UoW、durable job/outbox/inbox與transaction-owned audit events。
 - DB-authoritative lease/deadline/not-before fencing；caller clock漂移、duplicate/stale result與tampered retry graph皆fail closed。

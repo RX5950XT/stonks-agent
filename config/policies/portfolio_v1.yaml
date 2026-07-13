@@ -1,0 +1,24 @@
+policy_version: 1.0.0
+strategy_weights:
+  - strategy_id: baseline-last-value
+    strategy_version: 1.0.0
+    weight: "0.35"
+  - strategy_id: baseline-linear
+    strategy_version: 1.0.0
+    weight: "0.20"
+  - strategy_id: baseline-moving-average
+    strategy_version: 1.0.0
+    weight: "0.25"
+  - strategy_id: kronos-forecast
+    strategy_version: 1.0.0
+    weight: "0.10"
+  - strategy_id: opinion-to-alpha
+    strategy_version: 1.0.0
+    weight: "0.10"
+deadband: "0.02"
+shrinkage: "0.75"
+turnover_penalty: "0.20"
+max_position_weight: "0.25"
+estimated_cost_bps: "8"
+currency_quantum: "0.01"
+long_only: true

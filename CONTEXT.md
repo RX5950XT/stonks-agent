@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane與P3 strategy/forecast/evaluation phase gates已完成；P4.1–P4.2 canonical trading domain與PostgreSQL persistence已完成，下一目標為P4.3 deterministic portfolio baseline。
+- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane與P3 strategy/forecast/evaluation phase gates已完成；P4.1–P4.3 trading domain、PostgreSQL persistence與deterministic portfolio baseline已完成，下一目標為P4.4 hard risk gate。
 - P1/P3/P4目前包含PostgreSQL 0001–0010、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、paper account/trading ledger、provider policy、US/HK/TW replay、snapshot API/CLI與canonical completion。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -35,6 +35,7 @@
 - P3.10新增typed strategy registry/UoW ports、reviewer-only strategy transition與read-only strategy/evaluation/audit/signal eligibility API/CLI。Actor由authenticated principal產生，body bounded且預設deny；live/order-shaped輸入、forged actor、stale CAS與evaluation/registry/audit binding drift皆fail closed。真實PostgreSQL驗證promotion/suspend/retire audit sequence與API/CLI共用CAS。
 - P4.1新增canonical portfolio/risk/reservation/order/fill/journal domain與typed policy/execution/ledger ports。Risk綁target/account/portfolio sequence與expiry；reservation原子推進account sequence，order必須exact等於authorized delta，command另要求open reservation與current post-reservation sequence。Reservation/order/journal events具closed state、monotonic sequence與hash；journal每種commodity在explicit quantum下exact平衡。
 - P4.2新增0010 paper trading schema、SQLAlchemy mappings、typed repository port與PostgreSQL repository/UoW。Account CAS與matching hash-chained event、cash/position reservation projection、order idempotency/event chain、fill與balanced journal皆在同transaction；DB拒絕orphan event、無audit sequence update、append-only mutation與不平journal。App只有scoped insert/update，reader唯讀，worker無trading grants；corrupt persisted payload structured fail closed。
+- P4.3新增frozen portfolio construction inputs、runtime-checkable policy Strategy、versioned fixed-weight policy與deterministic builder。NAV只接受單一base currency及exact quantity/currency quantum；只讀paper-eligible、calibrated、unexpired且point-in-time registry/evaluation binding一致的signal。Score不對缺少權重重新正規化，依序套deadband、shrinkage、current-weight turnover penalty與long-only bound，再以固定Decimal規則向下量化quantity；target保存stable calculation hash、turnover與cost diagnostics。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -101,11 +102,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P3.10 focused API/CLI為13 passed、branch coverage 87.14%；完整non-PostgreSQL gate為820 passed、190 deselected、coverage 88.56%。完整PostgreSQL P3 gate為1010 passed、coverage 88.73%，349 files format、ruff、mypy 207 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P4.1 focused domain/ports為23 passed、新模組branch coverage 83%；P0 execution/fake-cycle regression為20 passed。完整non-PostgreSQL gate為843 passed、190 deselected、coverage 88.14%，362 files format、ruff、mypy 217 source files、67 schemas、upstream/license、secret與locked dependency audit全通過。
 - P4.2 focused PostgreSQL migration/repository為35 passed，trading repository branch coverage 84%。完整PostgreSQL gate為1048 passed、coverage 88.44%，370 files format、ruff、mypy 222 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- P4.3 focused golden/property/boundary為16 passed，builder branch coverage 97%、construction contracts 92%。完整PostgreSQL gate為1064 passed、coverage 88.55%，376 files format、ruff、mypy 225 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P4 與架構藍圖。
-2. 保持 TDD；從P4.3 deterministic portfolio baseline開始，以versioned content-hash policy、golden/property tests固定ensemble weights、confidence calibration、deadband、shrinkage、turnover penalty、position bounds、missing-signal exposure與stable ordering。
+2. 保持 TDD；從P4.4 hard risk gate開始，先固定freshness、account/portfolio/ledger sequence、cash/reservation、exposure/turnover/ADV/session/loss與kill-switch contract，再實作serialized recheck與fail-closed boundary tests。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

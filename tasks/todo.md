@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.2 已完成，P4.3 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.3 已完成，P4.4 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -351,9 +351,9 @@
   - [x] 建立account aggregate、cash/position reservations與projections、risk decisions、order intents/events、fills、balanced journal transactions/postings、kill switch。
   - [x] Order idempotency、event sequence與append-only由DB constraint保護。
 
-- [ ] **P4.3 Deterministic portfolio baseline** — 建立`application/portfolio/build_target.py`、`config/policies/portfolio_v1.yaml`與golden/property tests。（Depends：P3.1、P4.1；Complexity：L；Risk：High）
-  - Fixed ensemble weights、confidence calibration、deadband、shrinkage、turnover penalty、position bounds與stable ordering。
-  - Missing signal不重新正規化造成過曝；輸出calculation hash與cost diagnostics。
+- [x] **P4.3 Deterministic portfolio baseline** — 建立`application/portfolio/build_target.py`、`config/policies/portfolio_v1.yaml`與golden/property tests。（Depends：P3.1、P4.1；Complexity：L；Risk：High）
+  - [x] Fixed ensemble weights、confidence calibration、deadband、shrinkage、turnover penalty、position bounds與stable ordering。
+  - [x] Missing signal不重新正規化造成過曝；輸出calculation hash與cost diagnostics。
 
 - [ ] **P4.4 Hard risk gate** — 建立`application/risk/evaluate.py`、`config/policies/risk_v1.yaml`與boundary tests。（Depends：P4.1、P4.3；Complexity：XL；Risk：High）
   - 檢查data/signal freshness、cash、pending orders、single/sector/asset/gross/net、turnover、ADV、market session、drawdown/daily loss、kill switch。
@@ -770,3 +770,11 @@
 - DB authority / security：DB trigger拒絕orphan account event、無event account update、stale projection、reservation/order chain drift、append-only mutation與不完整或不平衡journal。`stonks_app`只有trading tables的select/insert及五個projection的column-scoped update，reader唯讀，worker無任何trading table權限；corrupt persisted payload回structured `CONFLICT`。
 - Verification：focused PostgreSQL migration/repository為35 passed，trading repository branch coverage 84%、mapping 97%。完整PostgreSQL gate為1048 passed、coverage 88.44%，370 files format、ruff、mypy 222 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.3 deterministic portfolio baseline。
+
+### P4 Progress Review — P4.3 — 2026-07-13
+
+- Scope completed：新增frozen `BuildTargetCommand`、mark/signal-candidate/policy contracts、runtime-checkable deterministic builder、content-hash `portfolio_v1.yaml`、golden fixture與property/boundary tests。Policy以strategy/version固定五組權重，總和必須exact為1，long-only不可由設定切換成live/short execution。
+- Eligibility / PIT：每個signal都重驗paper-eligible registry、passed/calibrated/unexpired evaluation及exact manifest/runtime/report binding；signal、registry/evaluation或mark來自snapshot未來、重複strategy-instrument、未知權重、currency/quantity quantum drift、missing mark與zero NAV皆structured fail closed。
+- Determinism / exposure：instrument與signal固定排序；score直接加總`fixed weight × alpha × calibrated confidence`，缺少權重保留為cash、不重新正規化。Deadband、shrinkage、current-weight turnover penalty、long-only position bound及quantity floor順序固定；target輸出actual rounded weight、input signal IDs、policy/calculation hashes、turnover與per-instrument cost/missing-weight diagnostics。
+- Verification：focused golden/property/boundary為16 passed，builder branch coverage 97%、construction contracts 92%。完整PostgreSQL gate為1064 passed、coverage 88.55%，376 files format、ruff、mypy 225 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。下一項為P4.4 hard risk gate。

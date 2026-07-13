@@ -215,7 +215,7 @@
   - 只移植MIT允許且有實作/測試的PEAD與pure stats；不採v1 LLM portfolio/risk或v2 scaffold。
   - Filing date/freshness/duplicate filing與PIT tests必須通過；未完成evaluation前strategy state=`draft`。
 
-- [ ] **P2.7 Analysis context/evidence assembler** — 建立`application/reporting/evidence_assembler.py`、`domain/analysis_context.py`與tests。（Depends：P1.2、P2.1；Complexity：M；Risk：Medium）
+- [x] **P2.7 Analysis context/evidence assembler** — 建立`application/reporting/evidence_assembler.py`、`domain/analysis_context.py`與tests。（Depends：P1.2、P2.1；Complexity：M；Risk：Medium）
   - 吸收DSA quality vocabulary但使用自有versioned schema；assembler只讀canonical evidence，不自行抓資料。
 
 - [ ] **P2.8 Structured report generator and integrity policy** — 建立`application/reporting/{generate,integrity_policy}.py`、`domain/report.py`、`tests/reporting/test_integrity.py`。（Depends：P2.3、P2.7；Complexity：L；Risk：High）
@@ -619,3 +619,12 @@
 - Verification：focused為14 passed、branch coverage 90.74%；完整non-PostgreSQL gate為598 passed、172 deselected、coverage 88.27%，248 files format、ruff、mypy 142 source files、schema、upstream/license與secret gates全通過。無dependency、migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
 - Honest boundary：PEAD尚未完成universe、cost、walk-forward/PBO與out-of-sample evaluation，明確維持draft且不可paper eligible。P2 gate尚未完成，下一項為P2.7 evidence assembler。
 - 文件同步：`README.md`、`THIRD_PARTY_NOTICES.md`、legal manifest/notice、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。
+
+### P2 Progress Review — P2.7 — 2026-07-13
+
+- Scope completed：新增versioned frozen `AnalysisContextRequest/AnalysisContext/EvidenceRequirement/EvidenceBlock`與read-only assembler；每個request只執行一次`EvidenceRepository.query_available(subject, as_of)`，不含provider、web、LLM或其他fetch path。
+- Quality / provenance：沿用自有`DataQualityStatus`承接DSA的available、missing、not_supported、fallback、stale、estimated、partial、fetch_failed詞彙並保留conflict；block保存completeness、evidence refs、provider/source、latest availability、warnings與missing reason，context保存exact canonical `EvidenceItem`和deterministic payload hash。
+- PIT / policy：repository若回future as-of/availability、wrong subject或duplicate IDs即整體conflict；infra failure原樣傳遞，不以空context偽裝。sensitivity、license、redistribution不符者排除並形成明確limitation；同event time不同content hash保留雙側refs並標conflict，untrusted flag不會被清除。
+- Contract integrity：requirements/capabilities/policies、block refs/sources與context evidence IDs皆unique；所有block refs必須exact cover context evidence，available block不可無evidence。missing/stale/conflict等只是輸入品質，不冒充analysis/job/delivery狀態。
+- Verification：focused為8 passed、branch coverage 84.35%；完整non-PostgreSQL gate為606 passed、172 deselected、coverage 88.23%，252 files format、ruff、mypy 145 source files、schema、upstream/license與secret gates全通過。無dependency、migration或DB行為變更，因此未重跑P1 PostgreSQL suite。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P2 gate尚未完成，下一項為P2.8 report generator/integrity policy。

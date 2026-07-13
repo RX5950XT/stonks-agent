@@ -1,0 +1,18 @@
+minimum_observations: 252
+train_size: 504
+test_size: 63
+step_size: 63
+purge_observations: 5
+embargo_observations: 5
+minimum_splits: 4
+cpcv_groups: 6
+max_pbo: "0.50"
+fee_bps: "1"
+slippage_bps: "5"
+cost_multipliers: ["0.5", "1", "2"]
+minimum_net_alpha: "0.0001"
+maximum_drawdown: "0.25"
+maximum_brier_score: "0.22"
+maximum_calibration_error: "0.10"
+calibration_buckets: 10
+report_valid_days: 30

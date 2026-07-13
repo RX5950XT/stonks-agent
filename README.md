@@ -29,6 +29,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Strategy/signal/evaluation domain固定paper-only promotion graph與exact strategy/data/runtime/policy/evaluation provenance；未註冊、未校準、stale、expired或hash binding不符的alpha一律回零權重。Forecast與strategy-lab ports只接immutable snapshot/artifact inputs，stochastic output必須先封存raw output與sampled paths。
 - PostgreSQL strategy registry以CAS version序列化promotion，evaluation report與audit chain append-only；DB trigger本身驗promotion graph、exact evaluation binding、DB clock與每次mutation的matching audit event。`stonks_app`只有scoped columns權限，heavy worker role沒有strategy table權限。
 - Deterministic last-value、simple moving-average與OLS linear baselines共用PIT ordered-bar contract、frozen draft manifests與exact Decimal golden；輸出是research-only `ForecastSignal`，同輸入可重播相同payload hash，供Kronos/opinion/complex strategy在同dataset/cost evaluation下比較。
+- Point-in-time evaluation engine先拒絕future feature/label、unknown publication lag與survivorship污染，再以purged walk-forward/embargo的out-of-sample observations計算CPCV/PBO、fees/slippage/turnover sensitivity、baseline alpha、drawdown與probability calibration。每項promotion check獨立、policy為content hash，同strategy/snapshot/runtime/policy可重播相同evaluation hash。
 - Local RBAC、process capability/egress deny、secret redaction、統一 API envelope 與 telemetry ports。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 

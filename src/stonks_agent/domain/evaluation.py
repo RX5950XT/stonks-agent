@@ -27,6 +27,9 @@ class EvaluationCheckKind(StrEnum):
     REPRODUCIBILITY = "reproducibility"
     BASELINE_COMPARISON = "baseline_comparison"
     COST_SENSITIVITY = "cost_sensitivity"
+    DRAWDOWN = "drawdown"
+    CALIBRATION = "calibration"
+    OVERFITTING = "overfitting"
 
 
 MANDATORY_EVALUATION_CHECKS = frozenset(EvaluationCheckKind)

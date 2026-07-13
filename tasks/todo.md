@@ -278,9 +278,12 @@
   - [x] TDD：PIT/ordering/positive-price input invariants、manifest loader、三算法golden與deterministic replay hash。
   - [x] Baseline只產`ForecastSignal`，固定draft research authority；不得產target/order或自稱calibrated/paper eligible。
 
-- [ ] **P3.4 Evaluation engine** — 建立`application/evaluation/{walk_forward,leakage,costs,metrics,calibration,promotion}.py`與`tests/evaluation/`。（Depends：P3.1、P3.3；Complexity：XL；Risk：High）
+- [x] **P3.4 Evaluation engine** — 建立`application/evaluation/{walk_forward,leakage,costs,metrics,calibration,promotion}.py`與`tests/evaluation/`。（Depends：P3.1、P3.3；Complexity：XL；Risk：High）
   - 涵蓋historical universe、publication lag、purged splits/embargo、walk-forward、CPCV/PBO（適用時）、fees/slippage/turnover sensitivity、benchmark alpha、drawdown、calibration。
   - 同snapshot/strategy/runtime必須輸出相同evaluation hash。
+  - [x] TDD：future feature/label、unknown publication lag、current-universe survivorship污染都必須structured fail closed。
+  - [x] Purged walk-forward/embargo、bounded CPCV/PBO、cost sensitivity、benchmark/drawdown與probability calibration都有deterministic tests。
+  - [x] Promotion report exact綁定strategy/snapshot/runtime/policy；同輸入不同report ID/time仍產相同evaluation hash。
 
 - [ ] **P3.5 Opinion-to-alpha policy** — 建立`application/signals/opinion_to_alpha.py`、`config/policies/opinion_mappers.yaml`與tests。（Depends：P3.1、P3.4；Complexity：L；Risk：High）
   - Default disabled；只有mapper本身有evaluation、opinion confidence有校準且strategy=`paper_eligible`時才產`AlphaSignal`。
@@ -307,7 +310,7 @@
 
 ### P3 Verification gate
 
-- [ ] Leakage/PIT/survivorship fixtures故意污染時evaluation必須失敗。（Depends：P3.4）
+- [x] Leakage/PIT/survivorship fixtures故意污染時evaluation必須失敗。（Depends：P3.4）
 - [ ] Opinion mapper default disabled；未評估opinion、Kronos或PEAD signal權重必為0。（Depends：P3.5、P3.8）
 - [ ] Kronos archived-artifact replay、CPU smoke、可用時GPU schema/tolerance smoke、model checksum與calendar/validity tests通過；fresh stochastic inference不作bit-identical gate。（Depends：P3.6–P3.8）
 - [ ] Qlib deterministic job同snapshot/runtime可重播相同artifact hashes；任何stochastic model則重播封存output artifact，worker無core DB/execution credentials。（Depends：P3.9）
@@ -681,3 +684,12 @@
 - Authority / comparison：baseline只輸出`ForecastSignal`與`research_only_unevaluated` warning，沒有promotion/target/order/quantity/risk override欄位，也不宣稱calibrated。Kronos、opinion mapper與complex model後續必須在P3.4用相同dataset/cost/split contract對照這三個baseline。
 - Verification：focused baseline/golden為7 passed、branch coverage 89.58%；完整non-PostgreSQL gate為674 passed、187 deselected、coverage 88.16%，300 files format、ruff、mypy 181 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。無migration或DB行為變更，P3.2完整PostgreSQL gate仍為854 passed且Alembic無drift。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.4 evaluation engine。
+
+### P3 Progress Review — P3.4 — 2026-07-13
+
+- Scope completed：新增closed evaluation observation/dataset/candidate/policy contracts、PIT/leakage audit、purged walk-forward、bounded CPCV/PBO、cost scenarios、performance metrics、calibration buckets與end-to-end promotion report；production thresholds固定於`config/policies/evaluation_v1.yaml`且policy hash由完整內容計算。
+- PIT / survivorship：feature event/availability必須在prediction前，label/outcome必須在prediction後且於evaluation as-of前可得；publication lag必須proven，historical universe membership必須在prediction時已知且為真。任何future/unknown/current-survivor污染直接structured `INVALID_INPUT`且不產report。
+- Evaluation integrity：purge+embargo形成明確train/test gap，績效只用所有walk-forward test rows的deduplicated union；CPCV在多candidate且4–8偶數groups時估PBO。Fees/slippage乘turnover做0.5x/1x/2x sensitivity，另算benchmark alpha、max drawdown、hit rate、Sharpe、Brier/ECE buckets。
+- Promotion：point-in-time、leakage、survivorship、reproducibility、baseline、cost、drawdown、calibration、overfitting均為獨立mandatory checks。污染是Failure；合法但未過門檻是immutable `passed=false` report。Report exact綁定manifest/snapshot/data/runtime/policy，report ID/artifact/time不進evaluation hash，因此同輸入可deterministic replay。
+- Verification：focused evaluation/domain為42 passed、branch coverage 90.91%；完整non-PostgreSQL gate為696 passed、187 deselected、coverage 88.33%，313 files format、ruff、mypy 189 source files、43 schemas、upstream/license、secret與locked dependency audit全通過。無migration或DB行為變更；P3.2 strategy repository PostgreSQL tests另做focused regression。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且規範無需變更。P3 gate尚未完成；下一項為P3.5 opinion-to-alpha policy。

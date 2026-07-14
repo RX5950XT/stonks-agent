@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.2 已完成，P5.3 進行中）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.3 已完成，P5.4 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -421,8 +421,11 @@
   - [x] Publication/feedback/challenge/experiment綁raw response artifact；heartbeat events具opaque cursor與注入式inbox dedup，duplicate/conflict fail closed。
   - [x] 以`d03ff6c` runtime shape建立最小clean-room cassettes；live OpenAPI無法解析時明確保留unverified狀態，不把snapshot推測成current production保證。
 
-- [ ] **P5.3 Community feedback policy** — 建立`application/research/community_feedback.py`、reputation/deadline/prompt-injection fixtures。（Depends：P5.2、P2.2；Complexity：L；Risk：High）
+- [x] **P5.3 Community feedback policy** — 建立`application/research/community_feedback.py`、reputation/deadline/prompt-injection fixtures。（Depends：P5.2、P2.2；Complexity：L；Risk：High）
   - Feedback轉`ExternalEvidence`，policy只可ignore、降低confidence或建立new research job；不可直接升成signal/order。
+  - [x] TDD：固定closed observation window、PIT/scope/dedup、reputation threshold、one-author-one-weight與deterministic confidence haircut。
+  - [x] Prompt-injection/high-risk content只能被隔離；new research question/payload只含固定instruction、typed identifiers與evidence IDs，不含remote原文。
+  - [x] 只有rerun action可經narrow typed `JobEnqueuePort`建立research-only job；ignore/haircut零side effect，輸出契約不存在signal/order/risk authority。
 
 - [ ] **P5.4 Backtest engine contract** — 擴充`BacktestJob/Result` schemas與`ports/backtest_engine.py`；建立canonical orders/fills/positions/calendar/cost parity suite。（Depends：P4.1、P4.6；Complexity：L；Risk：High）
 
@@ -446,7 +449,7 @@
 ### P5 Verification gate
 
 - [x] AI-Trader adapter測試無order/copy endpoint且不在execution dependency graph；duplicate heartbeat/events去重。（Depends：P5.2）
-- [ ] Community prompt injection/reputation/deadline tests證明feedback不能直接成signal/order。（Depends：P5.3）
+- [x] Community prompt injection/reputation/deadline tests證明feedback不能直接成signal/order。（Depends：P5.3）
 - [ ] Nautilus/LEAN parity fixtures產生可解釋差異與完整provenance；任一sidecar關閉時core仍通過。（Depends：P5.7）
 - [ ] RD-Agent sandbox escape、network、resource、malicious candidate與non-reproducible artifact fixtures全部fail closed。（Depends：P5.8）
 - [ ] 每個image有獨立lock、SBOM、license notice/source manifest，core lock無新增重型依賴。（Depends：P5.9）
@@ -847,3 +850,10 @@
 - Boundary / resilience：只允許exact HTTPS origin與allowlisted community/control endpoints；禁止order/copy/realtime/position/follow routes、redirect與automatic POST retry。Canonical bounded JSON、scoped token、raw response artifact、typed tolerant reader及injected event inbox皆有contract/security tests；schema/authz/body anomaly停用adapter，heartbeat duplicate忽略、same ID payload conflict fail closed。Adapter dependency graph沒有execution、risk、DB或queue authority。
 - Verification：focused platform/adapter/config/security為44 passed，兩個adapter模組合計branch coverage 83.70%。完整PostgreSQL gate為1244 passed、coverage 87.27%，469 files format、ruff、mypy 274 source files、77 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - Limitation / docs：live `api.ai4trade.ai`與OpenAPI因DNS無法解析而未驗證；目前只保證固定AI-Trader snapshot `d03ff6c`最小runtime shapes與clean-room cassettes，不宣稱current production compatibility。`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.3 community feedback policy。
+
+### P5 Progress Review — P5.3 — 2026-07-14
+
+- Scope completed：新增frozen `CommunityFeedbackPolicy/Command/Decision`與`apply_community_feedback`，以及enqueue-only `JobEnqueuePort`。Feedback只能在closed observation window後產生ignore、deterministic confidence haircut或固定模板的research-only job；decision與完整core reputation policy各自content-hash binding。
+- PIT / reputation / injection：platform、publication subject、event/evidence identity、available/observed/as-of與deadline皆exact驗證；duplicate、future、scope/reputation drift fail closed。Reputation只取stably ordered core policy，remote self-claim不能取得權重；同作者最多一票、support不提高confidence、late/unknown reputation忽略。Injection文字即使高reputation亦quarantine，queue payload只有固定safe question、typed identifiers與evidence IDs，不含remote原文。
+- Authority / verification：policy只持有enqueue能力，無claim/complete、signal、portfolio、risk、order、execution dependency；ignore/haircut零queue side effect。Focused platform/community/security為42 passed，community module branch coverage 90.28%；完整PostgreSQL gate為1254 passed、coverage 87.31%，472 files format、ruff、mypy 275 source files、77 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.4 backtest engine contract。

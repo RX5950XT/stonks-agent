@@ -17,9 +17,12 @@ from stonks_agent.ports.artifact_store import ArtifactManifest
 
 
 @runtime_checkable
-class QueuePort(Protocol):
+class JobEnqueuePort(Protocol):
     def enqueue(self, request: EnqueueJob) -> Result[JobRecord]: ...
 
+
+@runtime_checkable
+class QueuePort(JobEnqueuePort, Protocol):
     def claim(
         self,
         *,

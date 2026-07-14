@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "quantity": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Quantity",
+      "type": "string"
+    },
+    "quantity_quantum": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Quantity Quantum",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "quantity",
+    "quantity_quantum"
+  ],
+  "title": "BacktestPosition",
+  "type": "object"
+}

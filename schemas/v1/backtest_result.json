@@ -1,0 +1,501 @@
+{
+  "$defs": {
+    "BacktestCashBalance": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Amount",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "quantum": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Quantum",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "currency",
+        "amount",
+        "quantum"
+      ],
+      "title": "BacktestCashBalance",
+      "type": "object"
+    },
+    "BacktestEngineKind": {
+      "enum": [
+        "reference",
+        "nautilus",
+        "lean"
+      ],
+      "title": "BacktestEngineKind",
+      "type": "string"
+    },
+    "BacktestFill": {
+      "additionalProperties": false,
+      "properties": {
+        "external_ref": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "External Ref"
+        },
+        "fee_currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Fee Currency",
+          "type": "string"
+        },
+        "fee_quantum": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Fee Quantum",
+          "type": "string"
+        },
+        "fees": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Fees",
+          "type": "string"
+        },
+        "fill_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Fill Hash",
+          "type": "string"
+        },
+        "fill_id": {
+          "format": "uuid",
+          "title": "Fill Id",
+          "type": "string"
+        },
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "order_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Order Hash",
+          "type": "string"
+        },
+        "order_id": {
+          "format": "uuid",
+          "title": "Order Id",
+          "type": "string"
+        },
+        "price": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Price",
+          "type": "string"
+        },
+        "price_quantum": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Price Quantum",
+          "type": "string"
+        },
+        "quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Quantity",
+          "type": "string"
+        },
+        "quantity_quantum": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Quantity Quantum",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "side": {
+          "$ref": "#/$defs/BacktestOrderSide"
+        },
+        "slippage": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Slippage",
+          "type": "string"
+        },
+        "source_bar_id": {
+          "format": "uuid",
+          "title": "Source Bar Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fill_id",
+        "order_id",
+        "order_hash",
+        "instrument_id",
+        "side",
+        "quantity",
+        "quantity_quantum",
+        "price",
+        "price_quantum",
+        "fee_currency",
+        "fees",
+        "fee_quantum",
+        "slippage",
+        "occurred_at",
+        "source_bar_id",
+        "fill_hash"
+      ],
+      "title": "BacktestFill",
+      "type": "object"
+    },
+    "BacktestOrderOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "command_quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Command Quantity",
+          "type": "string"
+        },
+        "filled_quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Filled Quantity",
+          "type": "string"
+        },
+        "order_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Order Hash",
+          "type": "string"
+        },
+        "order_id": {
+          "format": "uuid",
+          "title": "Order Id",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "remaining_quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Remaining Quantity",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/BacktestOrderStatus"
+        }
+      },
+      "required": [
+        "order_id",
+        "order_hash",
+        "status",
+        "command_quantity",
+        "filled_quantity",
+        "remaining_quantity"
+      ],
+      "title": "BacktestOrderOutcome",
+      "type": "object"
+    },
+    "BacktestOrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "BacktestOrderSide",
+      "type": "string"
+    },
+    "BacktestOrderStatus": {
+      "enum": [
+        "accepted",
+        "partially_filled",
+        "filled",
+        "rejected",
+        "cancelled",
+        "expired"
+      ],
+      "title": "BacktestOrderStatus",
+      "type": "string"
+    },
+    "BacktestPosition": {
+      "additionalProperties": false,
+      "properties": {
+        "instrument_id": {
+          "format": "uuid",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "quantity": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Quantity",
+          "type": "string"
+        },
+        "quantity_quantum": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Quantity Quantum",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "quantity",
+        "quantity_quantum"
+      ],
+      "title": "BacktestPosition",
+      "type": "object"
+    },
+    "BacktestRuntimeIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Adapter Version",
+          "type": "string"
+        },
+        "deterministic": {
+          "const": true,
+          "title": "Deterministic",
+          "type": "boolean"
+        },
+        "engine": {
+          "$ref": "#/$defs/BacktestEngineKind"
+        },
+        "engine_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Engine Version",
+          "type": "string"
+        },
+        "image_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Digest"
+        },
+        "runtime_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Runtime Hash",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "engine",
+        "engine_version",
+        "adapter_version",
+        "runtime_hash",
+        "deterministic"
+      ],
+      "title": "BacktestRuntimeIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempt_generation": {
+      "minimum": 1,
+      "title": "Attempt Generation",
+      "type": "integer"
+    },
+    "attempt_nonce": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Attempt Nonce",
+      "type": "string"
+    },
+    "calendar_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Calendar Hash",
+      "type": "string"
+    },
+    "cost_model_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Cost Model Hash",
+      "type": "string"
+    },
+    "dataset_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Dataset Hash",
+      "type": "string"
+    },
+    "execution_mode": {
+      "const": "backtest",
+      "default": "backtest",
+      "title": "Execution Mode",
+      "type": "string"
+    },
+    "fills": {
+      "items": {
+        "$ref": "#/$defs/BacktestFill"
+      },
+      "maxItems": 1000000,
+      "title": "Fills",
+      "type": "array"
+    },
+    "final_cash": {
+      "items": {
+        "$ref": "#/$defs/BacktestCashBalance"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Final Cash",
+      "type": "array"
+    },
+    "final_positions": {
+      "items": {
+        "$ref": "#/$defs/BacktestPosition"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Final Positions",
+      "type": "array"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "input_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Input Hash",
+      "type": "string"
+    },
+    "job_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Job Hash",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "order_outcomes": {
+      "items": {
+        "$ref": "#/$defs/BacktestOrderOutcome"
+      },
+      "maxItems": 1000000,
+      "minItems": 1,
+      "title": "Order Outcomes",
+      "type": "array"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "result_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Result Hash",
+      "type": "string"
+    },
+    "result_id": {
+      "format": "uuid",
+      "title": "Result Id",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "runtime": {
+      "$ref": "#/$defs/BacktestRuntimeIdentity"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "semantic_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Semantic Hash",
+      "type": "string"
+    },
+    "total_fees": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Total Fees",
+      "type": "string"
+    },
+    "warnings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 128,
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "result_id",
+    "request_id",
+    "run_id",
+    "job_id",
+    "attempt_generation",
+    "attempt_nonce",
+    "runtime",
+    "job_hash",
+    "input_hash",
+    "dataset_hash",
+    "calendar_hash",
+    "cost_model_hash",
+    "order_outcomes",
+    "fills",
+    "final_cash",
+    "final_positions",
+    "total_fees",
+    "generated_at",
+    "semantic_hash",
+    "result_hash"
+  ],
+  "title": "BacktestResult",
+  "type": "object"
+}

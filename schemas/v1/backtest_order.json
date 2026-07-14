@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "BacktestOrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "BacktestOrderSide",
+      "type": "string"
+    },
+    "BacktestOrderType": {
+      "enum": [
+        "market",
+        "limit"
+      ],
+      "title": "BacktestOrderType",
+      "type": "string"
+    },
+    "BacktestTimeInForce": {
+      "enum": [
+        "day",
+        "gtc",
+        "ioc"
+      ],
+      "title": "BacktestTimeInForce",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "issued_at": {
+      "title": "Issued At",
+      "type": "string"
+    },
+    "limit_price": {
+      "anyOf": [
+        {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Limit Price"
+    },
+    "order_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Order Hash",
+      "type": "string"
+    },
+    "order_id": {
+      "format": "uuid",
+      "title": "Order Id",
+      "type": "string"
+    },
+    "order_type": {
+      "$ref": "#/$defs/BacktestOrderType"
+    },
+    "quantity": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Quantity",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "side": {
+      "$ref": "#/$defs/BacktestOrderSide"
+    },
+    "simulation_only": {
+      "const": true,
+      "default": true,
+      "title": "Simulation Only",
+      "type": "boolean"
+    },
+    "strategy_event_ref": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Strategy Event Ref",
+      "type": "string"
+    },
+    "time_in_force": {
+      "$ref": "#/$defs/BacktestTimeInForce"
+    },
+    "valid_until": {
+      "title": "Valid Until",
+      "type": "string"
+    }
+  },
+  "required": [
+    "order_id",
+    "sequence",
+    "instrument_id",
+    "side",
+    "order_type",
+    "quantity",
+    "time_in_force",
+    "issued_at",
+    "valid_until",
+    "strategy_event_ref",
+    "order_hash"
+  ],
+  "title": "BacktestOrder",
+  "type": "object"
+}

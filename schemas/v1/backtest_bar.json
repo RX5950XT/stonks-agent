@@ -1,0 +1,90 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "available_at": {
+      "title": "Available At",
+      "type": "string"
+    },
+    "bar_id": {
+      "format": "uuid",
+      "title": "Bar Id",
+      "type": "string"
+    },
+    "close": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Close",
+      "type": "string"
+    },
+    "closes_at": {
+      "title": "Closes At",
+      "type": "string"
+    },
+    "high": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "High",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "low": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Low",
+      "type": "string"
+    },
+    "open": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Open",
+      "type": "string"
+    },
+    "opens_at": {
+      "title": "Opens At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Hash",
+      "type": "string"
+    },
+    "source_ref": {
+      "maxLength": 512,
+      "minLength": 1,
+      "title": "Source Ref",
+      "type": "string"
+    },
+    "tradable": {
+      "title": "Tradable",
+      "type": "boolean"
+    },
+    "volume": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Volume",
+      "type": "string"
+    }
+  },
+  "required": [
+    "bar_id",
+    "instrument_id",
+    "opens_at",
+    "closes_at",
+    "available_at",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "source_ref",
+    "source_hash",
+    "tradable"
+  ],
+  "title": "BacktestBar",
+  "type": "object"
+}

@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "BacktestOrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "BacktestOrderSide",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "external_ref": {
+      "anyOf": [
+        {
+          "maxLength": 512,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "External Ref"
+    },
+    "fee_currency": {
+      "pattern": "^[A-Z]{3}$",
+      "title": "Fee Currency",
+      "type": "string"
+    },
+    "fee_quantum": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Fee Quantum",
+      "type": "string"
+    },
+    "fees": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Fees",
+      "type": "string"
+    },
+    "fill_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Fill Hash",
+      "type": "string"
+    },
+    "fill_id": {
+      "format": "uuid",
+      "title": "Fill Id",
+      "type": "string"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "order_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Order Hash",
+      "type": "string"
+    },
+    "order_id": {
+      "format": "uuid",
+      "title": "Order Id",
+      "type": "string"
+    },
+    "price": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Price",
+      "type": "string"
+    },
+    "price_quantum": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Price Quantum",
+      "type": "string"
+    },
+    "quantity": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Quantity",
+      "type": "string"
+    },
+    "quantity_quantum": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Quantity Quantum",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "side": {
+      "$ref": "#/$defs/BacktestOrderSide"
+    },
+    "slippage": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Slippage",
+      "type": "string"
+    },
+    "source_bar_id": {
+      "format": "uuid",
+      "title": "Source Bar Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "fill_id",
+    "order_id",
+    "order_hash",
+    "instrument_id",
+    "side",
+    "quantity",
+    "quantity_quantum",
+    "price",
+    "price_quantum",
+    "fee_currency",
+    "fees",
+    "fee_quantum",
+    "slippage",
+    "occurred_at",
+    "source_bar_id",
+    "fill_hash"
+  ],
+  "title": "BacktestFill",
+  "type": "object"
+}

@@ -1,0 +1,75 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "base_slippage_bps": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Base Slippage Bps",
+      "type": "string"
+    },
+    "fee_bps": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Fee Bps",
+      "type": "string"
+    },
+    "fee_quantum": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Fee Quantum",
+      "type": "string"
+    },
+    "half_spread_bps": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Half Spread Bps",
+      "type": "string"
+    },
+    "market_impact_bps_at_max_participation": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Market Impact Bps At Max Participation",
+      "type": "string"
+    },
+    "max_volume_participation": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Max Volume Participation",
+      "type": "string"
+    },
+    "minimum_fee": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Minimum Fee",
+      "type": "string"
+    },
+    "model_kind": {
+      "const": "deterministic_next_bar",
+      "title": "Model Kind",
+      "type": "string"
+    },
+    "per_unit_fee": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Per Unit Fee",
+      "type": "string"
+    },
+    "realism_claim": {
+      "const": "reference_model_not_market_replay",
+      "title": "Realism Claim",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "model_kind",
+    "realism_claim",
+    "max_volume_participation",
+    "half_spread_bps",
+    "base_slippage_bps",
+    "market_impact_bps_at_max_participation",
+    "fee_bps",
+    "per_unit_fee",
+    "minimum_fee",
+    "fee_quantum"
+  ],
+  "title": "BacktestCostModel",
+  "type": "object"
+}

@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "BacktestSession": {
+      "additionalProperties": false,
+      "properties": {
+        "break_end": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Break End"
+        },
+        "break_start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Break Start"
+        },
+        "closes_at": {
+          "title": "Closes At",
+          "type": "string"
+        },
+        "mic": {
+          "pattern": "^[A-Z0-9]{4}$",
+          "title": "Mic",
+          "type": "string"
+        },
+        "opens_at": {
+          "title": "Opens At",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_date": {
+          "format": "date",
+          "title": "Session Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_date",
+        "mic",
+        "opens_at",
+        "closes_at"
+      ],
+      "title": "BacktestSession",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "calendar_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Calendar Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sessions": {
+      "items": {
+        "$ref": "#/$defs/BacktestSession"
+      },
+      "maxItems": 100000,
+      "minItems": 1,
+      "title": "Sessions",
+      "type": "array"
+    },
+    "timezone": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Timezone",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "calendar_id",
+    "version",
+    "timezone",
+    "sessions"
+  ],
+  "title": "BacktestCalendar",
+  "type": "object"
+}

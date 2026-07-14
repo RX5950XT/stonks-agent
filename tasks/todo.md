@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.3 已完成，P5.4 進行中）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.4 已完成，P5.5 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -427,7 +427,10 @@
   - [x] Prompt-injection/high-risk content只能被隔離；new research question/payload只含固定instruction、typed identifiers與evidence IDs，不含remote原文。
   - [x] 只有rerun action可經narrow typed `JobEnqueuePort`建立research-only job；ignore/haircut零side effect，輸出契約不存在signal/order/risk authority。
 
-- [ ] **P5.4 Backtest engine contract** — 擴充`BacktestJob/Result` schemas與`ports/backtest_engine.py`；建立canonical orders/fills/positions/calendar/cost parity suite。（Depends：P4.1、P4.6；Complexity：L；Risk：High）
+- [x] **P5.4 Backtest engine contract** — 擴充`BacktestJob/Result` schemas與`ports/backtest_engine.py`；建立canonical orders/fills/positions/calendar/cost parity suite。（Depends：P4.1、P4.6；Complexity：L；Risk：High）
+  - [x] TDD：固定immutable dataset/calendar/session/bar、instrument quantum、initial cash/positions、simulation-only order與explicit cost-model hashes。
+  - [x] Result exact綁job/runtime/generation/nonce/input hashes，並重驗next-bar fills、fees/slippage、order outcomes、cash/position reduction與stable artifact hash。
+  - [x] `BacktestEnginePort`只回canonical result；core boundary將invalid/late/engine-specific output轉structured failure，reference/fake-engine parity與replay fixtures通過。
 
 - [ ] **P5.5 NautilusTrader adapter** — 建立`sidecars/nautilus/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py}`與contract/replay tests。（Depends：P0.3、P5.4；Complexity：XL；Risk：High）
   - LGPL runtime/types不滲入core；記錄engine/runtime/license/version與完整fills。
@@ -857,3 +860,10 @@
 - PIT / reputation / injection：platform、publication subject、event/evidence identity、available/observed/as-of與deadline皆exact驗證；duplicate、future、scope/reputation drift fail closed。Reputation只取stably ordered core policy，remote self-claim不能取得權重；同作者最多一票、support不提高confidence、late/unknown reputation忽略。Injection文字即使高reputation亦quarantine，queue payload只有固定safe question、typed identifiers與evidence IDs，不含remote原文。
 - Authority / verification：policy只持有enqueue能力，無claim/complete、signal、portfolio、risk、order、execution dependency；ignore/haircut零queue side effect。Focused platform/community/security為42 passed，community module branch coverage 90.28%；完整PostgreSQL gate為1254 passed、coverage 87.31%，472 files format、ruff、mypy 275 source files、77 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.4 backtest engine contract。
+
+### P5 Progress Review — P5.4 — 2026-07-14
+
+- Scope completed：新增14個frozen canonical backtest schemas、runtime-checkable `BacktestEnginePort`與core `run_backtest` boundary。Job固定content-addressed strategy/dataset、PIT calendar/session/bar、instrument/currency quantum、opening cash/positions、simulation-only orders與deterministic cost model；reference、Nautilus與LEAN共用相同wire surface。
+- Replay / economics：result exact綁request/run/job、generation/nonce、runtime、job/input/dataset/calendar/cost hashes與deadline。Core重建JSON後驗第一個可成交next bar，拒絕same-bar或skipped-bar lookahead，並重算market/limit adverse price、participation impact、fees/slippage、per-bar volume cap、order outcomes與cash/position projection；engine-specific fill IDs/refs不影響semantic hash。
+- Authority / verification：port只有`run(job) -> Result[BacktestResult]`，contracts固定`execution_mode=backtest`與`simulation_only=true`，dependency/security tests證明無paper account、risk、reservation、broker、ledger或heavy engine runtime。Focused contracts/security/P4 execution regression為107 passed，新backtest模組branch coverage 84.59%；完整PostgreSQL gate為1267 passed、coverage 87.24%，479 files format、ruff、mypy 279 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.5 NautilusTrader adapter。

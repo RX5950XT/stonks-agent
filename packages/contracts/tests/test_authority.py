@@ -7,6 +7,13 @@ from pydantic import ValidationError
 
 from stonks_contracts import CANONICAL_CHAIN
 from stonks_contracts.common import ContractModel
+from stonks_contracts.platform import (
+    ChallengeResult,
+    ExperimentResult,
+    ExternalEvidence,
+    FeedbackPage,
+    PublishedThesis,
+)
 from stonks_contracts.research import AgentOpinion, AnalysisBundle, ResearchArtifact
 from stonks_contracts.signal import PromotionState
 
@@ -19,6 +26,20 @@ def test_research_outputs_have_no_execution_authority(model: type[ContractModel]
 
     assert not any(
         token in name.lower() for name in field_names for token in FORBIDDEN_AUTHORITY_TOKENS
+    )
+
+
+@pytest.mark.parametrize(
+    "model",
+    [ExternalEvidence, PublishedThesis, FeedbackPage, ChallengeResult, ExperimentResult],
+)
+def test_external_platform_outputs_have_no_control_plane_authority(
+    model: type[ContractModel],
+) -> None:
+    assert not any(
+        token in name.lower()
+        for name in model.model_fields
+        for token in (*FORBIDDEN_AUTHORITY_TOKENS, "target", "risk", "reservation")
     )
 
 

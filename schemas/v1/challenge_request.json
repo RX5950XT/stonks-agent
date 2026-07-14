@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "ChallengeAction": {
+      "enum": [
+        "join",
+        "submit_research",
+        "vote"
+      ],
+      "title": "ChallengeAction",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/ChallengeAction"
+    },
+    "activity_ref": {
+      "minLength": 1,
+      "title": "Activity Ref",
+      "type": "string"
+    },
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "deadline": {
+      "title": "Deadline",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "payload_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Payload Artifact Ref",
+      "type": "string"
+    },
+    "payload_content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Payload Content Hash",
+      "type": "string"
+    },
+    "platform": {
+      "minLength": 1,
+      "title": "Platform",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "research_only": {
+      "const": true,
+      "default": true,
+      "title": "Research Only",
+      "type": "boolean"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "run_id",
+    "platform",
+    "idempotency_key",
+    "activity_ref",
+    "payload_artifact_ref",
+    "payload_content_hash",
+    "as_of",
+    "deadline",
+    "action"
+  ],
+  "title": "ChallengeRequest",
+  "type": "object"
+}

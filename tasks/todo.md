@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1 進行中）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1 已完成，P5.2 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -407,8 +407,11 @@
 
 ### Tasks
 
-- [ ] **P5.1 External platform contracts** — 擴充`packages/contracts/src/stonks_contracts/platform.py`、`ports/platform.py`與schemas；定義publish thesis、poll feedback、challenge/experiment與external evidence。（Depends：P4 gate；Complexity：M；Risk：High）
+- [x] **P5.1 External platform contracts** — 擴充`packages/contracts/src/stonks_contracts/platform.py`、`ports/platform.py`與schemas；定義publish thesis、poll feedback、challenge/experiment與external evidence。（Depends：P4 gate；Complexity：M；Risk：High）
   - 不定義submit order/copy trade為canonical operation；remote positions只能是external evidence。
+  - [x] TDD：先固定public redaction、immutable artifact/hash、PIT、cursor/page dedup、untrusted/evidence-only與authority-free invariants。
+  - [x] `PlatformPort`只提供publish/poll/challenge/experiment typed `Result`；不得依賴execution、DB或queue ports。
+  - [x] 匯出versioned JSON schemas，focused/full gate通過後同步README/CONTEXT與本review並提交。
 
 - [ ] **P5.2 AI-Trader public HTTP adapter** — 建立`adapters/platform/ai_trader.py`、`config/platforms/ai_trader.yaml`、runtime-schema cassettes與contract tests。（Depends：P0.3、P5.1；Complexity：L；Risk：High）
   - 只使用external control/community endpoints：publish去敏thesis、discussion/reply、challenge/team/experiment、heartbeat/events。

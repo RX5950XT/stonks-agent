@@ -1,0 +1,102 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "idempotency_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "observation_deadline": {
+      "title": "Observation Deadline",
+      "type": "string"
+    },
+    "platform": {
+      "minLength": 1,
+      "title": "Platform",
+      "type": "string"
+    },
+    "public_summary": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Public Summary",
+      "type": "string"
+    },
+    "publication_scope": {
+      "const": "public",
+      "default": "public",
+      "title": "Publication Scope",
+      "type": "string"
+    },
+    "redaction_manifest_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Redaction Manifest Hash",
+      "type": "string"
+    },
+    "redaction_policy_version": {
+      "minLength": 1,
+      "title": "Redaction Policy Version",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "subject": {
+      "minLength": 1,
+      "title": "Subject",
+      "type": "string"
+    },
+    "thesis_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Thesis Artifact Ref",
+      "type": "string"
+    },
+    "thesis_content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Thesis Content Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "run_id",
+    "platform",
+    "idempotency_key",
+    "subject",
+    "as_of",
+    "public_summary",
+    "thesis_artifact_ref",
+    "thesis_content_hash",
+    "evidence_ids",
+    "redaction_policy_version",
+    "redaction_manifest_hash",
+    "observation_deadline"
+  ],
+  "title": "PublishThesisRequest",
+  "type": "object"
+}

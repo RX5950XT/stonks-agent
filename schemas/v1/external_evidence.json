@@ -1,0 +1,178 @@
+{
+  "$defs": {
+    "ExternalEvidenceKind": {
+      "enum": [
+        "community_feedback",
+        "platform_event",
+        "remote_position",
+        "remote_outcome",
+        "remote_price",
+        "challenge_result",
+        "experiment_result"
+      ],
+      "title": "ExternalEvidenceKind",
+      "type": "string"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "author_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Author Ref"
+    },
+    "available_at": {
+      "title": "Available At",
+      "type": "string"
+    },
+    "content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "event_time": {
+      "title": "Event Time",
+      "type": "string"
+    },
+    "evidence_id": {
+      "format": "uuid",
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "external_event_id": {
+      "minLength": 1,
+      "title": "External Event Id",
+      "type": "string"
+    },
+    "ingestion_version": {
+      "minLength": 1,
+      "title": "Ingestion Version",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/ExternalEvidenceKind"
+    },
+    "license_tag": {
+      "minLength": 1,
+      "title": "License Tag",
+      "type": "string"
+    },
+    "observed_at": {
+      "title": "Observed At",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Payload",
+      "type": "object"
+    },
+    "platform": {
+      "minLength": 1,
+      "title": "Platform",
+      "type": "string"
+    },
+    "published_at": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Published At"
+    },
+    "raw_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Raw Artifact Ref",
+      "type": "string"
+    },
+    "redistribution_tag": {
+      "minLength": 1,
+      "title": "Redistribution Tag",
+      "type": "string"
+    },
+    "remote_authority": {
+      "const": "evidence_only",
+      "default": "evidence_only",
+      "title": "Remote Authority",
+      "type": "string"
+    },
+    "reputation": {
+      "anyOf": [
+        {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reputation"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_url": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Url"
+    },
+    "subject": {
+      "minLength": 1,
+      "title": "Subject",
+      "type": "string"
+    },
+    "untrusted_content": {
+      "const": true,
+      "default": true,
+      "title": "Untrusted Content",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "platform",
+    "external_event_id",
+    "subject",
+    "kind",
+    "payload",
+    "event_time",
+    "published_at",
+    "available_at",
+    "observed_at",
+    "as_of",
+    "content_hash",
+    "raw_artifact_ref",
+    "license_tag",
+    "redistribution_tag",
+    "ingestion_version"
+  ],
+  "title": "ExternalEvidence",
+  "type": "object"
+}

@@ -1,0 +1,103 @@
+{
+  "$defs": {
+    "ExperimentAction": {
+      "enum": [
+        "enroll",
+        "submit_observation",
+        "submit_research_result"
+      ],
+      "title": "ExperimentAction",
+      "type": "string"
+    },
+    "ExternalActivityStatus": {
+      "enum": [
+        "pending",
+        "accepted",
+        "rejected",
+        "completed"
+      ],
+      "title": "ExternalActivityStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/ExperimentAction"
+    },
+    "activity_ref": {
+      "minLength": 1,
+      "title": "Activity Ref",
+      "type": "string"
+    },
+    "external_ref": {
+      "minLength": 1,
+      "title": "External Ref",
+      "type": "string"
+    },
+    "occurred_at": {
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "platform": {
+      "minLength": 1,
+      "title": "Platform",
+      "type": "string"
+    },
+    "remote_authority": {
+      "const": "evidence_only",
+      "default": "evidence_only",
+      "title": "Remote Authority",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "response_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Response Artifact Ref",
+      "type": "string"
+    },
+    "response_content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Response Content Hash",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ExternalActivityStatus"
+    },
+    "untrusted_content": {
+      "const": true,
+      "default": true,
+      "title": "Untrusted Content",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "request_id",
+    "run_id",
+    "platform",
+    "activity_ref",
+    "status",
+    "external_ref",
+    "occurred_at",
+    "response_artifact_ref",
+    "response_content_hash",
+    "action"
+  ],
+  "title": "ExperimentResult",
+  "type": "object"
+}

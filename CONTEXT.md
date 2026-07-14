@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation與P4 PostgreSQL paper fund phase gates已完成；P4.1–P4.10形成可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環，下一目標為P5.1 external platform contracts。
+- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation與P4 PostgreSQL paper fund phase gates已完成；P4.1–P4.10形成可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環，P5.1 external platform contracts已完成，下一目標為P5.2 AI-Trader public HTTP adapter。
 - P1/P3/P4目前包含PostgreSQL 0001–0014、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、paper account/trading ledger、execution receipts、operator action chain與immutable portfolio valuations、provider policy、US/HK/TW replay、snapshot與paper projection API/CLI。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -43,6 +43,7 @@
 - P4.8新增frozen PIT mark/valuation/outcome/reflection contracts與三個monitoring use cases。Mark-to-market只接受settled ledger、單一base currency與每個open position的exact available mark；NAV、fees、realized PnL、position values及hash可deterministic replay。Outcome exact綁approved historical decision/target、strict valuation path、benchmark與fill refs，fee delta必須等於fills總費用，再封存為derived EvidenceItem。Reflection request只allow該outcome evidence，candidate必須是新`ResearchArtifact`且引用它，不能改寫歷史交易物件。
 - P4.9新增frozen operator command/state/action contracts、role-gated activate/reconcile/resume use cases、PostgreSQL operations repository、0013 append-only hash-chain audit與paper CLI/API。Global/account activation使用switch version CAS，於同一transaction終止pending orders並釋放reservations；既有fills/journals永不刪除，新execution由ledger authority拒絕。Resume先鎖定scope/account並完成exact journal replay reconciliation；drift寫入`resume_rejected`並保持active，manual reconciliation drift則audited後啟動global switch。Action sequence/previous hash/head CAS由deferred DB triggers防止竄改。
 - P4.10新增`ReportReference`與五組core-controlled target/risk/order/fill/outcome refs、content-hashed portfolio/risk read models、ledger-bound NAV recording、0014 append-only valuation與read-only paper projection CLI/API。Portfolio重驗account event chain並明示settled/reserved/available；NAV只接受current ledger sequence/hash/projection exact match，ledger一移動即拒絕stale snapshot；risk projection揭露latest decision/current binding但沒有order authority。真實小型portfolio完成pre/post NAV、fill/journal、outcome evidence、report refs、JSON replay與reconciliation。
+- P5.1新增9個clean-room external platform schemas與runtime-checkable `PlatformPort`。Publication必須是public redacted thesis並綁exact artifact/hash/evidence/deadline；feedback page固定cursor、dedup、stable order與PIT；challenge/experiment均research-only。所有remote publication、feedback、position/outcome與activity response一律`untrusted_content=true`、`remote_authority=evidence_only`，port不存在order/copy/risk/DB/queue能力。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -117,11 +118,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P4.8 focused monitoring為11 passed，domain/application四個新模組branch coverage 82.27%。完整PostgreSQL gate為1168 passed、coverage 87.64%，429 files format、ruff、mypy 251 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P4.9 focused domain/application/API/PostgreSQL為23 passed，新模組branch coverage 82.45%；migration/operator/execution/ledger regression為48 passed。完整PostgreSQL gate為1191 passed、coverage 87.47%，445 files format、ruff、mypy 261 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P4.10 focused contracts/projections/API/PostgreSQL/E2E為22 passed，新模組branch coverage 80.59%；P4 safety matrix為215 passed。完整P4 PostgreSQL gate為1206 passed、coverage 87.32%，459 files format、ruff、mypy 268 source files、68 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- P5.1 focused contracts/authority/port為23 passed，external platform contract branch coverage 92%。完整PostgreSQL gate為1223 passed、coverage 87.37%，463 files format、ruff、mypy 271 source files、77 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P5 與架構藍圖。
-2. 保持 TDD；從P5.1 external platform contracts開始，固定publish thesis、poll feedback、challenge/experiment與external evidence的paper-only authority boundary。
+2. 保持 TDD；從P5.2 AI-Trader public HTTP adapter開始，只實作publish thesis、discussion/reply、challenge/team/experiment與heartbeat/events的typed tolerant reader。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

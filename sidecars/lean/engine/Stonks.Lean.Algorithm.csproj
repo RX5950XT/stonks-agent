@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Stonks.Lean.Algorithm</AssemblyName>
+    <RootNamespace>Stonks.Lean</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="IonicZipCompat.cs" />
+    <ProjectReference Include="..\Algorithm\QuantConnect.Algorithm.csproj" />
+  </ItemGroup>
+</Project>

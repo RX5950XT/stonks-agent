@@ -1,5 +1,5 @@
 schema_version: 1
-reviewed_at: "2026-07-14"
+reviewed_at: "2026-07-15"
 policies:
   required_gates:
     - NO_VENDOR_DEXTER_CODE
@@ -46,7 +46,7 @@ upstreams:
       status: verified
       evidence:
         - path: LICENSE
-          sha256: 333d44bf52248cb54db5e8b2b767f1f02fe4df80483de01b8906b3e37e9eb830
+          sha256: 6cb192c4a37c69c84459d2e1b3da7af51b06d91e35be521c898107bdae18e2a4
     adoption:
       mode: selective-port
       source_copy_allowed: true
@@ -64,7 +64,7 @@ upstreams:
       status: incomplete
       evidence:
         - path: README.md
-          sha256: 6dca39b958326fe3479c0d256b5ac37188992a9d33bc8b1794849d8c236d2d93
+          sha256: 982f4294335c2941b01297d00f4da6756a1b73dd9c02cdad705e58db767e3a09
     adoption:
       mode: clean-room-only
       source_copy_allowed: false
@@ -82,7 +82,7 @@ upstreams:
       status: verified
       evidence:
         - path: LICENSE
-          sha256: 1eb85fc97224598dad1852b5d6483bbcf0aa8608790dcc657a5a2a761ae9c8c6
+          sha256: c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4
     adoption:
       mode: isolated-worker
       source_copy_allowed: true
@@ -100,7 +100,7 @@ upstreams:
       status: verified
       evidence:
         - path: LICENSE
-          sha256: 16fa0cc8736754b878132ef3181d7ff4d1ae28d20d7758f9b3c0f5c8e1056d69
+          sha256: acb2d194d378204e5f2be4dcd24d39ecac437903620c790c3315a96dab388fdc
     adoption:
       mode: isolated-worker
       source_copy_allowed: true
@@ -118,7 +118,7 @@ upstreams:
       status: verified
       evidence:
         - path: LICENSE
-          sha256: d06b0d1d2b6fbf6adda441b4d28abc4d04ea409e9804c49151e90d04b179928f
+          sha256: 87915011a44adbd0b2b085dbf931a21bd082f65c4a0824d61c1dec50dc54f2a4
     adoption:
       mode: selective-port
       source_copy_allowed: true
@@ -136,9 +136,9 @@ upstreams:
       status: conflicting
       evidence:
         - path: README.md
-          sha256: 13d60318cc564bad8fd566ae0810ec322086fd12eba4c83469fdfb179280ea86
+          sha256: f3c6f8a67c8003237aa70773a76bf86fdbd32811c6d55fd5520922a98ecd9f02
         - path: service/README.md
-          sha256: bba86c6eda31371aa117f202b4c4fe1b91920bd3b814d4d9031443bbe9329ad6
+          sha256: 9d295a1a42f4bb248bfb9e440a70112b4281ead8c0aad8a6c4f61771bd0422ae
     adoption:
       mode: external-adapter-only
       source_copy_allowed: false
@@ -156,7 +156,7 @@ upstreams:
       status: verified
       evidence:
         - path: LICENSE
-          sha256: 8ba759c7c4ca2ec63b556a008728f387f8f4562e4fd0c0125bad05a47c99b315
+          sha256: 442baa7865ddf53ba04808a29e4810ac1fd9c83383d4ac76297cec4569e19222
     adoption:
       mode: optional-sidecar
       source_copy_allowed: false
@@ -174,7 +174,7 @@ upstreams:
       status: verified
       evidence:
         - path: LICENSE
-          sha256: 9906940f61b1f0b533fa7d99baf55178b2808fbe113ea51dfbfad8572ccd5f2b
+          sha256: c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383
     adoption:
       mode: isolated-worker
       source_copy_allowed: true
@@ -201,6 +201,24 @@ upstreams:
       required: true
       id: NAUTILUS-TRADER-LGPL-3.0-SIDECAR
 
+  - id: lean
+    repository: https://github.com/QuantConnect/Lean
+    local_path: .research/upstreams/Lean
+    snapshot: c22774e49ee80ecef5ca84f57616f6b66fad8bc5
+    license:
+      expression: Apache-2.0
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: 522cf0a716ce03f67d46f8fceb5bf78c5b84400ec5cd8d14bf9f02cddc1cb6ba
+    adoption:
+      mode: optional-sidecar
+      source_copy_allowed: true
+      in_core_allowed: false
+    notice:
+      required: true
+      id: QUANTCONNECT-LEAN-APACHE-2.0-SIDECAR
+
   - id: rd-agent
     repository: https://github.com/microsoft/RD-Agent
     local_path: .research/upstreams/RD-Agent
@@ -210,7 +228,7 @@ upstreams:
       status: verified
       evidence:
         - path: LICENSE
-          sha256: 9906940f61b1f0b533fa7d99baf55178b2808fbe113ea51dfbfad8572ccd5f2b
+          sha256: c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383
     adoption:
       mode: isolated-worker
       source_copy_allowed: true

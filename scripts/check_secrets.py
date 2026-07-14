@@ -15,6 +15,7 @@ from pathlib import Path
 SKIP_DIRECTORIES = frozenset(
     {
         ".git",
+        ".data",
         ".hypothesis",
         ".mypy_cache",
         ".pytest_cache",

@@ -50,9 +50,11 @@ def test_scan_rejects_private_key_header(tmp_path: Path) -> None:
     assert "PRIVATE_KEY" in result.stdout
 
 
-def test_scan_ignores_research_and_virtual_environment(tmp_path: Path) -> None:
+def test_scan_ignores_research_runtime_data_and_virtual_environment(
+    tmp_path: Path,
+) -> None:
     secret = "ghp_" + "b" * 40
-    for directory in (".research", ".venv"):
+    for directory in (".data", ".research", ".venv"):
         path = tmp_path / directory
         path.mkdir()
         (path / "ignored.txt").write_text(secret, encoding="utf-8")

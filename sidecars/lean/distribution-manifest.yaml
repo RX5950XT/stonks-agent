@@ -1,0 +1,39 @@
+schema_version: 1
+package: QuantConnect LEAN
+tag: "17917"
+commit: c22774e49ee80ecef5ca84f57616f6b66fad8bc5
+license: Apache-2.0
+copyright: Copyright 2014 QuantConnect Corporation
+source:
+  repository: https://github.com/QuantConnect/Lean
+  archive_url: https://codeload.github.com/QuantConnect/Lean/tar.gz/c22774e49ee80ecef5ca84f57616f6b66fad8bc5
+  commit: c22774e49ee80ecef5ca84f57616f6b66fad8bc5
+  archive_sha256: 258a6db94c942e77488e47cb8e5c873c2cc2cbc7e4bc1bce5d14ea4f31b6628f
+  license_sha256: 522cf0a716ce03f67d46f8fceb5bf78c5b84400ec5cd8d14bf9f02cddc1cb6ba
+build:
+  dotnet_sdk_image: mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:493fca072aac81307027cbb7b7c9a82b6e87d222af315504d05dc6530e69b519
+  dotnet_runtime_image: mcr.microsoft.com/dotnet/runtime:10.0-noble@sha256:be255200babf94801c2ebad19dbfb69c87345bdeb481920d0f479c815e52f672
+  python_build_image: ghcr.io/astral-sh/uv:0.9.27-python3.12-bookworm-slim@sha256:a0cb65a2dada255d392fe0426d04ed50911f0b78b3295de0c3286c1c86148b15
+  nuget_lock_tree_sha256: 23a9af4d389155e3b438e083712252b06d41d9efe6f906db51373f344ac6c488
+  nuget_lock_tree_hash_method: sorted relative POSIX path, NUL, file bytes, NUL
+verification_tools:
+  syft_image: anchore/syft@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6
+  grype_image: anchore/grype@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d
+  policy: fail on high or critical vulnerabilities
+modifications:
+  - path: patches/0001-remove-vulnerable-runtime-dependencies.patch
+    sha256: 1f8775576b9d85b2a039de42c19278f892dc1f0c9175e6040ca760145554d722
+    purpose: remove vulnerable and unreachable runtime dependency chains
+  - path: engine/IonicZipCompat.cs
+    sha256: 8ce135c8fe06631417b499431edb4b4b4abe183be402b0aedc8344df9869a0d6
+    purpose: bounded clean-room System.IO.Compression compatibility layer
+  - path: engine/CanonicalBacktestAlgorithm.cs
+    sha256: 5f08ca8424f55d8c56a0b676cba59a333d46c5596a3d81a70de0b4ce52369d29
+    purpose: fixed canonical backtest-only algorithm
+  - path: engine/Stonks.Lean.Algorithm.csproj
+    sha256: ef23b986d050047beef069f9e41f87b4831831caebe82a9048b83399ba3960ff
+    purpose: independently compiled algorithm plugin
+distribution_note: >-
+  The image builds the pinned source archive with the listed patches, embeds the
+  exact original archive and modification sources, and makes no claim that its
+  modified binary is an upstream QuantConnect release.

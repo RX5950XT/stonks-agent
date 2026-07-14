@@ -1,11 +1,11 @@
 # Stonks Agent 開發交接
 
-更新日期：2026-07-14
+更新日期：2026-07-15
 
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation與P4 PostgreSQL paper fund phase gates已完成；P4.1–P4.10形成可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環，P5.1–P5.5 external platform、AI-Trader adapter、community feedback policy、canonical backtest contracts與NautilusTrader sidecar已完成，下一目標為P5.6 LEAN adapter。
+- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation與P4 PostgreSQL paper fund phase gates已完成；P4.1–P4.10形成可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環，P5.1–P5.6 external platform、AI-Trader adapter、community feedback policy、canonical backtest contracts、NautilusTrader與QuantConnect LEAN sidecars已完成，下一目標為P5.7 cross-engine parity evaluation。
 - P1/P3/P4目前包含PostgreSQL 0001–0014、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、paper account/trading ledger、execution receipts、operator action chain與immutable portfolio valuations、provider policy、US/HK/TW replay、snapshot與paper projection API/CLI。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -48,6 +48,7 @@
 - P5.3新增frozen/hash-bound community policy、command與decision。Policy只在publication window closed後接受exact platform/subject與PIT evidence；duplicate、future、scope drift及remote reputation與core policy snapshot不一致皆fail closed。同作者只計一次core-trusted reputation，support不加confidence，late/unknown reputation忽略，prompt-injection quarantine。Threshold只可選ignore、confidence haircut或經enqueue-only `JobEnqueuePort`建立固定safe question的research-only job；queued payload不含remote原文，module無signal/portfolio/risk/order/execution dependency。
 - P5.4新增14個frozen canonical backtest schemas、runtime-checkable `BacktestEnginePort`與core validation boundary。Job固定content-addressed strategy/dataset、PIT calendar/session/bar、instrument/currency quantum、opening cash/positions、simulation-only orders與deterministic cost model。Result exact綁runtime/fence/input hashes與deadline；core重驗第一個可成交next bar、market/limit adverse price、volume cap、fees/slippage、outcomes及cash/position projection。Port無paper risk/reservation/broker/ledger或heavy runtime authority。
 - P5.5新增default-off NautilusTrader `1.230.0` sidecar、獨立lock/image、bounded authenticated HTTP adapter與真實engine replay。Canonical scheduler固定open-cross market/limit、DAY/GTC/IOC、calendar session、shared participation cap與engine-neutral outcomes；Nautilus只產生scheduled-child native order/fill events，trade ID與除隨機event ID外的raw payload hash綁入fill provenance。Core再次重驗P5.4 economics/projection；runtime/source/image identity、deadline、work/child/request/concurrency bounds皆fail closed。Container使用internal network、non-root/read-only、cap-drop與resource limits，無core module或DB/provider/queue/broker credentials；LGPL/GPL/source replacement、SBOM與CVE gate已驗證。
+- P5.6新增default-off QuantConnect LEAN `17917` / commit `c22774e` sidecar、獨立Python/NuGet locks、bounded authenticated HTTP adapter、固定C# algorithm與真實Launcher replay。Canonical scheduler擁有TIF/session/shared-volume/cost/projection，LEAN只回scheduled-child authority-free trace；core再次重建P5.4 result。Runtime/source/license/modification/image identity exact綁定，每job fresh process受deadline/work/trace bounds；internal、non-root、read-only container無core或paper credentials。Exact source隨image提供，NuGet transitive gate、Syft SBOM與Grype驗證0 High/Critical。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -127,11 +128,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P5.3 focused platform/community/security為42 passed，community policy branch coverage 90.28%。完整PostgreSQL gate為1254 passed、coverage 87.31%，472 files format、ruff、mypy 275 source files、77 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P5.4 focused contracts/security/P4 execution regression為107 passed，新backtest模組branch coverage 84.59%。完整PostgreSQL gate為1267 passed、coverage 87.24%，479 files format、ruff、mypy 279 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P5.5 focused core/contract/security regression為47 passed，actual Nautilus wheel為19 passed；新root模組branch coverage 84%、Nautilus engine 92%。Hardened image在internal network完成authenticated HTTP replay、runtime/image/source/license與authority-isolation smoke；65-component SBOM與sidecar lock audit無已知CVE。完整PostgreSQL gate為1281 passed、coverage 87.25%，491 files format、ruff、mypy 280 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- P5.6 focused adapter/contracts/security/SBOM為22 passed，strict mypy 6 files；真實LEAN HTTP job兩次重播semantic/raw refs一致。Hardened image runtime hash為`b94e4594...a93001`、digest為`sha256:8bbe6b8e...47340`；4,754-component CycloneDX/166 packages，Grype為0 Critical/High。完整PostgreSQL gate為1296 passed、coverage 87.25%，502 files format、ruff、mypy 280 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P5 與架構藍圖。
-2. 保持 TDD；從P5.6 LEAN adapter開始，沿用P5.4 canonical contracts與P5.5 authority/provenance/isolation gates固定runtime、orders/fills/positions/calendar/cost mapping及reference replay parity。
+2. 保持 TDD；從P5.7 cross-engine parity evaluation開始，以P5.4 canonical contracts比較reference paper、P5.5 Nautilus與P5.6 LEAN，差異必須可解釋且超threshold時標為engine-specific，不平均或宣稱等價。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

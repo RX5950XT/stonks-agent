@@ -74,3 +74,22 @@ Exact wheel與transitive resolution固定於sidecar自己的`uv.lock`。Image保
 未修改、未vendor或static link NautilusTrader。Sidecar只輸出canonical backtest
 evaluation，沒有paper account、risk、reservation、broker、ledger或execution
 authority。完整散布與replacement說明見`sidecars/nautilus/NOTICE.md`。
+
+## QUANTCONNECT-LEAN-APACHE-2.0-SIDECAR
+
+Optional `sidecars/lean/` 是與 core lock 隔離的 QuantConnect LEAN backtest
+sidecar，使用 tag `17917`、commit
+`c22774e49ee80ecef5ca84f57616f6b66fad8bc5`。LEAN source files 標示
+Copyright 2014 QuantConnect Corporation，依 Apache-2.0 授權。
+
+Image 從 SHA-256 pinned source archive 建置，保留完整原始 archive、license 與所有
+Stonks modifications。為了移除已知 vulnerable/unreachable runtime dependency
+chains，build 會套用已記錄 patch，以 bounded clean-room `System.IO.Compression`
+compatibility layer 取代使用到的 Ionic.Zip surface，並只編譯 backtest 所需的
+EventMessagingHandler。Exact base images、NuGet lock graph 與 modification hashes 見
+`sidecars/lean/distribution-manifest.yaml`，完整修改聲明見
+`sidecars/lean/NOTICE.md`。
+
+LEAN process 只接收 canonical scheduler 已核准的 child orders，輸出
+authority-free trace；沒有 paper account、risk、reservation、broker、ledger 或
+execution authority。這個修改版不是 QuantConnect 官方 binary。

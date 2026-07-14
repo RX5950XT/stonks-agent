@@ -1,0 +1,47 @@
+services:
+  lean:
+    image: stonks-lean-sidecar:p5.6
+    build:
+      context: ..
+      dockerfile: sidecars/lean/Dockerfile
+      target: runtime
+    environment:
+      STONKS_LEAN_RUNTIME_HASH: ${STONKS_LEAN_RUNTIME_HASH:?required}
+      STONKS_LEAN_IMAGE_DIGEST: ${STONKS_LEAN_IMAGE_DIGEST:?required}
+      STONKS_LEAN_SERVICE_TOKEN: ${STONKS_LEAN_SERVICE_TOKEN:?required}
+      STONKS_LEAN_MAX_CONCURRENCY: "1"
+      STONKS_LEAN_MAX_ENGINE_SECONDS: "120"
+      STONKS_LEAN_MAX_TRACE_BYTES: "16777216"
+      STONKS_LEAN_MAX_REQUEST_BYTES: "16777216"
+      STONKS_LEAN_MAX_ORDERS: "10000"
+      STONKS_LEAN_MAX_BARS: "1000000"
+      STONKS_LEAN_MAX_ORDER_BAR_EVALUATIONS: "5000000"
+      STONKS_LEAN_MAX_SCHEDULE_CHILDREN: "100000"
+    ports:
+      - "127.0.0.1:7410:7410"
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [lean-internal]
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=512m,uid=65532,gid=65532,mode=0700"
+    pids_limit: 256
+    mem_limit: 3g
+    cpus: 2.0
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - >-
+          from urllib.request import urlopen;
+          raise SystemExit(0 if urlopen('http://127.0.0.1:7410/healthz', timeout=2).status == 200 else 1)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  lean-internal:
+    internal: true

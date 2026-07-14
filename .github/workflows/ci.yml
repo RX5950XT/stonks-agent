@@ -296,3 +296,134 @@ jobs:
         run: |
           docker rm --force stonks-nautilus-ci || true
           docker network rm stonks-nautilus-ci || true
+
+  lean-sidecar:
+    name: Optional QuantConnect LEAN sidecar / ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+      UV_FROZEN: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          version: "0.9.27"
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Install frozen core and sidecar environments
+        run: |
+          uv sync --frozen
+          uv lock --check --project sidecars/lean
+          uv sync --frozen --project sidecars/lean
+
+      - name: Verify adapter, contracts, policy and fake replay
+        shell: bash
+        run: |
+          uv run --project sidecars/lean ruff check \
+            sidecars/lean scripts/smoke_lean.py scripts/verify_lean_sbom.py \
+            tests/contracts/test_lean_sidecar.py \
+            tests/security/test_lean_sidecar_boundary.py
+          MYPYPATH=".:src:packages/contracts/src" \
+            uv run --project sidecars/lean mypy --strict \
+            sidecars/lean/adapter.py sidecars/lean/app.py \
+            sidecars/lean/engine.py sidecars/lean/runtime_app.py \
+            scripts/smoke_lean.py scripts/verify_lean_sbom.py
+          PYTHONPATH=".:src:packages/contracts/src" \
+            uv run --project sidecars/lean pytest -q --no-cov \
+            sidecars/lean/tests tests/contracts/test_lean_sidecar.py \
+            tests/security/test_lean_sidecar_boundary.py
+          uv run pytest -q --no-cov tests/unit/test_verify_lean_sbom.py
+
+      - name: Audit exact frozen Python dependencies
+        shell: bash
+        run: |
+          uv export --project sidecars/lean --quiet --frozen --no-dev \
+            --no-emit-project --no-emit-local --format requirements.txt \
+            --output-file "$RUNNER_TEMP/lean-requirements.txt"
+          uv run --project sidecars/lean pip-audit --strict --requirement \
+            "$RUNNER_TEMP/lean-requirements.txt"
+
+      - name: Build pinned source with locked NuGet vulnerability gate
+        run: >-
+          docker build -f sidecars/lean/Dockerfile
+          -t stonks-lean-sidecar:p5.6 .
+
+      - name: Generate and verify combined SBOM and image CVEs
+        shell: bash
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP:/out" \
+            anchore/syft@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6 \
+            docker:stonks-lean-sidecar:p5.6 \
+            -o cyclonedx-json=/out/lean-sbom.cdx.json
+          uv run python scripts/verify_lean_sbom.py \
+            "$RUNNER_TEMP/lean-sbom.cdx.json"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            anchore/grype@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d \
+            docker:stonks-lean-sidecar:p5.6 --fail-on high --output table
+
+      - name: Start hardened sidecar with exact runtime identity
+        shell: bash
+        run: |
+          runtime_hash="$(PYTHONPATH=.:src:packages/contracts/src uv run --project sidecars/lean python -c 'from pathlib import Path; from sidecars.lean.adapter import compute_runtime_hash; print(compute_runtime_hash(Path("sidecars/lean")))')"
+          image_digest="$(docker image inspect stonks-lean-sidecar:p5.6 --format '{{.Id}}')"
+          service_token="$(openssl rand -hex 32)"
+          echo "LEAN_RUNTIME_HASH=$runtime_hash" >> "$GITHUB_ENV"
+          echo "LEAN_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
+          echo "LEAN_SERVICE_TOKEN=$service_token" >> "$GITHUB_ENV"
+          docker network create --internal stonks-lean-ci
+          docker run --detach --name stonks-lean-ci \
+            --network stonks-lean-ci --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=512m,uid=65532,gid=65532,mode=0700 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --memory 3g --memory-swap 3g --cpus 2 --pids-limit 256 \
+            --env STONKS_LEAN_RUNTIME_HASH="$runtime_hash" \
+            --env STONKS_LEAN_IMAGE_DIGEST="$image_digest" \
+            --env STONKS_LEAN_SERVICE_TOKEN="$service_token" \
+            "$image_digest"
+          for attempt in {1..30}; do
+            docker exec stonks-lean-ci python3 -c \
+              "from urllib.request import urlopen; assert urlopen('http://127.0.0.1:7410/healthz', timeout=1).status == 200" \
+              && break
+            if [ "$attempt" -eq 30 ]; then exit 1; fi
+            sleep 1
+          done
+
+      - name: Smoke real LEAN replay, authority and license policy
+        shell: bash
+        run: |
+          docker exec stonks-lean-ci python3 /workspace/scripts/smoke_lean.py \
+            --runtime-hash "$LEAN_RUNTIME_HASH" \
+            --image-digest "$LEAN_IMAGE_DIGEST" \
+            --service-token "$LEAN_SERVICE_TOKEN" --timeout 120
+          test "$(docker image inspect stonks-lean-sidecar:p5.6 --format '{{.Config.User}}')" = "65532:65532"
+          test "$(docker network inspect stonks-lean-ci --format '{{.Internal}}')" = "true"
+          docker exec stonks-lean-ci python3 -c \
+            "import importlib.util; assert importlib.util.find_spec('stonks_agent') is None"
+          ! docker exec stonks-lean-ci env \
+            | grep --extended-regexp --ignore-case \
+              'database_url|postgres|redis_url|broker_token'
+          docker exec stonks-lean-ci test -s \
+            /usr/share/licenses/stonks-lean-sidecar/LEAN-APACHE-2.0
+          docker exec stonks-lean-ci sha256sum \
+            /usr/share/source/lean/lean-source.tar.gz \
+            | grep '^258a6db94c942e77488e47cb8e5c873c2cc2cbc7e4bc1bce5d14ea4f31b6628f '
+          docker exec stonks-lean-ci sha256sum \
+            /usr/share/licenses/stonks-lean-sidecar/LEAN-APACHE-2.0 \
+            | grep '^522cf0a716ce03f67d46f8fceb5bf78c5b84400ec5cd8d14bf9f02cddc1cb6ba '
+
+      - name: Stop QuantConnect LEAN sidecar
+        if: always()
+        run: |
+          docker rm --force stonks-lean-ci || true
+          docker network rm stonks-lean-ci || true

@@ -1,0 +1,31 @@
+[project]
+name = "stonks-lean-sidecar"
+version = "0.1.0"
+description = "Isolated QuantConnect LEAN canonical backtest adapter"
+requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+dependencies = [
+    "fastapi>=0.128,<1",
+    "stonks-contracts",
+    "tzdata>=2025.3,<2027",
+    "uvicorn>=0.40,<1",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2,<3",
+    "mypy>=1.19,<2",
+    "pip-audit>=2.9,<3",
+    "pyyaml>=6.0.3,<7",
+    "pytest>=9,<10",
+    "pytest-asyncio>=1.3,<2",
+    "pytest-cov>=7,<8",
+    "ruff>=0.14,<1",
+    "types-pyyaml>=6.0.12.20260518,<7",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+stonks-contracts = { path = "../../packages/contracts" }

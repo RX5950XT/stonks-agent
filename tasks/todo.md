@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.5 已完成，P5.6 進行中）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.6 已完成，P5.7 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -439,8 +439,12 @@
   - [x] Core仍重驗P5.4 next-bar/cost/projection；sidecar無DB/provider/queue/broker credentials，invalid/late/unsupported/runtime drift皆structured fail closed。
   - [x] Fake-runtime contract/replay、真實wheel smoke、container hardening、lock/CVE/license checks與完整phase gate通過後同步文件。
 
-- [ ] **P5.6 LEAN adapter** — 建立`sidecars/lean/{Dockerfile,README.md,appsettings.template.json,adapter/}`與job/result contract tests。（Depends：P0.3、P5.4；Complexity：XL；Risk：High）
+- [x] **P5.6 LEAN adapter** — 建立`sidecars/lean/{Dockerfile,README.md,appsettings.template.json,adapter/}`與job/result contract tests。（Depends：P0.3、P5.4；Complexity：XL；Risk：High）
   - C#/Docker保持external sidecar；calendar/corporate action/fees/slippage mapping明確。
+  - [x] TDD：固定官方LEAN source/tag/commit、license/corresponding source、.NET/runtime image與獨立dependency lock/provenance。
+  - [x] Canonical mapper只接受`engine=lean` exact runtime，真實engine replay只能回authority-free trace；core重新驗P5.4 schedule/economics/projection。
+  - [x] Sidecar無DB/provider/queue/broker credentials；request/work/concurrency/deadline與process/resource bounds fail closed，default no egress。
+  - [x] Fake-runtime contract/replay、真實engine/container smoke、SBOM/CVE/license/source checks與完整phase gate通過後同步文件。
 
 - [ ] **P5.7 Cross-engine parity evaluation** — 建立`tests/parity/{paper_nautilus_lean.py,fixtures/}`與`application/evaluation/engine_parity.py`。（Depends：P4.5、P5.5、P5.6；Complexity：XL；Risk：High）
   - 差異超預設threshold時標engine-specific，不能把結果平均或宣稱等價。
@@ -879,3 +883,11 @@
 - Isolation / license：sidecar無`stonks_agent`、DB、provider、queue、broker、risk、reservation或ledger依賴；HTTP要求internal bearer token並限制body、concurrency、orders、bars、order×bar work與schedule children。Hardened image以internal network、UID/GID 65532、read-only、cap-drop、no-new-privileges與CPU/RAM/PID limits完成真實HTTP smoke；Nautilus LGPL、Debian GPL、exact source sdist、replacement notice、65-component SBOM與獨立lock audit均通過。
 - Verification：focused core/contract/security為47 passed，actual Nautilus wheel為19 passed；root新模組branch coverage 84%、engine 92%。完整PostgreSQL gate為1281 passed、coverage 87.25%，491 files format、ruff、mypy 280 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`、sidecar README與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.6 LEAN adapter。
+
+### P5 Progress Review — P5.6 — 2026-07-15
+
+- Scope completed：新增default-off QuantConnect LEAN `17917` / commit `c22774e` external sidecar、獨立Python/NuGet locks、canonical adapter、bounded authenticated HTTP service、固定C# algorithm與真實Launcher replay。Canonical scheduler擁有TIF/session/shared volume/cost/projection；LEAN只接收scheduled fillable children，以zero native fee/slippage回傳authority-free trace，core再次重建並驗證完整P5.4 result。
+- Determinism / isolation：runtime hash `b94e4594...a93001`與OCI image digest `sha256:8bbe6b8e...47340` exact綁定；同一HTTP job兩次重播的semantic hash與raw fill refs一致。每job fresh fixed-command process、sanitized env、no shell/stdin、deadline/trace/request/order/bar/work/child/concurrency bounds；container為internal network、UID/GID 65532、read-only、cap-drop、no-new-privileges與CPU/RAM/PID限制，無core module或DB/provider/queue/broker/risk/ledger credentials。
+- Provenance / security：固定Apache-2.0 source archive與license hashes、原始archive及modification source隨image提供；移除vulnerable DotNetZip/NetMQ與未使用ServiceModel/WinHttp/System.Drawing chains，16份NuGet lock皆以`--locked-mode` restore並在build內掃transitive vulnerabilities。Syft CycloneDX為4,754 components/166 unique packages；Grype為0 Critical、0 High（145 Medium、24 Low、2 Negligible），Python與core locked audit皆0 known vulnerabilities。Debian runtime實驗因14 Critical/85 High fail closed撤回，最終使用pinned Ubuntu/.NET runtime。
+- Verification：focused adapter/contracts/security/SBOM為22 passed，strict mypy 6 files、Ruff、actionlint、Compose、source/license/upstream policy與real hardened replay全通過。完整PostgreSQL gate為1296 passed、coverage 87.25%，502 files format、ruff、mypy 280 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過；secret scanner另以TDD排除gitignored `.data` runtime/build cache。
+- 文件同步：`README.md`、`CONTEXT.md`、sidecar README與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.7 cross-engine parity evaluation。

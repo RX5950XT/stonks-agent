@@ -519,6 +519,37 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _git_blob_sha256(repository: Path, relative: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository), "show", f"HEAD:{relative}"],
+            check=False,
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return hashlib.sha256(result.stdout).hexdigest()
+
+
+def _git_path_dirty(repository: Path, relative: str) -> bool | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(repository), "diff", "--quiet", "--", relative],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode not in {0, 1}:
+        return None
+    return result.returncode == 1
+
+
 def _git_head(path: Path) -> str | None:
     try:
         result = subprocess.run(
@@ -585,14 +616,17 @@ def _check_evidence(
                     f"invalid evidence {upstream_id}/{relative}",
                 )
             )
-        elif _sha256(path) != expected:
-            violations.append(
-                Violation(
-                    "LICENSE_EVIDENCE_DRIFT",
-                    f"license evidence drift for {upstream_id}",
-                    relative,
+        else:
+            canonical = _git_blob_sha256(repository, relative)
+            dirty = _git_path_dirty(repository, relative)
+            if dirty is True or (canonical or _sha256(path)) != expected:
+                violations.append(
+                    Violation(
+                        "LICENSE_EVIDENCE_DRIFT",
+                        f"license evidence drift for {upstream_id}",
+                        relative,
+                    )
                 )
-            )
     return violations
 
 

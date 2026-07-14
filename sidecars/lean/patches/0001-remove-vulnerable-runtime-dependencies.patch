@@ -1,0 +1,53 @@
+diff --git a/Compression/QuantConnect.Compression.csproj b/Compression/QuantConnect.Compression.csproj
+index 42fc30154..c2a6f4099 100644
+--- a/Compression/QuantConnect.Compression.csproj
++++ b/Compression/QuantConnect.Compression.csproj
+@@ -29,8 +29,7 @@
+     <Message Text="SelectedOptimization $(SelectedOptimization)" Importance="high" />
+   </Target>
+   <ItemGroup>
+-    <PackageReference Include="DotNetZip" Version="1.16.0" />
+-    <PackageReference Include="SharpZipLib" Version="1.3.3" />
++    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+   </ItemGroup>
+   <ItemGroup>
+     <Compile Include="..\Common\Properties\SharedAssemblyInfo.cs" Link="Properties\SharedAssemblyInfo.cs" />
+diff --git a/Launcher/QuantConnect.Lean.Launcher.csproj b/Launcher/QuantConnect.Lean.Launcher.csproj
+index 8ed57f0b2..60cc2f4df 100644
+--- a/Launcher/QuantConnect.Lean.Launcher.csproj
++++ b/Launcher/QuantConnect.Lean.Launcher.csproj
+@@ -49,16 +49,12 @@
+     <ProjectReference Include="..\Brokerages\QuantConnect.Brokerages.csproj" />
+     <ProjectReference Include="..\Compression\QuantConnect.Compression.csproj" />
+     <ProjectReference Include="..\Configuration\QuantConnect.Configuration.csproj" />
+-    <ProjectReference Include="..\DownloaderDataProvider\QuantConnect.DownloaderDataProvider.Launcher.csproj" />
+     <ProjectReference Include="..\Engine\QuantConnect.Lean.Engine.csproj" />
+     <ProjectReference Include="..\Indicators\QuantConnect.Indicators.csproj" />
+     <ProjectReference Include="..\Common\QuantConnect.csproj" />
+-    <ProjectReference Include="..\Optimizer.Launcher\QuantConnect.Optimizer.Launcher.csproj" />
+-    <ProjectReference Include="..\Research\QuantConnect.Research.csproj" />
+     <ProjectReference Include="..\Logging\QuantConnect.Logging.csproj" />
+     <ProjectReference Include="..\Messaging\QuantConnect.Messaging.csproj" />
+     <ProjectReference Include="..\Queues\QuantConnect.Queues.csproj" />
+-    <ProjectReference Include="..\ToolBox\QuantConnect.ToolBox.csproj" />
+   </ItemGroup>
+   <ItemGroup>
+     <None Include="..\LICENSE">
+diff --git a/Messaging/QuantConnect.Messaging.csproj b/Messaging/QuantConnect.Messaging.csproj
+index 8f265be73..8fc847de7 100644
+--- a/Messaging/QuantConnect.Messaging.csproj
++++ b/Messaging/QuantConnect.Messaging.csproj
+@@ -29,10 +29,12 @@
+     <Message Text="SelectedOptimization $(SelectedOptimization)" Importance="high" />
+   </Target>
+   <ItemGroup>
+-    <PackageReference Include="NetMQ" Version="4.0.1.6" />
+     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+   </ItemGroup>
+   <ItemGroup>
++    <Compile Remove="Messaging.cs;StreamingMessageHandler.cs" />
++  </ItemGroup>
++  <ItemGroup>
+     <Compile Include="..\Common\Properties\SharedAssemblyInfo.cs" Link="Properties\SharedAssemblyInfo.cs" />
+   </ItemGroup>
+   <ItemGroup>

@@ -32,6 +32,7 @@ REQUIRED_UPSTREAMS = frozenset(
         "daily-stock-analysis",
         "dexter",
         "kronos",
+        "nautilus-trader",
         "openbb",
         "qlib",
         "rd-agent",
@@ -86,6 +87,9 @@ CORE_SOURCE_ROOTS = ("src", "packages/contracts/src")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 DEPENDENCY_PATTERN = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+NAUTILUS_REPOSITORY = "https://github.com/nautechsystems/nautilus_trader"
+NAUTILUS_SNAPSHOT = "8160730c7c550480b0a439fb11086a4c4de15f0b"
+NAUTILUS_NOTICE_ID = "NAUTILUS-TRADER-LGPL-3.0-SIDECAR"
 
 
 @dataclass(frozen=True, slots=True)
@@ -243,6 +247,7 @@ def _validate_adoption(
 
 def _check_critical_upstream_policy(
     entries: Mapping[str, Mapping[str, Any]],
+    notices: str,
 ) -> list[Violation]:
     violations: list[Violation] = []
     for upstream_id in ("dexter", "ai-trader"):
@@ -266,6 +271,53 @@ def _check_critical_upstream_policy(
     if adoption.get("in_core_allowed") is not False:
         violations.append(
             Violation("NO_OPENBB_IMPORT_IN_CORE", "OpenBB is forbidden in the core")
+        )
+    nautilus = entries["nautilus-trader"]
+    nautilus_license = _mapping(nautilus.get("license"), "nautilus.license")
+    nautilus_adoption = _mapping(nautilus.get("adoption"), "nautilus.adoption")
+    nautilus_notice = _mapping(nautilus.get("notice"), "nautilus.notice")
+    expected = {
+        "repository": NAUTILUS_REPOSITORY,
+        "snapshot": NAUTILUS_SNAPSHOT,
+    }
+    if any(nautilus.get(key) != value for key, value in expected.items()):
+        violations.append(
+            Violation("NAUTILUS_PROVENANCE_DRIFT", "Nautilus provenance changed")
+        )
+    if nautilus_license.get("expression") != "LGPL-3.0-or-later":
+        violations.append(
+            Violation(
+                "NAUTILUS_LICENSE_DRIFT",
+                "Nautilus must remain LGPL-3.0-or-later",
+            )
+        )
+    if (
+        nautilus_adoption.get("mode") != "optional-sidecar"
+        or nautilus_adoption.get("in_core_allowed") is not False
+        or nautilus_adoption.get("source_copy_allowed") is not False
+    ):
+        violations.append(
+            Violation(
+                "NAUTILUS_BOUNDARY_DRIFT",
+                "Nautilus must remain an isolated optional sidecar",
+            )
+        )
+    required_notice = (
+        nautilus_notice.get("required") is True
+        and nautilus_notice.get("id") == NAUTILUS_NOTICE_ID
+    )
+    notice_fragments = (
+        NAUTILUS_NOTICE_ID,
+        NAUTILUS_REPOSITORY,
+        NAUTILUS_SNAPSHOT,
+        "Copyright (C) 2015-2026 Nautech Systems Pty Ltd",
+    )
+    if not required_notice or any(item not in notices for item in notice_fragments):
+        violations.append(
+            Violation(
+                "NAUTILUS_NOTICE_INCOMPLETE",
+                "Nautilus notice provenance or copyright is incomplete",
+            )
         )
     return violations
 
@@ -298,7 +350,7 @@ def _validate_manifest(
             )
         )
     if indexed.keys() >= REQUIRED_UPSTREAMS:
-        violations.extend(_check_critical_upstream_policy(indexed))
+        violations.extend(_check_critical_upstream_policy(indexed, notices))
     return violations, entries
 
 

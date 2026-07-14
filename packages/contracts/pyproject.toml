@@ -7,6 +7,7 @@ name = "stonks-contracts"
 version = "0.1.0"
 description = "Versioned wire contracts for Stonks Agent"
 requires-python = ">=3.12"
+license = "Apache-2.0"
 dependencies = ["pydantic==2.12.5"]
 
 [project.optional-dependencies]
@@ -47,4 +48,3 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
-

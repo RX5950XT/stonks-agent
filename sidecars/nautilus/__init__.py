@@ -1,0 +1,1 @@
+"""NautilusTrader backtest sidecar."""

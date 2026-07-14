@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from bisect import bisect_right
+from dataclasses import dataclass
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Context, Decimal, DecimalException, localcontext
 from enum import StrEnum
 from itertools import pairwise
 from typing import Literal, Self
@@ -29,6 +31,7 @@ from .common import (
 _BPS = Decimal("10000")
 _ZERO = Decimal("0")
 _PLACEHOLDER_HASH = "0" * 64
+_DECIMAL_CONTEXT = Context(prec=128, Emin=-128, Emax=128)
 
 
 class BacktestEngineKind(StrEnum):
@@ -172,6 +175,48 @@ class BacktestBar(ContractModel):
         return self
 
 
+@dataclass(frozen=True, slots=True)
+class BacktestCalendarIndex:
+    sessions: dict[str, tuple[BacktestSession, ...]]
+    opens: dict[str, tuple[datetime, ...]]
+    closes: dict[str, tuple[datetime, ...]]
+
+    @classmethod
+    def create(cls, calendar: BacktestCalendar) -> BacktestCalendarIndex:
+        grouped: dict[str, list[BacktestSession]] = {}
+        for session in calendar.sessions:
+            grouped.setdefault(session.mic, []).append(session)
+        sessions = {key: tuple(value) for key, value in grouped.items()}
+        return cls(
+            sessions=sessions,
+            opens={key: tuple(item.opens_at for item in value) for key, value in sessions.items()},
+            closes={
+                key: tuple(item.closes_at for item in value) for key, value in sessions.items()
+            },
+        )
+
+    def session_for_bar(
+        self, bar: BacktestBar, instrument: BacktestInstrument
+    ) -> BacktestSession | None:
+        scoped = self.sessions.get(instrument.mic, ())
+        position = bisect_right(self.opens.get(instrument.mic, ()), bar.opens_at) - 1
+        if position < 0:
+            return None
+        session = scoped[position]
+        if session.opens_at <= bar.opens_at < bar.closes_at <= session.closes_at:
+            return session
+        return None
+
+    def first_session_date(
+        self, order: BacktestOrder, instrument: BacktestInstrument
+    ) -> date | None:
+        scoped = self.sessions.get(instrument.mic, ())
+        position = bisect_right(self.closes.get(instrument.mic, ()), order.issued_at)
+        if position >= len(scoped) or scoped[position].opens_at >= order.valid_until:
+            return None
+        return scoped[position].session_date
+
+
 class BacktestDataset(ContractModel):
     dataset_id: UUID
     as_of: UTCDateTime
@@ -200,8 +245,9 @@ class BacktestDataset(ContractModel):
             if any(current.opens_at < previous.closes_at for previous, current in pairwise(scoped)):
                 raise ValueError("backtest bars cannot overlap for an instrument")
         instruments = {item.instrument_id: item for item in self.instruments}
+        calendar_index = BacktestCalendarIndex.create(self.calendar)
         if any(
-            not _bar_is_valid(item, instruments, self.calendar, self.as_of) for item in self.bars
+            not _bar_is_valid(item, instruments, calendar_index, self.as_of) for item in self.bars
         ):
             raise ValueError("backtest bar failed instrument, calendar, quantum, or PIT validation")
         return self
@@ -231,6 +277,14 @@ class BacktestCostModel(ContractModel):
         )
         if any(item > _BPS for item in bps):
             raise ValueError("backtest basis points cannot exceed 10000")
+        with localcontext(_DECIMAL_CONTEXT):
+            adverse_bps = (
+                self.half_spread_bps
+                + self.base_slippage_bps
+                + self.market_impact_bps_at_max_participation
+            )
+        if adverse_bps >= _BPS:
+            raise ValueError("backtest aggregate adverse basis points must be below 10000")
         if not _is_quantized(self.minimum_fee, self.fee_quantum):
             raise ValueError("backtest minimum fee must match fee quantum")
         return self
@@ -345,7 +399,7 @@ class BacktestJob(ContractModel):
         if self.requested_at < self.dataset.as_of or self.deadline <= self.requested_at:
             raise ValueError("backtest request timeline is invalid")
         if not _job_inputs_are_valid(self):
-            raise ValueError("backtest order or opening projection is invalid")
+            raise ValueError("backtest order, price bounds, or opening projection is invalid")
         return self
 
     @property
@@ -539,7 +593,16 @@ class BacktestResult(ContractModel):
     def expected_semantic_hash(self) -> str:
         fills = [
             item.model_dump(mode="json", exclude={"fill_id", "fill_hash", "external_ref"})
-            for item in self.fills
+            for item in sorted(
+                self.fills,
+                key=lambda fill: (
+                    fill.occurred_at,
+                    fill.order_id.hex,
+                    fill.source_bar_id.hex,
+                    fill.quantity,
+                    fill.price,
+                ),
+            )
         ]
         return stable_payload_hash(
             {
@@ -564,7 +627,7 @@ class BacktestResult(ContractModel):
 def _bar_is_valid(
     bar: BacktestBar,
     instruments: dict[UUID, BacktestInstrument],
-    calendar: BacktestCalendar,
+    calendar_index: BacktestCalendarIndex,
     as_of: datetime,
 ) -> bool:
     instrument = instruments.get(bar.instrument_id)
@@ -575,15 +638,9 @@ def _bar_is_valid(
         for value in (bar.open, bar.high, bar.low, bar.close)
     ) or not _is_quantized(bar.volume, instrument.quantity_quantum):
         return False
-    matches = [
-        session
-        for session in calendar.sessions
-        if session.mic == instrument.mic
-        and session.opens_at <= bar.opens_at < bar.closes_at <= session.closes_at
-    ]
-    if len(matches) != 1:
+    session = calendar_index.session_for_bar(bar, instrument)
+    if session is None:
         return False
-    session = matches[0]
     if session.break_start is None or session.break_end is None:
         return True
     return bar.closes_at <= session.break_start or bar.opens_at >= session.break_end
@@ -610,7 +667,31 @@ def _job_inputs_are_valid(job: BacktestJob) -> bool:
             for item in job.initial_positions
         )
         and all(item.currency == job.base_currency for item in job.dataset.instruments)
+        and _sell_price_bounds_are_valid(job, instruments)
     )
+
+
+def _sell_price_bounds_are_valid(
+    job: BacktestJob,
+    instruments: dict[UUID, BacktestInstrument],
+) -> bool:
+    sell_instruments = {
+        item.instrument_id for item in job.orders if item.side is BacktestOrderSide.SELL
+    }
+    if not sell_instruments:
+        return True
+    with localcontext(_DECIMAL_CONTEXT):
+        adverse_bps = (
+            job.cost_model.half_spread_bps
+            + job.cost_model.base_slippage_bps
+            + job.cost_model.market_impact_bps_at_max_participation
+        )
+        factor = _ZERO + Decimal("1") - adverse_bps / _BPS
+        return all(
+            bar.open * factor >= instruments[bar.instrument_id].price_quantum
+            for bar in job.dataset.bars
+            if bar.instrument_id in sell_instruments
+        )
 
 
 def _order_matches_instrument(order: BacktestOrder, instrument: BacktestInstrument | None) -> bool:
@@ -624,4 +705,8 @@ def _order_matches_instrument(order: BacktestOrder, instrument: BacktestInstrume
 
 
 def _is_quantized(value: Decimal, quantum: Decimal) -> bool:
-    return value % quantum == 0
+    try:
+        with localcontext(_DECIMAL_CONTEXT):
+            return value % quantum == 0
+    except DecimalException:
+        return False

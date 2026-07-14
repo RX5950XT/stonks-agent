@@ -1,0 +1,30 @@
+schema_version: 1
+package: nautilus_trader
+version: 1.230.0
+license: LGPL-3.0-or-later
+copyright: Copyright (C) 2015-2026 Nautech Systems Pty Ltd
+source_review:
+  repository: https://github.com/nautechsystems/nautilus_trader
+  tag: v1.230.0
+  commit: 8160730c7c550480b0a439fb11086a4c4de15f0b
+  license_sha256: ee907919ec88c9c017b1f8b608db20960b6598aefcc4fe58820bde955d65ed3c
+published_artifacts:
+  sdist:
+    url: https://files.pythonhosted.org/packages/f7/33/af01e6a9d26b9594228a903eb00b7175d82777955cc331aab0faffbc614e/nautilus_trader-1.230.0.tar.gz
+    sha256: cc7eaa247e640e46588094fcca44f34f4b6330eeec41e9247068f2500921757d
+  manylinux_2_35_x86_64_wheel:
+    url: https://files.pythonhosted.org/packages/c7/ce/f5d1ebe03896d5dc5c0e77a99bea3959d7cc78338e6b575981835dbd82ed/nautilus_trader-1.230.0-cp312-cp312-manylinux_2_35_x86_64.whl
+    sha256: 8f4ff2e8af10e93ed643496eb62999b00558085f0e0bff17fc76e08809ba91b9
+  manylinux_2_35_aarch64_wheel:
+    url: https://files.pythonhosted.org/packages/33/e7/34c51e170086e11aad482067b7ad81bcf3633b43cbe0a04ae35e9314c2f6/nautilus_trader-1.230.0-cp312-cp312-manylinux_2_35_aarch64.whl
+    sha256: de69df04918ad52095dca2e462f2e1e7755a53e74df13f35de9631ef71513beb
+  windows_amd64_wheel:
+    url: https://files.pythonhosted.org/packages/7a/eb/10cd2e6dfaaa235de0a195a0ae95f5803d0fe706f122a12ef27ec21a6982/nautilus_trader-1.230.0-cp312-cp312-win_amd64.whl
+    sha256: 9420b151e92a504841b7fc768ba937dc7f3bffe387096215f39b83c6fcda27e8
+  macos_arm64_wheel:
+    url: https://files.pythonhosted.org/packages/7c/85/01ebade671867357059aa876d9d0da0ae7dbac63d9fc019092a1e2599bd5/nautilus_trader-1.230.0-cp312-cp312-macosx_15_0_arm64.whl
+    sha256: 033f6207d1c52095d64a7644f43b90cab939c2038044db70a4165f2acef3d079
+distribution_note: >-
+  The reviewed Git commit and the published PyPI artifacts are independently
+  pinned provenance inputs; no upstream reproducible-build attestation is
+  claimed between them.

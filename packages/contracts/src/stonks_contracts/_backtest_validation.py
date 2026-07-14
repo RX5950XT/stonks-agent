@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime
-from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from decimal import Decimal
 from uuid import UUID
 
 from .backtest import (
     BacktestBar,
+    BacktestCalendar,
+    BacktestCalendarIndex,
     BacktestCostModel,
     BacktestFill,
     BacktestInstrument,
@@ -16,12 +18,16 @@ from .backtest import (
     BacktestOrder,
     BacktestOrderOutcome,
     BacktestOrderSide,
-    BacktestOrderStatus,
-    BacktestOrderType,
     BacktestResult,
+    BacktestTimeInForce,
+)
+from .backtest_math import (
+    canonical_fill_fee,
+    canonical_fill_price,
+    canonical_outcome_status,
+    floor_quantum,
 )
 
-_BPS = Decimal("10000")
 _ZERO = Decimal("0")
 
 
@@ -34,10 +40,13 @@ def validate_backtest_result(result: BacktestResult, job: BacktestJob) -> None:
     outcomes = {item.order_id: item for item in result.order_outcomes}
     if set(outcomes) != set(orders):
         raise ValueError("backtest result must cover every input order exactly once")
-    if any(not _outcome_matches_order(outcomes[key], value) for key, value in orders.items()):
+    if any(
+        not _outcome_matches_order(outcomes[key], value, job.dataset.as_of)
+        for key, value in orders.items()
+    ):
         raise ValueError("backtest outcome does not match input order")
     _validate_fills(result, job, orders, bars, instruments, outcomes)
-    _validate_projection(result, job, instruments)
+    _validate_projection(result, job, instruments, orders)
 
 
 def _result_binding_matches(result: BacktestResult, job: BacktestJob) -> bool:
@@ -57,12 +66,15 @@ def _result_binding_matches(result: BacktestResult, job: BacktestJob) -> bool:
     )
 
 
-def _outcome_matches_order(outcome: BacktestOrderOutcome, order: BacktestOrder) -> bool:
+def _outcome_matches_order(
+    outcome: BacktestOrderOutcome,
+    order: BacktestOrder,
+    as_of: datetime,
+) -> bool:
     if outcome.order_hash != order.order_hash or outcome.command_quantity != order.quantity:
         return False
-    if outcome.filled_quantity == outcome.command_quantity:
-        return outcome.status is BacktestOrderStatus.FILLED
-    return outcome.status is not BacktestOrderStatus.FILLED
+    status, reason = canonical_outcome_status(order, outcome.filled_quantity, as_of)
+    return outcome.status is status and outcome.reason == reason
 
 
 def _validate_fills(
@@ -74,7 +86,7 @@ def _validate_fills(
     outcomes: dict[UUID, BacktestOrderOutcome],
 ) -> None:
     quantities: defaultdict[UUID, Decimal] = defaultdict(Decimal)
-    per_bar_order: defaultdict[tuple[UUID, UUID], Decimal] = defaultdict(Decimal)
+    per_bar: defaultdict[UUID, Decimal] = defaultdict(Decimal)
     fills_by_order: defaultdict[UUID, list[BacktestFill]] = defaultdict(list)
     for fill in result.fills:
         order = orders.get(fill.order_id)
@@ -85,12 +97,19 @@ def _validate_fills(
         if not _fill_matches_input(fill, order, bar, instrument, job.cost_model):
             raise ValueError("backtest fill economics or next-bar binding changed")
         quantities[fill.order_id] += fill.quantity
-        per_bar_order[(fill.source_bar_id, fill.order_id)] += fill.quantity
+        per_bar[fill.source_bar_id] += fill.quantity
         fills_by_order[fill.order_id].append(fill)
     if any(quantities[key] != outcome.filled_quantity for key, outcome in outcomes.items()):
         raise ValueError("backtest outcome fill quantity mismatch")
-    _validate_next_bar_sequence(fills_by_order, orders, bars, instruments, job.cost_model)
-    _validate_volume_caps(per_bar_order, bars, instruments, job.cost_model)
+    _validate_next_bar_sequence(
+        fills_by_order,
+        orders,
+        bars,
+        instruments,
+        job.dataset.calendar,
+        job.cost_model,
+    )
+    _validate_volume_caps(per_bar, bars, instruments, job.cost_model)
 
 
 def _validate_next_bar_sequence(
@@ -98,51 +117,87 @@ def _validate_next_bar_sequence(
     orders: dict[UUID, BacktestOrder],
     bars: dict[UUID, BacktestBar],
     instruments: dict[UUID, BacktestInstrument],
+    calendar: BacktestCalendar,
     cost: BacktestCostModel,
 ) -> None:
     ordered_bars = tuple(sorted(bars.values(), key=lambda item: (item.opens_at, item.bar_id.hex)))
-    for order_id, fills in fills_by_order.items():
-        order = orders[order_id]
-        instrument = instruments[order.instrument_id]
-        cursor = order.issued_at
-        for fill in fills:
-            expected = _next_fillable_bar(order, ordered_bars, instrument, cost, cursor)
-            if expected is None or fill.source_bar_id != expected.bar_id:
-                raise ValueError("backtest fill skipped the next fillable bar")
-            cursor = expected.opens_at
+    expected = _expected_fill_schedules(orders, ordered_bars, instruments, calendar, cost)
+    for order_id in orders:
+        actual = tuple(
+            (fill.source_bar_id, fill.quantity) for fill in fills_by_order.get(order_id, ())
+        )
+        if actual != expected[order_id]:
+            raise ValueError("backtest fills do not match the deterministic schedule")
 
 
-def _next_fillable_bar(
-    order: BacktestOrder,
+def _expected_fill_schedules(
+    orders: dict[UUID, BacktestOrder],
     bars: tuple[BacktestBar, ...],
-    instrument: BacktestInstrument,
+    instruments: dict[UUID, BacktestInstrument],
+    calendar: BacktestCalendar,
     cost: BacktestCostModel,
-    cursor: datetime,
-) -> BacktestBar | None:
-    return next(
-        (
-            bar
-            for bar in bars
-            if bar.instrument_id == order.instrument_id
-            and bar.tradable
-            and bar.opens_at > cursor
-            and bar.opens_at < order.valid_until
-            and _expected_price(order, bar, instrument.price_quantum, cost) is not None
-        ),
-        None,
+) -> dict[UUID, tuple[tuple[UUID, Decimal], ...]]:
+    calendar_index = BacktestCalendarIndex.create(calendar)
+    remaining = {key: order.quantity for key, order in orders.items()}
+    attempted_ioc: set[UUID] = set()
+    day_session = {
+        order_id: calendar_index.first_session_date(order, instruments[order.instrument_id])
+        for order_id, order in orders.items()
+        if order.time_in_force is BacktestTimeInForce.DAY
+    }
+    planned: defaultdict[UUID, list[tuple[UUID, Decimal]]] = defaultdict(list)
+    for bar in bars:
+        instrument = instruments[bar.instrument_id]
+        available = floor_quantum(
+            bar.volume * cost.max_volume_participation,
+            instrument.quantity_quantum,
+        )
+        for order_id, order in orders.items():
+            if remaining[order_id] <= 0 or order_id in attempted_ioc:
+                continue
+            if not _is_order_opportunity(order, bar):
+                continue
+            session = calendar_index.session_for_bar(bar, instrument)
+            if session is None:
+                raise ValueError("backtest bar session mapping changed")
+            if (
+                order.time_in_force is BacktestTimeInForce.DAY
+                and day_session[order_id] != session.session_date
+            ):
+                continue
+            if order.time_in_force is BacktestTimeInForce.IOC:
+                attempted_ioc.add(order_id)
+            if not bar.tradable:
+                continue
+            if canonical_fill_price(order, bar, instrument, cost) is not None:
+                quantity = min(remaining[order_id], available)
+                if quantity > 0:
+                    planned[order_id].append((bar.bar_id, quantity))
+                    remaining[order_id] -= quantity
+                    available -= quantity
+    return {key: tuple(planned[key]) for key in orders}
+
+
+def _is_order_opportunity(
+    order: BacktestOrder,
+    bar: BacktestBar,
+) -> bool:
+    return bool(
+        bar.instrument_id == order.instrument_id
+        and order.issued_at < bar.opens_at < order.valid_until
     )
 
 
 def _validate_volume_caps(
-    quantities: dict[tuple[UUID, UUID], Decimal],
+    quantities: dict[UUID, Decimal],
     bars: dict[UUID, BacktestBar],
     instruments: dict[UUID, BacktestInstrument],
     cost: BacktestCostModel,
 ) -> None:
-    for (bar_id, _), quantity in quantities.items():
+    for bar_id, quantity in quantities.items():
         bar = bars[bar_id]
         instrument = instruments[bar.instrument_id]
-        cap = _floor_quantum(
+        cap = floor_quantum(
             bar.volume * cost.max_volume_participation,
             instrument.quantity_quantum,
         )
@@ -157,8 +212,8 @@ def _fill_matches_input(
     instrument: BacktestInstrument,
     cost: BacktestCostModel,
 ) -> bool:
-    expected_price = _expected_price(order, bar, instrument.price_quantum, cost)
-    expected_fee = _expected_fee(fill.quantity, fill.price, cost)
+    expected_price = canonical_fill_price(order, bar, instrument, cost)
+    expected_fee = canonical_fill_fee(fill.quantity, fill.price, cost)
     return bool(
         bar.tradable
         and fill.order_hash == order.order_hash
@@ -178,50 +233,19 @@ def _fill_matches_input(
     )
 
 
-def _expected_price(
-    order: BacktestOrder,
-    bar: BacktestBar,
-    price_quantum: Decimal,
-    cost: BacktestCostModel,
-) -> Decimal | None:
-    participation = min(
-        cost.max_volume_participation,
-        order.quantity / bar.volume if bar.volume else _ZERO,
-    )
-    impact = (
-        cost.market_impact_bps_at_max_participation * participation / cost.max_volume_participation
-    )
-    adverse_bps = cost.half_spread_bps + cost.base_slippage_bps + impact
-    direction = Decimal("1") if order.side is BacktestOrderSide.BUY else Decimal("-1")
-    adjusted = bar.open * (Decimal("1") + direction * adverse_bps / _BPS)
-    adjusted = _adverse_quantize(adjusted, price_quantum, order.side)
-    if order.order_type is BacktestOrderType.MARKET:
-        return adjusted
-    limit = order.limit_price
-    if limit is None:
-        return None
-    if order.side is BacktestOrderSide.BUY:
-        if bar.open <= limit:
-            return min(adjusted, limit)
-        return limit if bar.low <= limit else None
-    if bar.open >= limit:
-        return max(adjusted, limit)
-    return limit if bar.high >= limit else None
-
-
-def _expected_fee(quantity: Decimal, price: Decimal, cost: BacktestCostModel) -> Decimal:
-    raw = quantity * price * cost.fee_bps / _BPS + quantity * cost.per_unit_fee
-    return _ceil_quantum(max(raw, cost.minimum_fee), cost.fee_quantum)
-
-
 def _validate_projection(
     result: BacktestResult,
     job: BacktestJob,
     instruments: dict[UUID, BacktestInstrument],
+    orders: dict[UUID, BacktestOrder],
 ) -> None:
     cash = {item.currency: item.amount for item in job.initial_cash}
     positions = {item.instrument_id: item.quantity for item in job.initial_positions}
-    for fill in result.fills:
+    ordered_fills = sorted(
+        result.fills,
+        key=lambda item: (item.occurred_at, orders[item.order_id].sequence, item.fill_id.hex),
+    )
+    for fill in ordered_fills:
         notional = fill.quantity * fill.price
         if fill.side is BacktestOrderSide.BUY:
             cash[fill.fee_currency] -= notional + fill.fees
@@ -245,16 +269,3 @@ def _validate_projection(
         for item in result.final_positions
     ):
         raise ValueError("backtest final position quantum changed")
-
-
-def _floor_quantum(value: Decimal, quantum: Decimal) -> Decimal:
-    return (value / quantum).to_integral_value(rounding=ROUND_FLOOR) * quantum
-
-
-def _ceil_quantum(value: Decimal, quantum: Decimal) -> Decimal:
-    return (value / quantum).to_integral_value(rounding=ROUND_CEILING) * quantum
-
-
-def _adverse_quantize(value: Decimal, quantum: Decimal, side: BacktestOrderSide) -> Decimal:
-    rounding = ROUND_CEILING if side is BacktestOrderSide.BUY else ROUND_FLOOR
-    return (value / quantum).to_integral_value(rounding=rounding) * quantum

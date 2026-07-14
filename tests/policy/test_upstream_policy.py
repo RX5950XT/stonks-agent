@@ -18,6 +18,7 @@ SNAPSHOTS = {
     "daily-stock-analysis": "aa513135d67425d2484cdc9c643402c0f4c3ae07",
     "ai-trader": "d03ff6c056b32ced735adf7c19ed8175adb1c8df",
     "openbb": "1c74893140292944e71ff5cdd9536edf12f05483",
+    "nautilus-trader": "8160730c7c550480b0a439fb11086a4c4de15f0b",
     "qlib": "d5379c520f66a39953bad76234a7019a72796fd0",
     "rd-agent": "4f9ecb005881cddc08df0124a2e894c018007679",
 }
@@ -26,10 +27,13 @@ SNAPSHOTS = {
 def _entry(upstream_id: str, snapshot: str) -> dict[str, Any]:
     is_restricted = upstream_id in {"dexter", "ai-trader"}
     is_openbb = upstream_id == "openbb"
+    is_nautilus = upstream_id == "nautilus-trader"
     expression = "NOASSERTION" if is_restricted else "MIT"
     if is_openbb:
         expression = "AGPL-3.0-only"
-    return {
+    if is_nautilus:
+        expression = "LGPL-3.0-or-later"
+    entry = {
         "id": upstream_id,
         "repository": f"https://github.com/example/{upstream_id}",
         "local_path": f".research/upstreams/{upstream_id}",
@@ -46,7 +50,7 @@ def _entry(upstream_id: str, snapshot: str) -> dict[str, Any]:
                 "clean-room-only"
                 if is_restricted
                 else "optional-sidecar"
-                if is_openbb
+                if is_openbb or is_nautilus
                 else "research-only"
             ),
             "source_copy_allowed": False,
@@ -54,6 +58,13 @@ def _entry(upstream_id: str, snapshot: str) -> dict[str, Any]:
         },
         "notice": {"required": False, "id": None},
     }
+    if is_nautilus:
+        entry["repository"] = "https://github.com/nautechsystems/nautilus_trader"
+        entry["notice"] = {
+            "required": True,
+            "id": "NAUTILUS-TRADER-LGPL-3.0-SIDECAR",
+        }
+    return entry
 
 
 def _valid_manifest() -> dict[str, Any]:
@@ -105,7 +116,13 @@ def _write_fixture_repo(
     *,
     manifest: dict[str, Any] | None = None,
     dependencies: tuple[str, ...] = ("pydantic>=2",),
-    notices: str = "# Third-party notices\n",
+    notices: str = (
+        "# Third-party notices\n"
+        "NAUTILUS-TRADER-LGPL-3.0-SIDECAR\n"
+        "https://github.com/nautechsystems/nautilus_trader\n"
+        "8160730c7c550480b0a439fb11086a4c4de15f0b\n"
+        "Copyright (C) 2015-2026 Nautech Systems Pty Ltd\n"
+    ),
 ) -> Path:
     (root / "docs" / "legal").mkdir(parents=True)
     (root / "src" / "stonks_agent").mkdir(parents=True)

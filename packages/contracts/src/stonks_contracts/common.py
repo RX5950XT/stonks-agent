@@ -36,6 +36,15 @@ def _parse_decimal(value: object) -> Decimal:
         raise ValueError("Decimal input is invalid") from error
     if not parsed.is_finite():
         raise ValueError("Decimal input must be finite")
+    parts = parsed.as_tuple()
+    exponent = parts.exponent
+    if (
+        not isinstance(exponent, int)
+        or len(parts.digits) > 64
+        or abs(exponent) > 64
+        or abs(parsed.adjusted()) > 64
+    ):
+        raise ValueError("Decimal input exceeds supported bounds")
     return parsed
 
 

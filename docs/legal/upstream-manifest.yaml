@@ -1,5 +1,5 @@
 schema_version: 1
-reviewed_at: "2026-07-10"
+reviewed_at: "2026-07-14"
 policies:
   required_gates:
     - NO_VENDOR_DEXTER_CODE
@@ -182,6 +182,24 @@ upstreams:
     notice:
       required: false
       id: null
+
+  - id: nautilus-trader
+    repository: https://github.com/nautechsystems/nautilus_trader
+    local_path: .research/upstreams/NautilusTrader
+    snapshot: 8160730c7c550480b0a439fb11086a4c4de15f0b
+    license:
+      expression: LGPL-3.0-or-later
+      status: verified
+      evidence:
+        - path: LICENSE
+          sha256: ee907919ec88c9c017b1f8b608db20960b6598aefcc4fe58820bde955d65ed3c
+    adoption:
+      mode: optional-sidecar
+      source_copy_allowed: false
+      in_core_allowed: false
+    notice:
+      required: true
+      id: NAUTILUS-TRADER-LGPL-3.0-SIDECAR
 
   - id: rd-agent
     repository: https://github.com/microsoft/RD-Agent

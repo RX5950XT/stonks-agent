@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.4 已完成，P5.5 進行中）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.5 已完成，P5.6 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -432,8 +432,12 @@
   - [x] Result exact綁job/runtime/generation/nonce/input hashes，並重驗next-bar fills、fees/slippage、order outcomes、cash/position reduction與stable artifact hash。
   - [x] `BacktestEnginePort`只回canonical result；core boundary將invalid/late/engine-specific output轉structured failure，reference/fake-engine parity與replay fixtures通過。
 
-- [ ] **P5.5 NautilusTrader adapter** — 建立`sidecars/nautilus/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py}`與contract/replay tests。（Depends：P0.3、P5.4；Complexity：XL；Risk：High）
+- [x] **P5.5 NautilusTrader adapter** — 建立`sidecars/nautilus/{pyproject.toml,uv.lock,Dockerfile,README.md,app.py}`與contract/replay tests。（Depends：P0.3、P5.4；Complexity：XL；Risk：High）
   - LGPL runtime/types不滲入core；記錄engine/runtime/license/version與完整fills。
+  - [x] TDD：固定Nautilus `1.230.0` / commit `8160730c`、LGPL dynamic-library boundary、獨立lock/image、runtime hash與bounded HTTP envelope。
+  - [x] Canonical mapper只接受`engine=nautilus` exact runtime；以synthetic open quote + scheduled order在真正`BacktestEngine`重播，保存每筆engine fill ID/raw hash並映射完整canonical outcomes/fills。
+  - [x] Core仍重驗P5.4 next-bar/cost/projection；sidecar無DB/provider/queue/broker credentials，invalid/late/unsupported/runtime drift皆structured fail closed。
+  - [x] Fake-runtime contract/replay、真實wheel smoke、container hardening、lock/CVE/license checks與完整phase gate通過後同步文件。
 
 - [ ] **P5.6 LEAN adapter** — 建立`sidecars/lean/{Dockerfile,README.md,appsettings.template.json,adapter/}`與job/result contract tests。（Depends：P0.3、P5.4；Complexity：XL；Risk：High）
   - C#/Docker保持external sidecar；calendar/corporate action/fees/slippage mapping明確。
@@ -867,3 +871,11 @@
 - Replay / economics：result exact綁request/run/job、generation/nonce、runtime、job/input/dataset/calendar/cost hashes與deadline。Core重建JSON後驗第一個可成交next bar，拒絕same-bar或skipped-bar lookahead，並重算market/limit adverse price、participation impact、fees/slippage、per-bar volume cap、order outcomes與cash/position projection；engine-specific fill IDs/refs不影響semantic hash。
 - Authority / verification：port只有`run(job) -> Result[BacktestResult]`，contracts固定`execution_mode=backtest`與`simulation_only=true`，dependency/security tests證明無paper account、risk、reservation、broker、ledger或heavy engine runtime。Focused contracts/security/P4 execution regression為107 passed，新backtest模組branch coverage 84.59%；完整PostgreSQL gate為1267 passed、coverage 87.24%，479 files format、ruff、mypy 279 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.5 NautilusTrader adapter。
+
+### P5 Progress Review — P5.5 — 2026-07-14
+
+- Scope completed：新增default-off NautilusTrader `1.230.0` sidecar、獨立frozen lock/image、canonical adapter、bounded authenticated HTTP service與真實`BacktestEngine` replay。Canonical scheduler以synthetic open quote固定open-cross market/limit、DAY/GTC/IOC、calendar session、aggregate participation cap與child budget；adapter保存engine trade ID/raw payload hash並重建完整canonical result。
+- Determinism / fail-closed：runtime、adapter、contracts、lock、OCI image與reviewed source identity exact綁定；engine-specific IDs不影響semantic hash，固定clock重播則完整result hash一致。Core重新驗next-bar schedule、price/fee/slippage、outcomes、projection與deadline；halted IOC、aggregate adverse price、coarse quantum、extreme Decimal、missing/duplicate fill、unsupported timing與runtime drift皆structured fail closed。
+- Isolation / license：sidecar無`stonks_agent`、DB、provider、queue、broker、risk、reservation或ledger依賴；HTTP要求internal bearer token並限制body、concurrency、orders、bars、order×bar work與schedule children。Hardened image以internal network、UID/GID 65532、read-only、cap-drop、no-new-privileges與CPU/RAM/PID limits完成真實HTTP smoke；Nautilus LGPL、Debian GPL、exact source sdist、replacement notice、65-component SBOM與獨立lock audit均通過。
+- Verification：focused core/contract/security為47 passed，actual Nautilus wheel為19 passed；root新模組branch coverage 84%、engine 92%。完整PostgreSQL gate為1281 passed、coverage 87.25%，491 files format、ruff、mypy 280 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`、sidecar README與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.6 LEAN adapter。

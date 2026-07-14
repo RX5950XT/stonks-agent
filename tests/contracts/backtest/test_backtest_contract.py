@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal, localcontext
 from uuid import UUID, uuid4
 
 import pytest
@@ -37,6 +37,7 @@ from stonks_contracts.backtest import (
     BacktestSession,
     BacktestTimeInForce,
 )
+from stonks_contracts.backtest_math import canonical_fill_fee, canonical_fill_price
 
 DAY_1_OPEN = datetime(2026, 7, 13, 14, 30, tzinfo=UTC)
 DAY_1_CLOSE = datetime(2026, 7, 13, 21, tzinfo=UTC)
@@ -454,6 +455,35 @@ def test_market_order_cannot_skip_first_tradable_bar() -> None:
     assert result.error.code is ErrorCode.MODEL_OUTPUT_INVALID
 
 
+def test_fillable_order_cannot_be_reported_without_its_deterministic_fill() -> None:
+    request = job()
+    candidate = BacktestResult.create(
+        result_id=uuid4(),
+        job=request,
+        order_outcomes=(
+            BacktestOrderOutcome(
+                order_id=ORDER_ID,
+                order_hash=order().order_hash,
+                status=BacktestOrderStatus.EXPIRED,
+                command_quantity=Decimal("10"),
+                filled_quantity=Decimal("0"),
+                remaining_quantity=Decimal("10"),
+                reason="engine_dropped_fill",
+            ),
+        ),
+        fills=(),
+        final_cash=request.initial_cash,
+        final_positions=request.initial_positions,
+        total_fees=Decimal("0"),
+        generated_at=REQUESTED,
+    )
+
+    result = run_backtest(request, StaticEngine(Success(candidate)))
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.MODEL_OUTPUT_INVALID
+
+
 def test_final_projection_and_attempt_fence_drift_fail_closed() -> None:
     request = job()
     wrong_position = canonical_result(request, quantity=Decimal("9"))
@@ -627,3 +657,108 @@ def test_external_runtime_requires_content_addressed_image() -> None:
             runtime_hash=HASH_A,
             deterministic=True,
         )
+
+
+def test_canonical_cost_math_ignores_ambient_decimal_context() -> None:
+    selected_order = order()
+    selected_bar = dataset().bars[1]
+    selected_instrument = instrument()
+    selected_cost = cost_model()
+    expected_price = canonical_fill_price(
+        selected_order, selected_bar, selected_instrument, selected_cost
+    )
+    assert expected_price is not None
+    expected_fee = canonical_fill_fee(
+        selected_order.quantity, expected_price, selected_cost
+    )
+
+    with localcontext() as context:
+        context.prec = 3
+        context.rounding = ROUND_DOWN
+        actual_price = canonical_fill_price(
+            selected_order, selected_bar, selected_instrument, selected_cost
+        )
+        assert actual_price is not None
+        actual_fee = canonical_fill_fee(
+            selected_order.quantity, actual_price, selected_cost
+        )
+
+    assert actual_price == expected_price == Decimal("100.04")
+    assert actual_fee == expected_fee == Decimal("0.21")
+
+
+def test_cost_model_rejects_non_positive_worst_case_sell_price() -> None:
+    payload = cost_model().model_dump(mode="json")
+    payload.update(
+        half_spread_bps="5000",
+        base_slippage_bps="3000",
+        market_impact_bps_at_max_participation="2000",
+    )
+
+    with pytest.raises(ValidationError, match="aggregate adverse"):
+        BacktestCostModel.model_validate(payload)
+
+
+def test_sell_price_that_rounds_to_zero_fails_as_validation_error() -> None:
+    base = job()
+    selected = BacktestOrder.create(
+        order_id=ORDER_ID,
+        sequence=1,
+        instrument_id=INSTRUMENT_ID,
+        side=BacktestOrderSide.SELL,
+        order_type=BacktestOrderType.MARKET,
+        quantity=Decimal("1"),
+        limit_price=None,
+        time_in_force=BacktestTimeInForce.DAY,
+        issued_at=DAY_1_CLOSE,
+        valid_until=DAY_2_CLOSE,
+        strategy_event_ref="signal:aapl:coarse-quantum",
+    )
+    coarse_instrument = instrument().model_copy(
+        update={"price_quantum": Decimal("100")}
+    )
+    coarse_bars = tuple(
+        item.model_copy(
+            update={
+                "open": Decimal("100"),
+                "high": Decimal("100"),
+                "low": Decimal("100"),
+                "close": Decimal("100"),
+            }
+        )
+        for item in base.dataset.bars
+    )
+    coarse_dataset = base.dataset.model_copy(
+        update={"instruments": (coarse_instrument,), "bars": coarse_bars}
+    )
+    payload = base.model_dump(mode="json")
+    payload.update(
+        dataset=coarse_dataset.model_dump(mode="json"),
+        dataset_artifact_ref=f"sha256:{coarse_dataset.payload_hash()}",
+        orders=[selected.model_dump(mode="json")],
+        initial_positions=[
+            BacktestPosition(
+                instrument_id=INSTRUMENT_ID,
+                quantity=Decimal("1"),
+                quantity_quantum=Decimal("1"),
+            ).model_dump(mode="json")
+        ],
+    )
+
+    with pytest.raises(ValidationError, match="price bounds"):
+        BacktestJob.model_validate(payload)
+
+
+def test_extreme_decimal_operations_fail_as_structured_validation() -> None:
+    with pytest.raises(ValidationError, match="cash must match"):
+        BacktestCashBalance(
+            currency="USD",
+            amount=Decimal("1e64"),
+            quantum=Decimal("1e-64"),
+        )
+
+    payload = cost_model().model_dump(mode="json")
+    payload.update(fee_bps="10000", per_unit_fee="0", minimum_fee="0")
+    extreme_cost = BacktestCostModel.model_validate(payload)
+    with pytest.raises(ValueError, match="supported bounds"):
+        canonical_fill_fee(Decimal("1e64"), Decimal("1e64"), extreme_cost)

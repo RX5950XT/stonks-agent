@@ -59,3 +59,18 @@ Sidecar image 包含完整 GNU AGPL v3 license，所有 HTTP response 都廣告
 `Link: </source>; rel="source"`，`GET /source` 免費提供實際部署版本的 source/build
 archive，且 archive 內含四個實際安裝版本的 OpenBB source sdists。OpenBB process
 boundary 是技術隔離，不免除 AGPL 或資料 provider 條款。
+
+## NAUTILUS-TRADER-LGPL-3.0-SIDECAR
+
+Optional `sidecars/nautilus/` 是與core lock隔離的NautilusTrader backtest sidecar，
+動態使用未修改的`nautilus_trader==1.230.0` wheel；reviewed source固定為tag
+`v1.230.0`、commit `8160730c7c550480b0a439fb11086a4c4de15f0b`，由Nautech
+Systems Pty Ltd與contributors依`LGPL-3.0-or-later`提供。上游copyright為
+`Copyright (C) 2015-2026 Nautech Systems Pty Ltd`，repository為
+https://github.com/nautechsystems/nautilus_trader。
+
+Exact wheel與transitive resolution固定於sidecar自己的`uv.lock`。Image保留wheel
+附帶的完整LGPL與GPLv3 license、exact source sdist，使用者可在derived image替換該dynamic library；wrapper
+未修改、未vendor或static link NautilusTrader。Sidecar只輸出canonical backtest
+evaluation，沒有paper account、risk、reservation、broker、ledger或execution
+authority。完整散布與replacement說明見`sidecars/nautilus/NOTICE.md`。

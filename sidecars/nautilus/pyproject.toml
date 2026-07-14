@@ -1,0 +1,28 @@
+[project]
+name = "stonks-nautilus-sidecar"
+version = "0.1.0"
+description = "Isolated NautilusTrader canonical backtest adapter"
+requires-python = ">=3.12,<3.13"
+license = "Apache-2.0"
+dependencies = [
+    "fastapi>=0.128,<1",
+    "nautilus_trader==1.230.0",
+    "stonks-contracts",
+    "uvicorn>=0.40,<1",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19,<2",
+    "pip-audit>=2.9,<3",
+    "pytest>=9,<10",
+    "pytest-asyncio>=1.3,<2",
+    "pytest-cov>=7,<8",
+    "ruff>=0.14,<1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+stonks-contracts = { path = "../../packages/contracts" }

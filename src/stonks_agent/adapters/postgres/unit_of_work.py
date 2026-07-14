@@ -10,6 +10,9 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from stonks_agent.adapters.postgres.ledger_repository import PostgresLedgerRepository
+from stonks_agent.adapters.postgres.paper_operations import (
+    PostgresPaperOperationsRepository,
+)
 from stonks_agent.adapters.postgres.repositories import (
     PostgresEvidenceRepository,
     PostgresWorkflowStore,
@@ -29,6 +32,7 @@ class PostgresUnitOfWork:
     strategies: PostgresStrategyRepository
     trading: PostgresTradingRepository
     ledger: PostgresLedgerRepository
+    operations: PostgresPaperOperationsRepository
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -44,6 +48,7 @@ class PostgresUnitOfWork:
         self.strategies = PostgresStrategyRepository(self._session)
         self.trading = PostgresTradingRepository(self._session)
         self.ledger = PostgresLedgerRepository(self._session)
+        self.operations = PostgresPaperOperationsRepository(self._session)
         self._committed = False
         return self
 

@@ -50,6 +50,8 @@ EXPECTED_TABLES = {
     "journal_transaction",
     "journal_posting",
     "paper_kill_switch",
+    "paper_operator_action",
+    "paper_operator_audit_head",
 }
 ROLE_NAMES = {"stonks_app", "stonks_reader", "stonks_worker"}
 APP_MUTABLE_TABLES = {
@@ -133,6 +135,11 @@ TRADING_UPDATE_COLUMNS = {
         "reason_code",
         "actor",
         "version",
+        "updated_at",
+    },
+    "paper_operator_audit_head": {
+        "sequence",
+        "action_hash",
         "updated_at",
     },
 }

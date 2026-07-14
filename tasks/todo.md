@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.8 已完成，P4.9 進行中）
+> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.9 已完成，P4.10 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -377,9 +377,9 @@
 - [x] **P4.8 Outcome monitoring and reflection evidence** — 建立`application/monitoring/{mark_to_market,outcomes,reflection_context}.py`與tests。（Depends：P4.6、P2.8；Complexity：L；Risk：Medium）
   - [x] 保存raw return、benchmark alpha、drawdown、fees、fills與outcome evidence；LLM reflection只是新ResearchArtifact，不改歷史decision。
 
-- [ ] **P4.9 Kill-switch and operator use cases** — 建立`application/operations/{activate_kill_switch,reconcile,resume}.py`、CLI/API routes與audit tests。（Depends：P4.4–P4.7；Complexity：L；Risk：High）
-  - 啟動後拒絕新commands並取消可取消pending orders；不刪ledger或隱藏fills。
-  - Resume必須reconciliation通過且由`paper_operator`/`admin` audited action完成。
+- [x] **P4.9 Kill-switch and operator use cases** — 建立`application/operations/{activate_kill_switch,reconcile,resume}.py`、CLI/API routes與audit tests。（Depends：P4.4–P4.7；Complexity：L；Risk：High）
+  - [x] 啟動後拒絕新commands並取消可取消pending orders；不刪ledger或隱藏fills。
+  - [x] Resume必須reconciliation通過且由`paper_operator`/`admin` audited action完成。
 
 - [ ] **P4.10 Portfolio/report projections** — 更新`AnalysisReport`加入target/risk/order/fill/outcome refs；建立portfolio/NAV/risk CLI/API projections。（Depends：P4.7、P4.8；Complexity：M；Risk：Medium）
 
@@ -818,3 +818,11 @@
 - Evidence / authority：完整outcome payload先以canonical JSON bytes封存content-addressed artifact，再建立derived `EvidenceItem`與完整source evidence lineage。Reflection只建立allowlist為該outcome evidence的新`ResearchRequest`；回傳必須是identity/scope/time完全一致且實際引用outcome的新`ResearchArtifact`，domain schema不含target/order/quantity/risk override，歷史decision hash保持不變。
 - Verification：focused monitoring為11 passed，四個新模組branch coverage 82.27%。完整PostgreSQL gate為1168 passed、coverage 87.64%，429 files format、ruff、mypy 251 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。無migration或dependency變更。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P4.9 kill-switch and operator use cases。
+
+### P4 Progress Review — P4.9 — 2026-07-14
+
+- Scope completed：新增frozen `ActivateKillSwitchCommand/ReconcilePaperCommand/ResumePaperCommand`與state/action/result contracts、role-gated application use cases、PostgreSQL operations repository、0013 operator audit migration，以及paper status/actions/activate/reconcile/resume CLI/API。API actor只取authenticated principal，不接受body偽造。
+- Safety / atomicity：global/account switch mutation以version CAS與row locks serialized；activation在同一transaction把仍可取消的pending order轉為cancelled、已逾期者轉為expired，並release/expire reservations與reserved cash/position。新execution由既有ledger authority fail closed；fills、journals與歷史event只讀保留。Concurrent同version activation實測只有一個winner。
+- Reconciliation / audit：resume必須先在鎖定scope內對opening snapshot與immutable journal做exact replay，再解除switch；drift寫`resume_rejected`且維持active。Manual reconciliation drift寫`reconciliation_failed`並啟動global switch。Operator actions以global sequence、previous hash、action hash與audit-head CAS串成append-only chain，DB triggers拒絕update/delete、斷鏈或head drift。
+- Verification：focused domain/application/API/PostgreSQL為23 passed，新模組branch coverage 82.45%；migration/operator/execution/ledger regression為48 passed。完整PostgreSQL gate為1191 passed、coverage 87.47%，445 files format、ruff、mypy 261 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P4.10 portfolio/report projections與P4 phase gate。

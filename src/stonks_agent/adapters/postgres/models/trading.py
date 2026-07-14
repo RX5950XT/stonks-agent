@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     PrimaryKeyConstraint,
+    SmallInteger,
     String,
     UniqueConstraint,
     text,
@@ -580,3 +581,57 @@ class PaperKillSwitchRow(Base):
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PaperOperatorAuditHeadRow(Base):
+    __tablename__ = "paper_operator_audit_head"
+    __table_args__ = (
+        CheckConstraint("head_id = 1", name="paper_operator_head_singleton"),
+        CheckConstraint("sequence >= 0", name="paper_operator_head_sequence"),
+        CheckConstraint(
+            "(sequence = 0 and action_hash is null) or "
+            "(sequence > 0 and action_hash is not null)",
+            name="paper_operator_head_hash_shape",
+        ),
+    )
+
+    head_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    sequence: Mapped[int] = mapped_column(BigInteger)
+    action_hash: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PaperOperatorActionRow(Base):
+    __tablename__ = "paper_operator_action"
+    __table_args__ = (
+        CheckConstraint("sequence > 0", name="paper_operator_action_sequence"),
+        CheckConstraint("switch_version > 0", name="paper_operator_switch_version"),
+        CheckConstraint(
+            "(scope = 'global' and account_id is null) or "
+            "(scope = 'account' and account_id is not null)",
+            name="paper_operator_action_scope_shape",
+        ),
+        CheckConstraint(
+            "(sequence = 1 and previous_action_hash is null) or "
+            "(sequence > 1 and previous_action_hash is not null)",
+            name="paper_operator_action_chain_shape",
+        ),
+        UniqueConstraint("sequence", name="uq_paper_operator_action_sequence"),
+        UniqueConstraint("action_hash", name="uq_paper_operator_action_hash"),
+    )
+
+    action_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    sequence: Mapped[int] = mapped_column(BigInteger)
+    action_type: Mapped[str] = mapped_column(String(32))
+    scope: Mapped[str] = mapped_column(String(16))
+    account_id: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("paper_account.account_id", ondelete="RESTRICT")
+    )
+    actor: Mapped[str] = mapped_column(String(128))
+    reason_code: Mapped[str] = mapped_column(String(128))
+    switch_version: Mapped[int] = mapped_column(Integer)
+    previous_action_hash: Mapped[str | None] = mapped_column(String(64))
+    action_hash: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

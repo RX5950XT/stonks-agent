@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0、P1、P2、P3 gate 已通過，P4.1–P4.9 已完成，P4.10 進行中）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -381,21 +381,21 @@
   - [x] 啟動後拒絕新commands並取消可取消pending orders；不刪ledger或隱藏fills。
   - [x] Resume必須reconciliation通過且由`paper_operator`/`admin` audited action完成。
 
-- [ ] **P4.10 Portfolio/report projections** — 更新`AnalysisReport`加入target/risk/order/fill/outcome refs；建立portfolio/NAV/risk CLI/API projections。（Depends：P4.7、P4.8；Complexity：M；Risk：Medium）
+- [x] **P4.10 Portfolio/report projections** — 更新`AnalysisReport`加入target/risk/order/fill/outcome refs；建立portfolio/NAV/risk CLI/API projections。（Depends：P4.7、P4.8；Complexity：M；Risk：Medium）
 
 ### P4 Verification gate
 
-- [ ] Property tests覆蓋position/cash、open reservations、concurrent double-spend/oversell、risk bounds、Decimal rounding、order transition與每資產journal平衡。（Depends：P4.1–P4.6）
-- [ ] 同snapshot/config重跑得到相同target/risk/order/fill/ledger hashes。（Depends：P4.7）
-- [ ] Crash/retry/duplicate/concurrent-account tests無重複paper order/fill、雙花或超賣；late worker result無法commit。（Depends：P4.4–P4.7）
-- [ ] Stale/conflict/unknown/kill-switch/ledger mismatch fixtures全部reject並留下reason/audit。（Depends：P4.4、P4.9）
-- [ ] E2E small portfolio完成report、replay、reconciliation，且AI-Trader/LLM/Kronos無execution credential/path。（Depends：P4.7–P4.10）
+- [x] Property tests覆蓋position/cash、open reservations、concurrent double-spend/oversell、risk bounds、Decimal rounding、order transition與每資產journal平衡。（Depends：P4.1–P4.6）
+- [x] 同snapshot/config重跑得到相同target/risk/order/fill/ledger hashes。（Depends：P4.7）
+- [x] Crash/retry/duplicate/concurrent-account tests無重複paper order/fill、雙花或超賣；late worker result無法commit。（Depends：P4.4–P4.7）
+- [x] Stale/conflict/unknown/kill-switch/ledger mismatch fixtures全部reject並留下reason/audit。（Depends：P4.4、P4.9）
+- [x] E2E small portfolio完成report、replay、reconciliation，且AI-Trader/LLM/Kronos無execution credential/path。（Depends：P4.7–P4.10）
 
 ### P4 Success criteria
 
-- [ ] Paper fund從schedule/API到ledger/report形成可重播閉環。
-- [ ] 零重複paper orders、零future-data fills、零LLM risk override。
-- [ ] 所有portfolio與report projection可由immutable events/artifacts重建。
+- [x] Paper fund從schedule/API到ledger/report形成可重播閉環。
+- [x] 零重複paper orders、零future-data fills、零LLM risk override。
+- [x] 所有portfolio與report projection可由immutable events/artifacts重建。
 
 ---
 
@@ -826,3 +826,11 @@
 - Reconciliation / audit：resume必須先在鎖定scope內對opening snapshot與immutable journal做exact replay，再解除switch；drift寫`resume_rejected`且維持active。Manual reconciliation drift寫`reconciliation_failed`並啟動global switch。Operator actions以global sequence、previous hash、action hash與audit-head CAS串成append-only chain，DB triggers拒絕update/delete、斷鏈或head drift。
 - Verification：focused domain/application/API/PostgreSQL為23 passed，新模組branch coverage 82.45%；migration/operator/execution/ledger regression為48 passed。完整PostgreSQL gate為1191 passed、coverage 87.47%，445 files format、ruff、mypy 261 source files、67 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P4.10 portfolio/report projections與P4 phase gate。
+
+### P4 Progress Review — P4.10 / Phase Gate — 2026-07-14
+
+- Scope completed：`AnalysisReport`新增五組stably sorted `ReportReference(ref_id, content_hash)`，由core request注入target/risk/order/fill/outcome refs，structured LLM draft仍`extra=forbid`且無新增authority。新增content-hashed portfolio/risk projections、ledger-bound NAV recording/read use cases、typed ports、PostgreSQL adapter、0014 immutable valuation與paper portfolio/nav/risk CLI/API。
+- Projection integrity：portfolio先驗完整account event chain、target payload/row binding與latest order states，明示settled/reserved/available cash/position。NAV append前鎖account並重驗ledger sequence/hash/projection；read latest valuation再次與journal replay比對，ledger移動立即structured conflict。Risk重驗latest decision payload/row，`currently_authorized`只反映exact account/portfolio sequence與expiry，projection本身沒有order method/path。
+- P4 closure：真實小型portfolio從pre-trade NAV經reference fill、balanced journal、post-trade NAV、outcome evidence到帶五類refs的report，JSON round-trip hash一致且ledger reconciliation matched。既有cycle crash/reclaim只產一筆receipt/fill/journal；TradingAgents/Kronos worker env deny DB/broker/queue secrets，LLM/research outputs與AI-Trader policy皆無execution path。
+- Verification：focused contracts/projections/API/PostgreSQL/E2E為22 passed，新模組branch coverage 80.59%；P4 property/concurrency/crash/stale/authority/upstream safety matrix為215 passed。完整PostgreSQL gate為1206 passed、coverage 87.32%，459 files format、ruff、mypy 268 source files、68 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。P4 phase gate與success criteria全部通過，下一項為P5.1 external platform contracts。

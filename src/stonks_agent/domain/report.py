@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from stonks_agent.domain.analysis_context import AnalysisContext
 from stonks_contracts.common import NonEmptyString, UnitDecimal, UTCDateTime
 from stonks_contracts.market_data import DataQualityStatus
-from stonks_contracts.report import ClaimCertainty
+from stonks_contracts.report import ClaimCertainty, ReportReference
 
 
 class ResearchOutlook(StrEnum):
@@ -59,6 +59,21 @@ class GenerateReportRequest(BaseModel):
     model: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$")
     policy_version: NonEmptyString
     signal_ids: tuple[UUID, ...] = Field(default_factory=tuple, max_length=256)
+    portfolio_target_refs: tuple[ReportReference, ...] = Field(
+        default_factory=tuple, max_length=100_000
+    )
+    risk_decision_refs: tuple[ReportReference, ...] = Field(
+        default_factory=tuple, max_length=100_000
+    )
+    order_intent_refs: tuple[ReportReference, ...] = Field(
+        default_factory=tuple, max_length=100_000
+    )
+    fill_refs: tuple[ReportReference, ...] = Field(
+        default_factory=tuple, max_length=100_000
+    )
+    outcome_refs: tuple[ReportReference, ...] = Field(
+        default_factory=tuple, max_length=100_000
+    )
     max_output_tokens: int = Field(ge=1, le=1_000_000)
     deadline_at: UTCDateTime
 
@@ -68,4 +83,14 @@ class GenerateReportRequest(BaseModel):
             raise ValueError("report deadline must be later than context as_of")
         if len(self.signal_ids) != len(set(self.signal_ids)):
             raise ValueError("report signal IDs must be unique")
+        for references in (
+            self.portfolio_target_refs,
+            self.risk_decision_refs,
+            self.order_intent_refs,
+            self.fill_refs,
+            self.outcome_refs,
+        ):
+            identifiers = tuple(item.ref_id for item in references)
+            if len(identifiers) != len(set(identifiers)):
+                raise ValueError("report trading reference IDs must be unique")
         return self

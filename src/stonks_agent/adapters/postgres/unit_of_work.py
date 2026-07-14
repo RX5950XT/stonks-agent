@@ -13,6 +13,9 @@ from stonks_agent.adapters.postgres.ledger_repository import PostgresLedgerRepos
 from stonks_agent.adapters.postgres.paper_operations import (
     PostgresPaperOperationsRepository,
 )
+from stonks_agent.adapters.postgres.paper_projections import (
+    PostgresPaperProjectionRepository,
+)
 from stonks_agent.adapters.postgres.repositories import (
     PostgresEvidenceRepository,
     PostgresWorkflowStore,
@@ -33,6 +36,7 @@ class PostgresUnitOfWork:
     trading: PostgresTradingRepository
     ledger: PostgresLedgerRepository
     operations: PostgresPaperOperationsRepository
+    projections: PostgresPaperProjectionRepository
 
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -49,6 +53,7 @@ class PostgresUnitOfWork:
         self.trading = PostgresTradingRepository(self._session)
         self.ledger = PostgresLedgerRepository(self._session)
         self.operations = PostgresPaperOperationsRepository(self._session)
+        self.projections = PostgresPaperProjectionRepository(self._session)
         self._committed = False
         return self
 

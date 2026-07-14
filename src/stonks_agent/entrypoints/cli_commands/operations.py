@@ -20,6 +20,11 @@ from stonks_agent.application.operations.activate_kill_switch import (
 )
 from stonks_agent.application.operations.reconcile import reconcile_paper_state
 from stonks_agent.application.operations.resume import resume_paper
+from stonks_agent.application.projections.queries import (
+    read_nav_projection,
+    read_portfolio_projection,
+    read_risk_projection,
+)
 from stonks_agent.domain.auth import LocalPrincipal, Role
 from stonks_agent.domain.errors import Failure, Result
 from stonks_agent.domain.operations import (
@@ -32,6 +37,10 @@ from stonks_agent.entrypoints.api.envelope import error_envelope, success_envelo
 from stonks_agent.ports.paper_operations import (
     PaperOperationsUnitOfWork,
     PaperOperationsUnitOfWorkFactory,
+)
+from stonks_agent.ports.paper_projections import (
+    PaperProjectionUnitOfWork,
+    PaperProjectionUnitOfWorkFactory,
 )
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -164,6 +173,57 @@ def resume_command(
     )
 
 
+@app.command("portfolio")
+def portfolio_command(
+    account_id: Annotated[str, typer.Option()],
+    database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
+) -> None:
+    """Read the current settled/reserved/available portfolio projection."""
+    _emit_result(
+        _run_projection_database(
+            database_url,
+            lambda unit_of_work: read_portfolio_projection(
+                _PRINCIPAL, account_id, unit_of_work
+            ),
+        )
+    )
+
+
+@app.command("nav")
+def nav_command(
+    account_id: Annotated[str, typer.Option()],
+    database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
+) -> None:
+    """Read the latest valuation only when it matches the current ledger."""
+    _emit_result(
+        _run_projection_database(
+            database_url,
+            lambda unit_of_work: read_nav_projection(
+                _PRINCIPAL, account_id, unit_of_work
+            ),
+        )
+    )
+
+
+@app.command("risk")
+def risk_command(
+    account_id: Annotated[str, typer.Option()],
+    database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
+) -> None:
+    """Read the latest risk decision as a non-authoritative projection."""
+    _emit_result(
+        _run_projection_database(
+            database_url,
+            lambda unit_of_work: read_risk_projection(
+                _PRINCIPAL,
+                account_id,
+                as_of=datetime.now(UTC),
+                unit_of_work=unit_of_work,
+            ),
+        )
+    )
+
+
 def _run_database[T](
     database_url: str,
     operation: Callable[[PaperOperationsUnitOfWorkFactory], Result[T]],
@@ -174,6 +234,23 @@ def _run_database[T](
 
     def factory() -> PaperOperationsUnitOfWork:
         return cast(PaperOperationsUnitOfWork, PostgresUnitOfWork(engine))
+
+    try:
+        return operation(factory)
+    finally:
+        engine.dispose()
+
+
+def _run_projection_database[T](
+    database_url: str,
+    operation: Callable[[PaperProjectionUnitOfWorkFactory], Result[T]],
+) -> Result[T]:
+    if not database_url:
+        raise typer.BadParameter("STONKS_DATABASE_URL is required")
+    engine = create_engine(database_url, pool_pre_ping=True)
+
+    def factory() -> PaperProjectionUnitOfWork:
+        return cast(PaperProjectionUnitOfWork, PostgresUnitOfWork(engine))
 
     try:
         return operation(factory)

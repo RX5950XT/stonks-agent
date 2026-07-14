@@ -52,6 +52,7 @@ EXPECTED_TABLES = {
     "paper_kill_switch",
     "paper_operator_action",
     "paper_operator_audit_head",
+    "paper_portfolio_valuation",
 }
 ROLE_NAMES = {"stonks_app", "stonks_reader", "stonks_worker"}
 APP_MUTABLE_TABLES = {
@@ -387,6 +388,7 @@ def test_trading_migration_downgrade_and_reupgrade(
         "paper_execution_receipt",
         "paper_account_opening_snapshot",
         "paper_ledger_account_projection",
+        "paper_portfolio_valuation",
         "journal_transaction",
         "journal_posting",
     }

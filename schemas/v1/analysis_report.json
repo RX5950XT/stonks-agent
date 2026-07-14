@@ -75,6 +75,34 @@
       "title": "ReportClaim",
       "type": "object"
     },
+    "ReportReference": {
+      "additionalProperties": false,
+      "description": "Exact immutable trading reference included in the report JSON truth.",
+      "properties": {
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "ref_id": {
+          "format": "uuid",
+          "title": "Ref Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref_id",
+        "content_hash"
+      ],
+      "title": "ReportReference",
+      "type": "object"
+    },
     "ReportRendering": {
       "additionalProperties": false,
       "properties": {
@@ -170,6 +198,14 @@
       "title": "Evidence Refs",
       "type": "array"
     },
+    "fill_refs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ReportReference"
+      },
+      "title": "Fill Refs",
+      "type": "array"
+    },
     "generation_artifact_ref": {
       "anyOf": [
         {
@@ -205,10 +241,34 @@
       "default": null,
       "title": "Model Version"
     },
+    "order_intent_refs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ReportReference"
+      },
+      "title": "Order Intent Refs",
+      "type": "array"
+    },
+    "outcome_refs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ReportReference"
+      },
+      "title": "Outcome Refs",
+      "type": "array"
+    },
     "policy_version": {
       "minLength": 1,
       "title": "Policy Version",
       "type": "string"
+    },
+    "portfolio_target_refs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ReportReference"
+      },
+      "title": "Portfolio Target Refs",
+      "type": "array"
     },
     "prompt_version": {
       "anyOf": [
@@ -239,6 +299,14 @@
       "minLength": 1,
       "title": "Report Type",
       "type": "string"
+    },
+    "risk_decision_refs": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ReportReference"
+      },
+      "title": "Risk Decision Refs",
+      "type": "array"
     },
     "risks": {
       "default": [],

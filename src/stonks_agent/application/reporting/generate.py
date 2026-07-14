@@ -24,7 +24,7 @@ from stonks_agent.domain.research import (
 )
 from stonks_agent.ports.llm import LLMPort
 from stonks_contracts.common import canonical_json
-from stonks_contracts.report import AnalysisReport
+from stonks_contracts.report import AnalysisReport, ReportReference
 
 GENERATOR_VERSION = "structured-report-generator/1.0.0"
 PROMPT_VERSION = "analysis-report/1.0.0"
@@ -82,6 +82,11 @@ def generate_report(
             claims=claims,
             evidence_refs=evidence_refs,
             signal_ids=request.signal_ids,
+            portfolio_target_refs=_sorted_refs(request.portfolio_target_refs),
+            risk_decision_refs=_sorted_refs(request.risk_decision_refs),
+            order_intent_refs=_sorted_refs(request.order_intent_refs),
+            fill_refs=_sorted_refs(request.fill_refs),
+            outcome_refs=_sorted_refs(request.outcome_refs),
             generator_version=GENERATOR_VERSION,
             model_version=response.model,
             prompt_version=PROMPT_VERSION,
@@ -162,6 +167,17 @@ def _invalid(reason: str) -> Failure:
             code=ErrorCode.MODEL_OUTPUT_INVALID,
             message="Report model output is invalid",
             details={"reason": reason},
+        )
+    )
+
+
+def _sorted_refs(
+    references: tuple[ReportReference, ...],
+) -> tuple[ReportReference, ...]:
+    return tuple(
+        sorted(
+            references,
+            key=lambda item: (str(item.ref_id), item.content_hash),
         )
     )
 

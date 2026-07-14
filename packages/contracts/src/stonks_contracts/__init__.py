@@ -49,7 +49,13 @@ from .quant_lab import (
     QuantUniverseSpec,
     QuantWorkerResponse,
 )
-from .report import AnalysisReport, ClaimCertainty, ReportClaim, ReportRendering
+from .report import (
+    AnalysisReport,
+    ClaimCertainty,
+    ReportClaim,
+    ReportReference,
+    ReportRendering,
+)
 from .research import (
     AgentOpinion,
     AnalysisBundle,
@@ -118,6 +124,7 @@ SCHEMA_MODELS: tuple[type[ContractModel], ...] = (
     Run,
     RunEvent,
     ReportRendering,
+    ReportReference,
     AnalysisReport,
     ReportClaim,
     SignedEvidenceArtifact,
@@ -201,6 +208,7 @@ __all__ = [
     "QuantUniverseSpec",
     "QuantWorkerResponse",
     "ReportClaim",
+    "ReportReference",
     "ResearchArtifact",
     "RiskDecision",
     "SignedEvidenceArtifact",

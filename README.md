@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub、P2 Research control plane 與 P3 strategy/forecast/evaluation 已通過 phase gate，後續工作依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation 與 P4 PostgreSQL paper fund 已通過 phase gate，後續工作依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -18,6 +18,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Durable paper fund cycle固定`Evidence -> Research/Opinion -> Signal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt -> Ledger -> Report`，每階段只保存canonical ID/hash refs與content-hashed state，並寫入既有run-event/outbox hash chain。Checkpoint、retry、dead-letter與cancel均由DB job generation/nonce、lease/deadline及account authority fencing；receipt commit後、checkpoint前crash重領實測仍只有一筆fill/journal/receipt，完整cycle result另封存content-addressed artifact。
 - Outcome monitoring從settled ledger與exact PIT marks建立content-hashed NAV snapshot，拒絕future/missing/foreign marks及未核准FX；事後evidence保存raw return、benchmark return/alpha、path drawdown、ledger fee delta與decision-bound fill refs。Outcome payload先封存content-addressed artifact再成為derived evidence；LLM reflection只能建立綁定該evidence的新`ResearchArtifact`，無法修改歷史target/risk/order/fill/ledger。
 - Audited paper operations提供global/account kill-switch、exact ledger reconciliation與resume CLI/API。只有`paper_operator`/`admin`可變更；啟動時在同一transaction終止pending orders並釋放reservations，立即拒絕新execution，保留既有fills/journals。所有operator actions以DB sequence、previous hash與head CAS形成append-only chain；reconciliation或resume drift會fail closed並維持/啟動global switch。
+- Read-only portfolio/NAV/risk CLI/API projections會驗證完整account event chain、latest target/risk payload與ledger replay hash；portfolio明示settled/reserved/available cash/positions，NAV只讀append-only PIT valuation且ledger一移動就拒絕stale值。`AnalysisReport`由core加入帶content hash的target/risk/order/fill/outcome refs，LLM output schema不能自行建立或竄改這些引用。
 - Idempotency、同帳戶並行防雙花、job generation/nonce fencing、late-result quarantine。
 - PostgreSQL PIT evidence/snapshot、content-addressed artifacts、Repository/UoW、durable job/outbox/inbox與transaction-owned audit events。
 - DB-authoritative lease/deadline/not-before fencing；caller clock漂移、duplicate/stale result與tampered retry graph皆fail closed。

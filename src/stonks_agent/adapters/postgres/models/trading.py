@@ -202,6 +202,35 @@ class PaperLedgerAccountProjectionRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class PaperPortfolioValuationRow(Base):
+    __tablename__ = "paper_portfolio_valuation"
+    __table_args__ = (
+        CheckConstraint(
+            "ledger_sequence >= 0",
+            name="paper_portfolio_valuation_sequence_nonnegative",
+        ),
+        CheckConstraint(
+            "(ledger_sequence = 0 and ledger_hash is null) or "
+            "(ledger_sequence > 0 and ledger_hash is not null)",
+            name="paper_portfolio_valuation_ledger_shape",
+        ),
+        UniqueConstraint("valuation_hash", name="uq_paper_portfolio_valuation_hash"),
+        Index("ix_paper_portfolio_valuation_account_as_of", "account_id", "as_of"),
+    )
+
+    valuation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    account_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("paper_account.account_id", ondelete="RESTRICT")
+    )
+    base_currency: Mapped[str] = mapped_column(String(3))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ledger_sequence: Mapped[int] = mapped_column(BigInteger)
+    ledger_hash: Mapped[str | None] = mapped_column(String(64))
+    ledger_projection_hash: Mapped[str] = mapped_column(String(64))
+    valuation_hash: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+
+
 class PortfolioTargetRow(Base):
     __tablename__ = "portfolio_target"
     __table_args__ = (

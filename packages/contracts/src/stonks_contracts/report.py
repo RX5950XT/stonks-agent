@@ -55,6 +55,13 @@ class ReportRendering(ContractModel):
     content_ref: ArtifactRef
 
 
+class ReportReference(ContractModel):
+    """Exact immutable trading reference included in the report JSON truth."""
+
+    ref_id: UUID
+    content_hash: Sha256
+
+
 class AnalysisReport(ContractModel):
     report_id: UUID
     subject: NonEmptyString
@@ -73,9 +80,29 @@ class AnalysisReport(ContractModel):
     claims: tuple[ReportClaim, ...] = ()
     evidence_refs: tuple[UUID, ...]
     signal_ids: tuple[UUID, ...] = ()
+    portfolio_target_refs: tuple[ReportReference, ...] = ()
+    risk_decision_refs: tuple[ReportReference, ...] = ()
+    order_intent_refs: tuple[ReportReference, ...] = ()
+    fill_refs: tuple[ReportReference, ...] = ()
+    outcome_refs: tuple[ReportReference, ...] = ()
     generator_version: NonEmptyString
     model_version: str | None = None
     prompt_version: str | None = None
     generation_artifact_ref: ArtifactRef | None = None
     policy_version: NonEmptyString
     renderings: tuple[ReportRendering, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_trading_references(self) -> Self:
+        for references in (
+            self.portfolio_target_refs,
+            self.risk_decision_refs,
+            self.order_intent_refs,
+            self.fill_refs,
+            self.outcome_refs,
+        ):
+            keys = tuple((str(item.ref_id), item.content_hash) for item in references)
+            identifiers = tuple(item[0] for item in keys)
+            if keys != tuple(sorted(keys)) or len(identifiers) != len(set(identifiers)):
+                raise ValueError("report references must be unique and stably sorted")
+        return self

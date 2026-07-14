@@ -16,7 +16,7 @@ from stonks_agent.domain.research import StructuredLLMRequest, StructuredLLMResp
 from stonks_agent.domain.usage_budget import UsageConsumption
 from stonks_contracts.evidence import EvidenceItem, EvidenceKind, Sensitivity
 from stonks_contracts.market_data import DataQuality, DataQualityStatus
-from stonks_contracts.report import ClaimCertainty
+from stonks_contracts.report import ClaimCertainty, ReportReference
 
 NOW = datetime(2026, 7, 13, 5, tzinfo=UTC)
 REQUEST_ID = UUID("33000000-0000-4000-8000-000000000001")
@@ -24,6 +24,8 @@ REPORT_ID = UUID("33000000-0000-4000-8000-000000000002")
 RUN_ID = UUID("33000000-0000-4000-8000-000000000003")
 MARKET_ID = UUID("33000000-0000-4000-8000-000000000004")
 NEWS_ID = UUID("33000000-0000-4000-8000-000000000005")
+TARGET_ID = UUID("33000000-0000-4000-8000-000000000007")
+RISK_ID = UUID("33000000-0000-4000-8000-000000000008")
 
 
 def evidence(
@@ -109,6 +111,10 @@ def command(**overrides: object) -> GenerateReportRequest:
         "model": "policy:models-v1",
         "policy_version": "report-policy/1.0.0",
         "signal_ids": (),
+        "portfolio_target_refs": (
+            ReportReference(ref_id=TARGET_ID, content_hash="d" * 64),
+        ),
+        "risk_decision_refs": (ReportReference(ref_id=RISK_ID, content_hash="e" * 64),),
         "max_output_tokens": 4096,
         "deadline_at": NOW + timedelta(minutes=1),
     }
@@ -182,6 +188,8 @@ def test_success_builds_json_truth_ids_citations_and_core_guardrails() -> None:
     assert report.data_limitations == ("news:stale", "single_instrument_fixture")
     assert report.generation_artifact_ref == f"sha256:{'c' * 64}"
     assert report.model_version == "fake-structured-v1"
+    assert report.portfolio_target_refs[0].ref_id == TARGET_ID
+    assert report.risk_decision_refs[0].ref_id == RISK_ID
     assert generate_report(command(), LLM(valid_output())) == result  # type: ignore[arg-type]
 
 

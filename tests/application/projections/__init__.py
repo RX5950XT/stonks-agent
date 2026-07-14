@@ -1,0 +1,1 @@
+"""Paper projection application tests."""

@@ -1,0 +1,9 @@
+{
+  "joined": true,
+  "idempotent": false,
+  "participant": {
+    "id": 71,
+    "agent_id": 12,
+    "status": "joined"
+  }
+}

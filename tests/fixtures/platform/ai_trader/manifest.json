@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "upstream_snapshot": "d03ff6c056b32ced735adf7c19ed8175adb1c8df",
+  "source_mode": "clean-room-runtime-shape",
+  "live_openapi_verified": false,
+  "live_openapi_attempted_at": "2026-07-14",
+  "live_openapi_failure": "dns_unavailable",
+  "cassettes": {
+    "publish_strategy.json": "/api/signals/strategy",
+    "replies.json": "/api/signals/{signal_id}/replies",
+    "heartbeat.json": "/api/claw/agents/heartbeat",
+    "challenge_join.json": "/api/challenges/{challenge_key}/join",
+    "experiment_assign.json": "/api/experiments/{experiment_key}/assign"
+  }
+}

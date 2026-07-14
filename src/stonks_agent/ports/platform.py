@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from stonks_agent.domain.errors import Result
+from stonks_contracts.common import Sha256
 from stonks_contracts.platform import (
     ChallengeRequest,
     ChallengeResult,
@@ -15,6 +16,11 @@ from stonks_contracts.platform import (
     PublishedThesis,
     PublishThesisRequest,
 )
+
+
+@runtime_checkable
+class PlatformEventInboxPort(Protocol):
+    def accept(self, event_id: str, payload_hash: Sha256) -> Result[bool]: ...
 
 
 @runtime_checkable

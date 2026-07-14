@@ -5,6 +5,18 @@
       "title": "As Of",
       "type": "string"
     },
+    "challenge_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Challenge Ref"
+    },
     "evidence_ids": {
       "items": {
         "format": "uuid",
@@ -19,6 +31,23 @@
       "title": "Idempotency Key",
       "type": "string"
     },
+    "market": {
+      "minLength": 1,
+      "title": "Market",
+      "type": "string"
+    },
+    "mission_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mission Ref"
+    },
     "observation_deadline": {
       "title": "Observation Deadline",
       "type": "string"
@@ -32,6 +61,12 @@
       "maxLength": 4000,
       "minLength": 1,
       "title": "Public Summary",
+      "type": "string"
+    },
+    "public_title": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Public Title",
       "type": "string"
     },
     "publication_scope": {
@@ -71,6 +106,18 @@
       "title": "Subject",
       "type": "string"
     },
+    "team_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Team Ref"
+    },
     "thesis_artifact_ref": {
       "pattern": "^sha256:[a-f0-9]{64}$",
       "title": "Thesis Artifact Ref",
@@ -88,7 +135,9 @@
     "platform",
     "idempotency_key",
     "subject",
+    "market",
     "as_of",
+    "public_title",
     "public_summary",
     "thesis_artifact_ref",
     "thesis_content_hash",

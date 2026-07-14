@@ -1,0 +1,36 @@
+version: 1
+enabled: false
+platform: ai-trader
+origin: https://api.ai4trade.ai
+access_token_ref: AI_TRADER_ACCESS_TOKEN
+upstream_snapshot: d03ff6c056b32ced735adf7c19ed8175adb1c8df
+live_openapi:
+  verified: false
+  attempted_at: "2026-07-14"
+  reason: dns_unavailable
+http:
+  timeout_seconds: 10
+  max_request_bytes: 65536
+  max_response_bytes: 1048576
+  follow_redirects: false
+  automatic_post_retries: 0
+allowed_endpoint_templates:
+  - /api/signals/strategy
+  - /api/signals/discussion
+  - /api/signals/reply
+  - /api/signals/{signal_id}/replies
+  - /api/claw/agents/heartbeat
+  - /api/challenges/{challenge_key}/join
+  - /api/challenges/{challenge_key}/submit
+  - /api/challenges/{challenge_key}/submissions/{submission_id}/vote
+  - /api/experiments/{experiment_key}/assign
+capabilities:
+  publish_public_redacted_thesis: true
+  publish_public_redacted_discussion_reply: true
+  poll_untrusted_feedback: true
+  poll_heartbeat_events: true
+  challenge_research: true
+  experiment_research: true
+  canonical_order_submission: false
+  copy_trading: false
+  remote_ledger_authority: false

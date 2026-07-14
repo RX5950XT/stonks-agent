@@ -23,6 +23,8 @@ from .common import (
 )
 
 PublicSummary = Annotated[str, Field(min_length=1, max_length=4_000)]
+PublicTitle = Annotated[str, Field(min_length=1, max_length=256)]
+PublicContent = Annotated[str, Field(min_length=1, max_length=16_000)]
 Cursor = Annotated[str, Field(min_length=1, max_length=1_024)]
 IdempotencyKey = Annotated[str, Field(min_length=1, max_length=256)]
 
@@ -41,6 +43,12 @@ class ChallengeAction(StrEnum):
     JOIN = "join"
     SUBMIT_RESEARCH = "submit_research"
     VOTE = "vote"
+
+
+class ChallengeVote(StrEnum):
+    APPROVE = "approve"
+    REJECT = "reject"
+    REVISE = "revise"
 
 
 class ExperimentAction(StrEnum):
@@ -66,7 +74,9 @@ class PublishThesisRequest(ContractModel):
     platform: NonEmptyString
     idempotency_key: IdempotencyKey
     subject: NonEmptyString
+    market: NonEmptyString
     as_of: UTCDateTime
+    public_title: PublicTitle
     public_summary: PublicSummary
     thesis_artifact_ref: ArtifactRef
     thesis_content_hash: Sha256
@@ -74,6 +84,9 @@ class PublishThesisRequest(ContractModel):
     redaction_policy_version: NonEmptyString
     redaction_manifest_hash: Sha256
     observation_deadline: UTCDateTime
+    challenge_ref: str | None = None
+    mission_ref: str | None = None
+    team_ref: str | None = None
     publication_scope: Literal["public"] = "public"
 
     @model_validator(mode="after")
@@ -223,10 +236,58 @@ class _ExternalActivityRequest(ContractModel):
 
 class ChallengeRequest(_ExternalActivityRequest):
     action: ChallengeAction
+    submission_ref: str | None = None
+    vote: ChallengeVote | None = None
+    public_content: PublicContent | None = None
+    redaction_policy_version: str | None = None
+    redaction_manifest_hash: Sha256 | None = None
+
+    @model_validator(mode="after")
+    def validate_challenge_action(self) -> Self:
+        redaction = (self.redaction_policy_version, self.redaction_manifest_hash)
+        if self.action is ChallengeAction.JOIN:
+            if any((self.submission_ref, self.vote, self.public_content, *redaction)):
+                raise ValueError("challenge join cannot include submission content")
+        elif self.action is ChallengeAction.SUBMIT_RESEARCH:
+            if not self.public_content or not all(redaction):
+                raise ValueError("research submission requires public redacted content")
+            if self.submission_ref is not None or self.vote is not None:
+                raise ValueError("research submission cannot include a vote")
+        elif (
+            not self.submission_ref
+            or self.vote is None
+            or not self.public_content
+            or not all(redaction)
+        ):
+            raise ValueError("challenge vote requires identity, vote and public content")
+        return self
 
 
 class ExperimentRequest(_ExternalActivityRequest):
     action: ExperimentAction
+    market: str | None = None
+    subject: str | None = None
+    public_title: PublicTitle | None = None
+    public_content: PublicContent | None = None
+    redaction_policy_version: str | None = None
+    redaction_manifest_hash: Sha256 | None = None
+
+    @model_validator(mode="after")
+    def validate_experiment_action(self) -> Self:
+        publication = (
+            self.market,
+            self.subject,
+            self.public_title,
+            self.public_content,
+            self.redaction_policy_version,
+            self.redaction_manifest_hash,
+        )
+        if self.action is ExperimentAction.ENROLL:
+            if any(publication):
+                raise ValueError("experiment enrollment cannot publish content")
+        elif not all(publication):
+            raise ValueError("experiment submission requires public redacted content")
+        return self
 
 
 class _ExternalActivityResult(ContractModel):

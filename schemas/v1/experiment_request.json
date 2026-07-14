@@ -34,6 +34,18 @@
       "title": "Idempotency Key",
       "type": "string"
     },
+    "market": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Market"
+    },
     "payload_artifact_ref": {
       "pattern": "^sha256:[a-f0-9]{64}$",
       "title": "Payload Artifact Ref",
@@ -48,6 +60,59 @@
       "minLength": 1,
       "title": "Platform",
       "type": "string"
+    },
+    "public_content": {
+      "anyOf": [
+        {
+          "maxLength": 16000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Public Content"
+    },
+    "public_title": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Public Title"
+    },
+    "redaction_manifest_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Redaction Manifest Hash"
+    },
+    "redaction_policy_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Redaction Policy Version"
     },
     "request_id": {
       "format": "uuid",
@@ -70,6 +135,18 @@
       "default": "1.0.0",
       "title": "Schema Version",
       "type": "string"
+    },
+    "subject": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subject"
     }
   },
   "required": [

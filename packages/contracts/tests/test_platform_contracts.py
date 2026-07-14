@@ -10,9 +10,9 @@ from stonks_contracts.platform import (
     ChallengeAction,
     ChallengeRequest,
     ChallengeResult,
+    ChallengeVote,
     ExperimentAction,
     ExperimentRequest,
-    ExperimentResult,
     ExternalActivityStatus,
     ExternalEvidence,
     ExternalEvidenceKind,
@@ -37,7 +37,9 @@ def publish_request(**overrides: object) -> PublishThesisRequest:
         "platform": "ai-trader",
         "idempotency_key": "publish:run-1:v1",
         "subject": "AAPL",
+        "market": "us-stock",
         "as_of": NOW,
+        "public_title": "AAPL evidence-backed thesis",
         "public_summary": "Public, redacted thesis.",
         "thesis_artifact_ref": f"sha256:{CONTENT_HASH}",
         "thesis_content_hash": CONTENT_HASH,
@@ -80,6 +82,7 @@ def test_publish_request_is_public_redacted_hash_bound_and_closed() -> None:
     value = publish_request()
 
     assert value.publication_scope == "public"
+    assert value.market == "us-stock"
     assert value.thesis_artifact_ref == f"sha256:{value.thesis_content_hash}"
     assert value.observation_deadline > value.as_of
     with pytest.raises(ValidationError, match="extra_forbidden"):
@@ -189,33 +192,25 @@ def test_feedback_poll_rejects_unbounded_or_expired_reads() -> None:
         FeedbackPollRequest.model_validate(base | {"deadline": NOW})
 
 
-@pytest.mark.parametrize(
-    ("request_type", "result_type", "action"),
-    [
-        (ChallengeRequest, ChallengeResult, ChallengeAction.SUBMIT_RESEARCH),
-        (ExperimentRequest, ExperimentResult, ExperimentAction.SUBMIT_OBSERVATION),
-    ],
-)
-def test_external_activities_are_research_only_and_artifact_bound(
-    request_type: type[ChallengeRequest] | type[ExperimentRequest],
-    result_type: type[ChallengeResult] | type[ExperimentResult],
-    action: ChallengeAction | ExperimentAction,
-) -> None:
-    request = request_type.model_validate(
+def test_challenge_submission_is_public_redacted_and_artifact_bound() -> None:
+    request = ChallengeRequest.model_validate(
         {
             "request_id": REQUEST_ID,
             "run_id": RUN_ID,
             "platform": "ai-trader",
             "idempotency_key": "activity:run-1:v1",
             "activity_ref": "activity-1",
-            "action": action,
+            "action": ChallengeAction.SUBMIT_RESEARCH,
             "payload_artifact_ref": f"sha256:{CONTENT_HASH}",
             "payload_content_hash": CONTENT_HASH,
+            "public_content": "Public challenge research summary.",
+            "redaction_policy_version": "public-platform/1.0.0",
+            "redaction_manifest_hash": "c" * 64,
             "as_of": NOW,
             "deadline": NOW + timedelta(minutes=1),
         }
     )
-    result = result_type.model_validate(
+    result = ChallengeResult.model_validate(
         {
             "request_id": request.request_id,
             "run_id": request.run_id,
@@ -233,8 +228,59 @@ def test_external_activities_are_research_only_and_artifact_bound(
     assert request.research_only is True
     assert result.remote_authority == "evidence_only"
     with pytest.raises(ValidationError):
-        request_type.model_validate(request.model_dump(mode="json") | {"research_only": False})
+        ChallengeRequest.model_validate(request.model_dump(mode="json") | {"research_only": False})
     with pytest.raises(ValidationError):
-        request_type.model_validate(
+        ChallengeRequest.model_validate(
             request.model_dump(mode="json") | {"payload_artifact_ref": f"sha256:{RESPONSE_HASH}"}
+        )
+
+
+def test_challenge_vote_requires_submission_identity_and_closed_vote() -> None:
+    request = ChallengeRequest(
+        request_id=REQUEST_ID,
+        run_id=RUN_ID,
+        platform="ai-trader",
+        idempotency_key="vote:run-1:v1",
+        activity_ref="challenge-1",
+        action=ChallengeAction.VOTE,
+        payload_artifact_ref=f"sha256:{CONTENT_HASH}",
+        payload_content_hash=CONTENT_HASH,
+        submission_ref="42",
+        vote=ChallengeVote.APPROVE,
+        public_content="Evidence supports this submission.",
+        redaction_policy_version="public-platform/1.0.0",
+        redaction_manifest_hash="c" * 64,
+        as_of=NOW,
+        deadline=NOW + timedelta(minutes=1),
+    )
+
+    assert request.vote is ChallengeVote.APPROVE
+    with pytest.raises(ValidationError):
+        ChallengeRequest.model_validate(request.model_dump(mode="json") | {"submission_ref": None})
+
+
+def test_experiment_observation_requires_public_redaction() -> None:
+    request = ExperimentRequest(
+        request_id=REQUEST_ID,
+        run_id=RUN_ID,
+        platform="ai-trader",
+        idempotency_key="experiment:run-1:v1",
+        activity_ref="experiment-1",
+        action=ExperimentAction.SUBMIT_OBSERVATION,
+        payload_artifact_ref=f"sha256:{CONTENT_HASH}",
+        payload_content_hash=CONTENT_HASH,
+        market="us-stock",
+        subject="AAPL",
+        public_title="AAPL experiment observation",
+        public_content="Public, redacted observation.",
+        redaction_policy_version="public-platform/1.0.0",
+        redaction_manifest_hash="c" * 64,
+        as_of=NOW,
+        deadline=NOW + timedelta(minutes=1),
+    )
+
+    assert request.research_only is True
+    with pytest.raises(ValidationError):
+        ExperimentRequest.model_validate(
+            request.model_dump(mode="json") | {"redaction_manifest_hash": None}
         )

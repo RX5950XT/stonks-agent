@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1 已完成，P5.2 進行中）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.2 已完成，P5.3 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -413,10 +413,13 @@
   - [x] `PlatformPort`只提供publish/poll/challenge/experiment typed `Result`；不得依賴execution、DB或queue ports。
   - [x] 匯出versioned JSON schemas，focused/full gate通過後同步README/CONTEXT與本review並提交。
 
-- [ ] **P5.2 AI-Trader public HTTP adapter** — 建立`adapters/platform/ai_trader.py`、`config/platforms/ai_trader.yaml`、runtime-schema cassettes與contract tests。（Depends：P0.3、P5.1；Complexity：L；Risk：High）
+- [x] **P5.2 AI-Trader public HTTP adapter** — 建立`adapters/platform/ai_trader.py`、`config/platforms/ai_trader.yaml`、runtime-schema cassettes與contract tests。（Depends：P0.3、P5.1；Complexity：L；Risk：High）
   - 只使用external control/community endpoints：publish去敏thesis、discussion/reply、challenge/team/experiment、heartbeat/events。
   - 不import/vendor/clean-room重做其server/frontend，不呼叫paper/copy execution作canonical order path。
   - Typed tolerant reader、heartbeat cursor/inbox dedup、scoped token、schema/authz anomaly kill switch。
+  - [x] TDD：固定exact HTTPS origin/endpoint allowlist、no redirect/no automatic POST retry、bounded JSON、token redaction與typed tolerant responses。
+  - [x] Publication/feedback/challenge/experiment綁raw response artifact；heartbeat events具opaque cursor與注入式inbox dedup，duplicate/conflict fail closed。
+  - [x] 以`d03ff6c` runtime shape建立最小clean-room cassettes；live OpenAPI無法解析時明確保留unverified狀態，不把snapshot推測成current production保證。
 
 - [ ] **P5.3 Community feedback policy** — 建立`application/research/community_feedback.py`、reputation/deadline/prompt-injection fixtures。（Depends：P5.2、P2.2；Complexity：L；Risk：High）
   - Feedback轉`ExternalEvidence`，policy只可ignore、降低confidence或建立new research job；不可直接升成signal/order。
@@ -442,7 +445,7 @@
 
 ### P5 Verification gate
 
-- [ ] AI-Trader adapter測試無order/copy endpoint且不在execution dependency graph；duplicate heartbeat/events去重。（Depends：P5.2）
+- [x] AI-Trader adapter測試無order/copy endpoint且不在execution dependency graph；duplicate heartbeat/events去重。（Depends：P5.2）
 - [ ] Community prompt injection/reputation/deadline tests證明feedback不能直接成signal/order。（Depends：P5.3）
 - [ ] Nautilus/LEAN parity fixtures產生可解釋差異與完整provenance；任一sidecar關閉時core仍通過。（Depends：P5.7）
 - [ ] RD-Agent sandbox escape、network、resource、malicious candidate與non-reproducible artifact fixtures全部fail closed。（Depends：P5.8）
@@ -837,3 +840,10 @@
 - P4 closure：真實小型portfolio從pre-trade NAV經reference fill、balanced journal、post-trade NAV、outcome evidence到帶五類refs的report，JSON round-trip hash一致且ledger reconciliation matched。既有cycle crash/reclaim只產一筆receipt/fill/journal；TradingAgents/Kronos worker env deny DB/broker/queue secrets，LLM/research outputs與AI-Trader policy皆無execution path。
 - Verification：focused contracts/projections/API/PostgreSQL/E2E為22 passed，新模組branch coverage 80.59%；P4 property/concurrency/crash/stale/authority/upstream safety matrix為215 passed。完整PostgreSQL gate為1206 passed、coverage 87.32%，459 files format、ruff、mypy 268 source files、68 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。P4 phase gate與success criteria全部通過，下一項為P5.1 external platform contracts。
+
+### P5 Progress Review — P5.1–P5.2 — 2026-07-14
+
+- Scope completed：新增9個clean-room external platform schemas、runtime-checkable `PlatformPort`、AI-Trader adapter-local frozen response contracts、default-off config與snapshot-bound cassettes。Adapter涵蓋去敏strategy/discussion/reply、challenge join/submit/vote、experiment enroll/observation/result與heartbeat events，所有remote輸出固定為untrusted、evidence-only artifact/evidence。
+- Boundary / resilience：只允許exact HTTPS origin與allowlisted community/control endpoints；禁止order/copy/realtime/position/follow routes、redirect與automatic POST retry。Canonical bounded JSON、scoped token、raw response artifact、typed tolerant reader及injected event inbox皆有contract/security tests；schema/authz/body anomaly停用adapter，heartbeat duplicate忽略、same ID payload conflict fail closed。Adapter dependency graph沒有execution、risk、DB或queue authority。
+- Verification：focused platform/adapter/config/security為44 passed，兩個adapter模組合計branch coverage 83.70%。完整PostgreSQL gate為1244 passed、coverage 87.27%，469 files format、ruff、mypy 274 source files、77 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- Limitation / docs：live `api.ai4trade.ai`與OpenAPI因DNS無法解析而未驗證；目前只保證固定AI-Trader snapshot `d03ff6c`最小runtime shapes與clean-room cassettes，不宣稱current production compatibility。`README.md`、`CONTEXT.md`與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.3 community feedback policy。

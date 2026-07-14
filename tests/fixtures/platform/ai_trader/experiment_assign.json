@@ -1,0 +1,7 @@
+{
+  "experiment_key": "experiment-1",
+  "unit_type": "agent",
+  "unit_id": 12,
+  "variant_key": "control",
+  "idempotent": false
+}

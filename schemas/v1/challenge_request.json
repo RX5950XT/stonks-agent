@@ -8,6 +8,15 @@
       ],
       "title": "ChallengeAction",
       "type": "string"
+    },
+    "ChallengeVote": {
+      "enum": [
+        "approve",
+        "reject",
+        "revise"
+      ],
+      "title": "ChallengeVote",
+      "type": "string"
     }
   },
   "additionalProperties": false,
@@ -49,6 +58,45 @@
       "title": "Platform",
       "type": "string"
     },
+    "public_content": {
+      "anyOf": [
+        {
+          "maxLength": 16000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Public Content"
+    },
+    "redaction_manifest_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Redaction Manifest Hash"
+    },
+    "redaction_policy_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Redaction Policy Version"
+    },
     "request_id": {
       "format": "uuid",
       "title": "Request Id",
@@ -70,6 +118,29 @@
       "default": "1.0.0",
       "title": "Schema Version",
       "type": "string"
+    },
+    "submission_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Submission Ref"
+    },
+    "vote": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ChallengeVote"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "required": [

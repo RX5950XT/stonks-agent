@@ -455,6 +455,58 @@ def test_market_order_cannot_skip_first_tradable_bar() -> None:
     assert result.error.code is ErrorCode.MODEL_OUTPUT_INVALID
 
 
+def test_ioc_halt_consumes_first_calendar_opportunity() -> None:
+    selected = BacktestOrder.create(
+        order_id=ORDER_ID,
+        sequence=1,
+        instrument_id=INSTRUMENT_ID,
+        side=BacktestOrderSide.BUY,
+        order_type=BacktestOrderType.MARKET,
+        quantity=Decimal("10"),
+        limit_price=None,
+        time_in_force=BacktestTimeInForce.IOC,
+        issued_at=DAY_1_OPEN - timedelta(minutes=1),
+        valid_until=DAY_2_CLOSE,
+        strategy_event_ref="signal:aapl:halted-ioc",
+    )
+    base = job_with_order(selected, initial_quantity=Decimal("0"))
+    halted = base.dataset.bars[0].model_copy(update={"tradable": False})
+    halted_dataset = base.dataset.model_copy(
+        update={"bars": (halted, base.dataset.bars[1])}
+    )
+    payload = base.model_dump(mode="json")
+    payload.update(
+        dataset=halted_dataset.model_dump(mode="json"),
+        dataset_artifact_ref=f"sha256:{halted_dataset.payload_hash()}",
+    )
+    request = BacktestJob.model_validate(payload)
+    candidate = BacktestResult.create(
+        result_id=uuid4(),
+        job=request,
+        order_outcomes=(
+            BacktestOrderOutcome(
+                order_id=selected.order_id,
+                order_hash=selected.order_hash,
+                status=BacktestOrderStatus.CANCELLED,
+                command_quantity=selected.quantity,
+                filled_quantity=Decimal("0"),
+                remaining_quantity=selected.quantity,
+                reason="canonical_ioc_unfilled",
+            ),
+        ),
+        fills=(),
+        final_cash=request.initial_cash,
+        final_positions=request.initial_positions,
+        total_fees=Decimal("0"),
+        generated_at=REQUESTED + timedelta(seconds=5),
+    )
+
+    result = run_backtest(request, StaticEngine(Success(candidate)))
+
+    assert isinstance(result, Success)
+    assert not result.value.fills
+
+
 def test_fillable_order_cannot_be_reported_without_its_deterministic_fill() -> None:
     request = job()
     candidate = BacktestResult.create(

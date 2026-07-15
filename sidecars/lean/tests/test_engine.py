@@ -5,6 +5,7 @@ import sys
 import zipfile
 from dataclasses import dataclass
 from datetime import timedelta
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
@@ -24,17 +25,27 @@ from sidecars.lean.engine import (  # noqa: E402
 )
 from stonks_contracts.backtest import (  # noqa: E402
     BacktestEngineKind,
+    BacktestJob,
+    BacktestOrder,
+    BacktestOrderSide,
+    BacktestOrderType,
     BacktestRuntimeIdentity,
+    BacktestTimeInForce,
 )
 from tests.contracts.backtest.test_backtest_contract import (  # noqa: E402
+    BAR_1_ID,
     BAR_2_ID,
+    DAY_1_OPEN,
+    DAY_2_CLOSE,
     DAY_2_OPEN,
+    INSTRUMENT_ID,
+    ORDER_ID,
     REQUESTED,
     job,
 )
 
 
-def request():
+def request() -> BacktestJob:
     base = job(BacktestEngineKind.LEAN)
     runtime = BacktestRuntimeIdentity(
         engine=BacktestEngineKind.LEAN,
@@ -98,6 +109,12 @@ def test_schedule_and_generated_lean_data_are_deterministic(tmp_path: Path) -> N
     assert schedule[0].source_opens_at == DAY_2_OPEN
     first_schedule = (first / "schedule.json").read_bytes()
     assert first_schedule == (second / "schedule.json").read_bytes()
+    schedule_payload = json.loads(first_schedule)
+    assert schedule_payload["start_date"] == "2026-07-12"
+    assert all(
+        item["submit_at_utc"] > "2026-07-12T00:00:00+00:00"
+        for item in schedule_payload["children"]
+    )
     archive = (
         first / "data" / "equity" / "usa" / "minute" / "aapl" / ("20260714_trade.zip")
     )
@@ -110,6 +127,61 @@ def test_schedule_and_generated_lean_data_are_deterministic(tmp_path: Path) -> N
     assert (first / "data" / "equity" / "usa" / "factor_files" / "aapl.csv").is_file()
     assert (first / "data" / "symbol-properties" / "security-database.csv").is_file()
     assert not (first / "data" / "market-hours" / "security-database.csv").exists()
+
+
+@pytest.mark.parametrize(
+    ("time_in_force", "expected_bars", "expected_quantities"),
+    [
+        (BacktestTimeInForce.GTC, (BAR_1_ID, BAR_2_ID), ("100", "50")),
+        (BacktestTimeInForce.IOC, (BAR_1_ID,), ("100",)),
+    ],
+)
+def test_pre_open_partial_order_schedules_first_bar(
+    tmp_path: Path,
+    time_in_force: BacktestTimeInForce,
+    expected_bars: tuple[UUID, ...],
+    expected_quantities: tuple[str, ...],
+) -> None:
+    base = request()
+    selected = BacktestOrder.create(
+        order_id=ORDER_ID,
+        sequence=1,
+        instrument_id=INSTRUMENT_ID,
+        side=BacktestOrderSide.BUY,
+        order_type=BacktestOrderType.MARKET,
+        quantity=Decimal("150"),
+        limit_price=None,
+        time_in_force=time_in_force,
+        issued_at=DAY_1_OPEN - timedelta(minutes=1),
+        valid_until=DAY_2_CLOSE,
+        strategy_event_ref="fixture:first-bar-partial",
+    )
+    payload = base.model_dump(mode="json")
+    payload["orders"] = [selected.model_dump(mode="json")]
+    target = BacktestJob.model_validate(payload)
+
+    schedule = _schedule(target, max_children=10)
+    root = tmp_path / time_in_force.value
+    root.mkdir()
+    _write_job_inputs(root, target, schedule, base_data=None)
+    serialized = json.loads((root / "schedule.json").read_bytes())
+
+    assert tuple(item.source_bar_id for item in schedule) == expected_bars
+    assert tuple(str(item.quantity) for item in schedule) == expected_quantities
+    submit_at = DAY_1_OPEN - timedelta(minutes=1)
+    assert serialized["children"][0]["submit_at_utc"] == submit_at.isoformat()
+    assert serialized["start_date"] < submit_at.date().isoformat()
+    first_archive = (
+        root / "data" / "equity" / "usa" / "minute" / "aapl" / "20260713_trade.zip"
+    )
+    with zipfile.ZipFile(first_archive) as source:
+        first_rows = (
+            source.read("20260713_aapl_minute_trade.csv").decode("ascii").splitlines()
+        )
+    assert first_rows == [
+        "37680000,1000000,1000000,1000000,1000000,0",
+        "37800000,1000000,1010000,990000,1000000,1000",
+    ]
 
 
 def test_backend_runs_fixed_command_with_sanitized_environment(tmp_path: Path) -> None:

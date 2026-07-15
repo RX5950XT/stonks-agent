@@ -10,6 +10,8 @@ provider、paper account、broker、risk、reservation 或 ledger credentials。
   只執行已排定且可成交的 child order，不能建立 target/order 或覆寫 risk。
 - Canonical bar 轉成 LEAN minute equity data；目前只接受 XNAS/XNYS、USD、整數股數、
   最多四位小數價格與 `<positive integer>{m|h|d}` interval。
+- 最早canonical bar前會加入一筆同instrument/open price、volume=0的native clock bootstrap，
+  只為讓first-bar pre-open child準時提交；它不映射為canonical bar/fill，也不參與economics。
 - 原生 MARKET/LIMIT 與 DAY/GTC 會保留；因 LEAN 沒有原生 IOC，canonical scheduler
   只排第一個 IOC child，再以 DAY 執行。LEAN 原生 fee/slippage 固定為零，最終經濟
   結果由 canonical deterministic model 正規化，core 仍會重驗。

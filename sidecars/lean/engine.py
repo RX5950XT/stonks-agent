@@ -409,7 +409,10 @@ def _write_job_inputs(
     _write_equity_bars(data, job)
     payload = {
         "engine_version": LEAN_ENGINE_VERSION,
-        "start_date": min(item.opens_at for item in job.dataset.bars)
+        # LEAN must enter the clock before a first-bar pre-open submit event.
+        "start_date": (
+            min(item.opens_at for item in job.dataset.bars) - timedelta(days=1)
+        )
         .date()
         .isoformat(),
         "end_date": max(item.closes_at for item in job.dataset.bars).date().isoformat(),
@@ -463,6 +466,13 @@ def _write_equity_metadata(data: Path, job: BacktestJob) -> None:
 
 def _write_equity_bars(data: Path, job: BacktestJob) -> None:
     instruments = {item.instrument_id: item for item in job.dataset.instruments}
+    first_bars = {
+        instrument_id: min(
+            (item for item in job.dataset.bars if item.instrument_id == instrument_id),
+            key=lambda item: (item.opens_at, item.bar_id.hex),
+        )
+        for instrument_id in instruments
+    }
     grouped: defaultdict[tuple[str, str], list[BacktestBar]] = defaultdict(list)
     for bar in job.dataset.bars:
         symbol = instruments[bar.instrument_id].symbol.lower()
@@ -473,9 +483,12 @@ def _write_equity_bars(data: Path, job: BacktestJob) -> None:
         directory.mkdir(parents=True, exist_ok=True)
         archive = directory / f"{local_date}_trade.zip"
         entry = f"{local_date}_{symbol}_minute_trade.csv"
-        rows = "\n".join(
-            _lean_bar_row(item) for item in sorted(bars, key=lambda x: x.opens_at)
-        )
+        ordered = sorted(bars, key=lambda item: (item.opens_at, item.bar_id.hex))
+        rows: list[str] = []
+        for item in ordered:
+            if item.bar_id == first_bars[item.instrument_id].bar_id:
+                rows.append(_lean_clock_bootstrap_row(item))
+            rows.append(_lean_bar_row(item))
         with zipfile.ZipFile(
             archive,
             mode="w",
@@ -485,17 +498,43 @@ def _write_equity_bars(data: Path, job: BacktestJob) -> None:
             info = zipfile.ZipInfo(entry, date_time=(1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
-            target.writestr(info, rows.encode("ascii"))
+            target.writestr(info, "\n".join(rows).encode("ascii"))
+
+
+def _lean_clock_bootstrap_row(bar: BacktestBar) -> str:
+    """Advance LEAN before the first pre-open submission without adding economics."""
+
+    bootstrap = bar.opens_at - timedelta(minutes=2)
+    if (
+        bootstrap.astimezone(_NEW_YORK).date()
+        != bar.opens_at.astimezone(_NEW_YORK).date()
+    ):
+        raise ValueError("LEAN first bar cannot be clock-bootstrapped")
+    return _lean_row(
+        bootstrap,
+        (bar.open, bar.open, bar.open, bar.open),
+        Decimal("0"),
+    )
 
 
 def _lean_bar_row(bar: BacktestBar) -> str:
-    local = bar.opens_at.astimezone(_NEW_YORK)
+    return _lean_row(
+        bar.opens_at,
+        (bar.open, bar.high, bar.low, bar.close),
+        bar.volume,
+    )
+
+
+def _lean_row(
+    opens_at: datetime,
+    prices: tuple[Decimal, Decimal, Decimal, Decimal],
+    volume: Decimal,
+) -> str:
+    local = opens_at.astimezone(_NEW_YORK)
     midnight = local.replace(hour=0, minute=0, second=0, microsecond=0)
     milliseconds = int((local - midnight).total_seconds() * 1000)
-    scaled = [
-        str(int(value * 10_000)) for value in (bar.open, bar.high, bar.low, bar.close)
-    ]
-    return ",".join((str(milliseconds), *scaled, str(int(bar.volume))))
+    scaled = [str(int(value * 10_000)) for value in prices]
+    return ",".join((str(milliseconds), *scaled, str(int(volume))))
 
 
 def _child_payload(child: ScheduledChild) -> dict[str, str | None]:

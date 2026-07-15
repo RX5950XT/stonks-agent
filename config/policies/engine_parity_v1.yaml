@@ -1,0 +1,7 @@
+policy_id: engine-parity/1
+required_engines:
+  - reference
+  - nautilus
+  - lean
+canonical_mismatch_threshold: 0
+warning_mismatch_threshold: 0

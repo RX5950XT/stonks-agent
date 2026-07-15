@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.6 已完成，P5.7 進行中）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.7 已完成，下一項 P5.8）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -446,8 +446,13 @@
   - [x] Sidecar無DB/provider/queue/broker credentials；request/work/concurrency/deadline與process/resource bounds fail closed，default no egress。
   - [x] Fake-runtime contract/replay、真實engine/container smoke、SBOM/CVE/license/source checks與完整phase gate通過後同步文件。
 
-- [ ] **P5.7 Cross-engine parity evaluation** — 建立`tests/parity/{paper_nautilus_lean.py,fixtures/}`與`application/evaluation/engine_parity.py`。（Depends：P4.5、P5.5、P5.6；Complexity：XL；Risk：High）
+- [x] **P5.7 Cross-engine parity evaluation** — 建立`tests/parity/`、`scripts/smoke_engine_parity.py`與`application/evaluation/engine_parity.py`。（Depends：P4.5、P5.5、P5.6；Complexity：XL；Risk：High）
   - 差異超預設threshold時標engine-specific，不能把結果平均或宣稱等價。
+  - [x] P5.4 prerequisite regression：halted首個calendar opportunity會消耗IOC；極端cost/Decimal只產生validated failure；LEAN能在首根bar前提交GTC/IOC partial order。
+  - [x] TDD：建立frozen/content-hash parity policy、validated job/result observation、pairwise delta與report contracts；reference為唯一baseline。
+  - [x] 逐order/fill/cash/position對齊並解釋status、quantity、price、fee與projection差異；semantic/provenance分類stable且不平均結果。
+  - [x] Reference/Nautilus/LEAN共用MARKET/LIMIT、DAY/GTC/IOC、BUY/SELL、partial/shared-volume與multi-session fixtures；真實sidecar replay保存exact runtime/image/result provenance。
+  - [x] Sidecar disabled/failed回structured failure且不產生parity report；core無heavy runtime仍通過，完整phase gate後同步文件。
 
 - [ ] **P5.8 RD-Agent sandbox worker** — 建立`workers/quant_lab/rd_agent/{Dockerfile,uv.lock,README.md,sandbox_policy.yaml,adapter.py}`與escape/reproducibility tests。（Depends：P0.3、P3.4、P3.9；Complexity：XL；Risk：High）
   - Linux-only、ephemeral、read-only dataset、no core secrets、default no egress、CPU/RAM/time限制。
@@ -461,7 +466,7 @@
 
 - [x] AI-Trader adapter測試無order/copy endpoint且不在execution dependency graph；duplicate heartbeat/events去重。（Depends：P5.2）
 - [x] Community prompt injection/reputation/deadline tests證明feedback不能直接成signal/order。（Depends：P5.3）
-- [ ] Nautilus/LEAN parity fixtures產生可解釋差異與完整provenance；任一sidecar關閉時core仍通過。（Depends：P5.7）
+- [x] Nautilus/LEAN parity fixtures產生可解釋差異與完整provenance；任一sidecar關閉時core仍通過。（Depends：P5.7）
 - [ ] RD-Agent sandbox escape、network、resource、malicious candidate與non-reproducible artifact fixtures全部fail closed。（Depends：P5.8）
 - [ ] 每個image有獨立lock、SBOM、license notice/source manifest，core lock無新增重型依賴。（Depends：P5.9）
 
@@ -891,3 +896,11 @@
 - Provenance / security：固定Apache-2.0 source archive與license hashes、原始archive及modification source隨image提供；移除vulnerable DotNetZip/NetMQ與未使用ServiceModel/WinHttp/System.Drawing chains，16份NuGet lock皆以`--locked-mode` restore並在build內掃transitive vulnerabilities。Syft CycloneDX為4,754 components/166 unique packages；Grype為0 Critical、0 High（145 Medium、24 Low、2 Negligible），Python與core locked audit皆0 known vulnerabilities。Debian runtime實驗因14 Critical/85 High fail closed撤回，最終使用pinned Ubuntu/.NET runtime。
 - Verification：focused adapter/contracts/security/SBOM為22 passed，strict mypy 6 files、Ruff、actionlint、Compose、source/license/upstream policy與real hardened replay全通過。完整PostgreSQL gate為1296 passed、coverage 87.25%，502 files format、ruff、mypy 280 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過；secret scanner另以TDD排除gitignored `.data` runtime/build cache。
 - 文件同步：`README.md`、`CONTEXT.md`、sidecar README與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.7 cross-engine parity evaluation。
+
+### P5 Progress Review — P5.7 — 2026-07-15
+
+- Scope completed：新增frozen/content-hash `EngineParityPolicy/Request/Report`、reference-baseline evaluator、bounded per-dimension comparison與真實雙sidecar smoke matrix。每個candidate先經P5.4 `run_backtest` exact validation，再比較order outcomes、fill schedule/quantity/price/fee/slippage、cash、positions、total fee與warnings；canonical threshold固定0，report明示`fixture_canonical_semantics_only`與`adapter_normalized_not_native_matching`。
+- Fail-closed / authority：runtime、image、job、result、semantic、warning及fill provenance只保存bounded counts/hashes，不傳raw warning；不含selected/preferred engine、average、promotion、target、order或paper authority。Disabled engine回`CAPABILITY_DENIED`，failed clock/engine、late或tampered result回既有structured failure，全部不產可能被誤讀為equivalent的report。Core dependency/security test證明無sidecar/heavy runtime、execution、risk、ledger或persistence import。
+- Real replay / LEAN regression：7組fixture涵蓋MARKET/LIMIT、BUY/SELL、DAY/GTC/IOC、partial、shared-volume、multi-session、unfilled與halted；每個engine各重播2次，共28次authenticated HTTP execution，semantic exact match且各自native fill provenance stable。實測發現LEAN首根bar前scheduled event無data clock而遺失；以first-bar同open、volume=0的native-only bootstrap修正並新增GTC/IOC regression，最終runtime hash為`ca04cdf4d8cfe4e7f4dc4caf6deab622a21e77322b7d2956fb5b93a262834087`、image digest為`sha256:a8fa44799d6298dd343382d842665b2185fd3f7635ba0cab6435fd0a453d3857`。
+- Verification：focused core/backtest/parity/security為33 passed、LEAN sidecar為22 passed，Ruff、strict mypy與actionlint全通過；最終LEAN image的Syft SBOM為4,754 components/166 packages，Grype為0 High/Critical。完整PostgreSQL gate為1313 passed、coverage 87.32%，511 files format、ruff、mypy 282 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。CI新增internal-network雙image real replay並保存30日bounded provenance artifact。
+- 文件同步：`README.md`、`CONTEXT.md`、LEAN README與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.8 RD-Agent sandbox worker。

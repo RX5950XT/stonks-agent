@@ -427,3 +427,119 @@ jobs:
         run: |
           docker rm --force stonks-lean-ci || true
           docker network rm stonks-lean-ci || true
+
+  engine-parity:
+    name: NautilusTrader / LEAN canonical parity / ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      PYTHONUTF8: "1"
+      UV_FROZEN: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          version: "0.9.27"
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Install frozen core environment
+        run: uv sync --frozen
+
+      - name: Build both pinned sidecars
+        run: |
+          docker build -f sidecars/nautilus/Dockerfile \
+            -t stonks-nautilus-sidecar:p5.5 .
+          docker build -f sidecars/lean/Dockerfile \
+            -t stonks-lean-sidecar:p5.6 .
+
+      - name: Start isolated sidecars with exact identities
+        shell: bash
+        run: |
+          nautilus_hash="$(PYTHONPATH=.:src:packages/contracts/src uv run python -c 'from pathlib import Path; from sidecars.nautilus.adapter import compute_runtime_hash; print(compute_runtime_hash(Path("sidecars/nautilus")))')"
+          lean_hash="$(PYTHONPATH=.:src:packages/contracts/src uv run python -c 'from pathlib import Path; from sidecars.lean.adapter import compute_runtime_hash; print(compute_runtime_hash(Path("sidecars/lean")))')"
+          nautilus_image="$(docker image inspect stonks-nautilus-sidecar:p5.5 --format '{{.Id}}')"
+          lean_image="$(docker image inspect stonks-lean-sidecar:p5.6 --format '{{.Id}}')"
+          nautilus_token="$(openssl rand -hex 32)"
+          lean_token="$(openssl rand -hex 32)"
+          {
+            echo "PARITY_NAUTILUS_HASH=$nautilus_hash"
+            echo "PARITY_LEAN_HASH=$lean_hash"
+            echo "PARITY_NAUTILUS_IMAGE=$nautilus_image"
+            echo "PARITY_LEAN_IMAGE=$lean_image"
+            echo "PARITY_NAUTILUS_TOKEN=$nautilus_token"
+            echo "PARITY_LEAN_TOKEN=$lean_token"
+          } >> "$GITHUB_ENV"
+          docker network create --internal stonks-engine-parity-ci
+          docker run --detach --name stonks-parity-nautilus-ci \
+            --network stonks-engine-parity-ci --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=512m,uid=65532,gid=65532,mode=0700 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --memory 3g --memory-swap 3g --cpus 2 --pids-limit 256 \
+            --env STONKS_NAUTILUS_RUNTIME_HASH="$nautilus_hash" \
+            --env STONKS_NAUTILUS_IMAGE_DIGEST="$nautilus_image" \
+            --env STONKS_NAUTILUS_SERVICE_TOKEN="$nautilus_token" \
+            "$nautilus_image"
+          docker run --detach --name stonks-parity-lean-ci \
+            --network stonks-engine-parity-ci --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=512m,uid=65532,gid=65532,mode=0700 \
+            --cap-drop ALL --security-opt no-new-privileges \
+            --memory 3g --memory-swap 3g --cpus 2 --pids-limit 256 \
+            --env STONKS_LEAN_RUNTIME_HASH="$lean_hash" \
+            --env STONKS_LEAN_IMAGE_DIGEST="$lean_image" \
+            --env STONKS_LEAN_SERVICE_TOKEN="$lean_token" \
+            "$lean_image"
+          for attempt in {1..30}; do
+            docker exec stonks-parity-nautilus-ci python -c \
+              "from urllib.request import urlopen; assert urlopen('http://127.0.0.1:7400/healthz', timeout=1).status == 200" \
+              && break
+            if [ "$attempt" -eq 30 ]; then exit 1; fi
+            sleep 1
+          done
+          for attempt in {1..30}; do
+            docker exec stonks-parity-lean-ci python3 -c \
+              "from urllib.request import urlopen; assert urlopen('http://127.0.0.1:7410/healthz', timeout=1).status == 200" \
+              && break
+            if [ "$attempt" -eq 30 ]; then exit 1; fi
+            sleep 1
+          done
+
+      - name: Replay exact cross-engine fixture matrix
+        shell: bash
+        run: |
+          docker exec --interactive stonks-parity-nautilus-ci python - \
+            --nautilus-url http://stonks-parity-nautilus-ci:7400 \
+            --nautilus-runtime-hash "$PARITY_NAUTILUS_HASH" \
+            --nautilus-image-digest "$PARITY_NAUTILUS_IMAGE" \
+            --nautilus-token "$PARITY_NAUTILUS_TOKEN" \
+            --lean-url http://stonks-parity-lean-ci:7410 \
+            --lean-runtime-hash "$PARITY_LEAN_HASH" \
+            --lean-image-digest "$PARITY_LEAN_IMAGE" \
+            --lean-token "$PARITY_LEAN_TOKEN" --timeout 180 \
+            < scripts/smoke_engine_parity.py \
+            | tee "$RUNNER_TEMP/engine-parity-report.json"
+          python -c 'import json,os; from pathlib import Path; payload=json.loads(Path(os.environ["RUNNER_TEMP"], "engine-parity-report.json").read_text()); assert payload["claim_scope"] == "fixture_canonical_semantics_only" and payload["case_count"] == 7'
+          test "$(docker network inspect stonks-engine-parity-ci --format '{{.Internal}}')" = "true"
+
+      - name: Preserve bounded parity provenance
+        uses: actions/upload-artifact@v6
+        with:
+          name: engine-parity-${{ github.run_id }}
+          path: ${{ runner.temp }}/engine-parity-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Stop parity sidecars
+        if: always()
+        run: |
+          docker rm --force stonks-parity-nautilus-ci || true
+          docker rm --force stonks-parity-lean-ci || true
+          docker network rm stonks-engine-parity-ci || true

@@ -543,3 +543,136 @@ jobs:
           docker rm --force stonks-parity-nautilus-ci || true
           docker rm --force stonks-parity-lean-ci || true
           docker network rm stonks-engine-parity-ci || true
+
+  rd-agent-sandbox:
+    name: RD-Agent factor sandbox / ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+      UV_FROZEN: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          version: "0.9.27"
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Install exact independent environments
+        run: |
+          uv sync --frozen
+          uv lock --check --project workers/quant_lab/rd_agent
+          uv sync --frozen --project workers/quant_lab/rd_agent
+
+      - name: Verify contracts, core boundary and one-shot worker
+        shell: bash
+        run: |
+          uv run --project workers/quant_lab/rd_agent ruff check \
+            workers/quant_lab/rd_agent \
+            packages/contracts/src/stonks_contracts/candidate_scan.py \
+            packages/contracts/src/stonks_contracts/rd_agent.py \
+            src/stonks_agent/application/evaluation/rd_agent.py \
+            scripts/smoke_rd_agent.py scripts/verify_rd_agent_sbom.py \
+            tests/contracts/workers/test_rd_agent.py \
+            tests/evaluation/test_rd_agent_candidate.py \
+            tests/security/test_rd_agent_sandbox_boundary.py \
+            tests/unit/test_verify_rd_agent_sbom.py
+          MYPYPATH=".:src:packages/contracts/src" \
+            uv run --project workers/quant_lab/rd_agent mypy --strict \
+            workers/quant_lab/rd_agent/adapter.py \
+            workers/quant_lab/rd_agent/candidate_runner.py \
+            workers/quant_lab/rd_agent/cli.py \
+            workers/quant_lab/rd_agent/runner.py
+          MYPYPATH=".:src:packages/contracts/src" uv run mypy --strict \
+            packages/contracts/src/stonks_contracts/candidate_scan.py \
+            packages/contracts/src/stonks_contracts/rd_agent.py \
+            src/stonks_agent/application/evaluation/rd_agent.py \
+            scripts/smoke_rd_agent.py scripts/verify_rd_agent_sbom.py
+          PYTHONPATH=".:src:packages/contracts/src" \
+            uv run --project workers/quant_lab/rd_agent pytest \
+            -c workers/quant_lab/rd_agent/pyproject.toml -q --no-cov \
+            workers/quant_lab/rd_agent/tests \
+            tests/contracts/workers/test_rd_agent.py
+          PYTHONPATH=".:src:packages/contracts/src" uv run pytest -q --no-cov \
+            tests/contracts/workers/test_rd_agent.py \
+            tests/evaluation/test_rd_agent_candidate.py \
+            tests/security/test_rd_agent_sandbox_boundary.py \
+            tests/unit/test_verify_rd_agent_sbom.py
+
+      - name: Audit exact frozen Python dependencies
+        shell: bash
+        run: |
+          uv export --project workers/quant_lab/rd_agent --quiet --frozen \
+            --no-dev --no-emit-project --no-emit-local \
+            --format requirements.txt \
+            --output-file "$RUNNER_TEMP/rd-agent-requirements.txt"
+          uv run --project workers/quant_lab/rd_agent pip-audit --strict \
+            --requirement "$RUNNER_TEMP/rd-agent-requirements.txt"
+
+      - name: Build pinned minimal runtime image
+        run: >-
+          docker build -f workers/quant_lab/rd_agent/Dockerfile
+          -t stonks-rd-agent-factor-sandbox:p5.8 .
+
+      - name: Generate and verify SBOM and exact OpenVEX CVE gate
+        shell: bash
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$RUNNER_TEMP:/out" \
+            anchore/syft@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6 \
+            docker:stonks-rd-agent-factor-sandbox:p5.8 \
+            -o cyclonedx-json=/out/rd-agent-sbom.cdx.json
+          uv run python scripts/verify_rd_agent_sbom.py \
+            "$RUNNER_TEMP/rd-agent-sbom.cdx.json"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/workers/quant_lab/rd_agent:/config:ro" \
+            anchore/grype@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d \
+            -c /config/grype.yaml \
+            docker:stonks-rd-agent-factor-sandbox:p5.8 \
+            --vex /config/openvex.json --show-suppressed \
+            --fail-on high --output table
+
+      - name: Smoke two fresh hardened sandboxes and provenance
+        shell: bash
+        run: |
+          runtime_hash="$(PYTHONPATH=.:src:packages/contracts/src \
+            uv run --project workers/quant_lab/rd_agent python -c \
+            'from pathlib import Path; from workers.quant_lab.rd_agent.adapter import compute_runtime_hash; print(compute_runtime_hash(Path("workers/quant_lab/rd_agent")))')"
+          image_digest="$(docker image inspect \
+            stonks-rd-agent-factor-sandbox:p5.8 --format '{{.Id}}')"
+          STONKS_RD_RUNTIME_HASH="$runtime_hash" \
+            STONKS_RD_IMAGE_DIGEST="$image_digest" \
+            docker compose -f infra/compose.rd-agent.yaml config --quiet
+          PYTHONPATH=".:src:packages/contracts/src" \
+            uv run python scripts/smoke_rd_agent.py
+          test "$(docker image inspect stonks-rd-agent-factor-sandbox:p5.8 \
+            --format '{{.Config.User}}')" = "65532:65532"
+          docker run --rm --entrypoint sha256sum \
+            stonks-rd-agent-factor-sandbox:p5.8 \
+            /usr/share/sources/rd-agent/rd-agent-4f9ecb00.tar.gz \
+            | grep '^837010068449c5e874dee83f91240b281bed529acd214fdd1bdb6678f620caa4 '
+          docker run --rm --entrypoint sha256sum \
+            stonks-rd-agent-factor-sandbox:p5.8 \
+            /usr/share/licenses/stonks-rd-agent-factor-sandbox/RD-AGENT-LICENSE \
+            | grep '^c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383 '
+          docker run --rm --entrypoint sha256sum \
+            stonks-rd-agent-factor-sandbox:p5.8 \
+            /usr/share/licenses/stonks-rd-agent-factor-sandbox/LICENSE \
+            | grep '^c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4 '
+
+      - name: Preserve bounded SBOM provenance
+        uses: actions/upload-artifact@v6
+        with:
+          name: rd-agent-sbom-${{ github.run_id }}
+          path: ${{ runner.temp }}/rd-agent-sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30

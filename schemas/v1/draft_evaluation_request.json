@@ -1,0 +1,108 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "title": "As Of",
+      "type": "string"
+    },
+    "candidate_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,127}/[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "core_full_evaluation_required": {
+      "const": true,
+      "title": "Core Full Evaluation Required",
+      "type": "boolean"
+    },
+    "cost_model_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Cost Model Hash",
+      "type": "string"
+    },
+    "dataset_snapshot_id": {
+      "format": "uuid",
+      "title": "Dataset Snapshot Id",
+      "type": "string"
+    },
+    "evaluation_policy_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Evaluation Policy Hash",
+      "type": "string"
+    },
+    "feature_spec_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Feature Spec Hash",
+      "type": "string"
+    },
+    "label_spec_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Label Spec Hash",
+      "type": "string"
+    },
+    "prediction_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Prediction Hash",
+      "type": "string"
+    },
+    "promotion_allowed": {
+      "const": false,
+      "title": "Promotion Allowed",
+      "type": "boolean"
+    },
+    "required_checks": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 9,
+      "minItems": 9,
+      "title": "Required Checks",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_data_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Data Hash",
+      "type": "string"
+    },
+    "source_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Hash",
+      "type": "string"
+    },
+    "split_policy_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Split Policy Hash",
+      "type": "string"
+    },
+    "universe_spec_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Universe Spec Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "source_hash",
+    "prediction_hash",
+    "dataset_snapshot_id",
+    "source_data_hash",
+    "as_of",
+    "feature_spec_hash",
+    "label_spec_hash",
+    "universe_spec_hash",
+    "cost_model_hash",
+    "split_policy_hash",
+    "evaluation_policy_hash",
+    "required_checks",
+    "core_full_evaluation_required",
+    "promotion_allowed"
+  ],
+  "title": "DraftEvaluationRequest",
+  "type": "object"
+}

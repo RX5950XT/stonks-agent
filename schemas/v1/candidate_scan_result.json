@@ -1,0 +1,58 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "accepted": {
+      "const": true,
+      "title": "Accepted",
+      "type": "boolean"
+    },
+    "ast_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Ast Hash",
+      "type": "string"
+    },
+    "entrypoint": {
+      "const": "compute",
+      "title": "Entrypoint",
+      "type": "string"
+    },
+    "node_count": {
+      "maximum": 100000,
+      "minimum": 1,
+      "title": "Node Count",
+      "type": "integer"
+    },
+    "policy_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Policy Hash",
+      "type": "string"
+    },
+    "scan_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Scan Hash",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Hash",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_hash",
+    "policy_hash",
+    "ast_hash",
+    "node_count",
+    "entrypoint",
+    "accepted",
+    "scan_hash"
+  ],
+  "title": "CandidateScanResult",
+  "type": "object"
+}

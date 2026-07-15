@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "RDAgentCandidateKind": {
+      "enum": [
+        "factor"
+      ],
+      "title": "RDAgentCandidateKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "authority": {
+      "const": "draft_only",
+      "default": "draft_only",
+      "title": "Authority",
+      "type": "string"
+    },
+    "candidate_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,127}/[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "candidate_kind": {
+      "$ref": "#/$defs/RDAgentCandidateKind"
+    },
+    "generated_at": {
+      "title": "Generated At",
+      "type": "string"
+    },
+    "generation_config_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Generation Config Hash",
+      "type": "string"
+    },
+    "generation_input_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Generation Input Artifact Ref",
+      "type": "string"
+    },
+    "generation_runtime_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Generation Runtime Hash",
+      "type": "string"
+    },
+    "proposal_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Proposal Artifact Ref",
+      "type": "string"
+    },
+    "proposal_id": {
+      "format": "uuid",
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "raw_generation_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Raw Generation Artifact Ref",
+      "type": "string"
+    },
+    "rd_agent_commit": {
+      "pattern": "^[a-f0-9]{40}$",
+      "title": "Rd Agent Commit",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 1000000,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "source_artifact_ref": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Source Artifact Ref",
+      "type": "string"
+    },
+    "source_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Hash",
+      "type": "string"
+    },
+    "untrusted_content": {
+      "const": true,
+      "default": true,
+      "title": "Untrusted Content",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "proposal_id",
+    "candidate_id",
+    "candidate_kind",
+    "rd_agent_commit",
+    "proposal_artifact_ref",
+    "generation_runtime_hash",
+    "generation_config_hash",
+    "generation_input_artifact_ref",
+    "raw_generation_artifact_ref",
+    "source",
+    "source_hash",
+    "source_artifact_ref",
+    "generated_at"
+  ],
+  "title": "RDAgentProposal",
+  "type": "object"
+}

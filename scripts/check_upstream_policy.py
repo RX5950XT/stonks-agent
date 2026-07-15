@@ -462,7 +462,7 @@ def _imported_modules(path: Path) -> Iterable[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             yield from (alias.name.split(".", maxsplit=1)[0] for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
+        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             yield node.module.split(".", maxsplit=1)[0]
 
 

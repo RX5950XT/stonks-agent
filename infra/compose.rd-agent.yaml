@@ -1,0 +1,25 @@
+services:
+  rd-agent-factor-sandbox:
+    image: stonks-rd-agent-factor-sandbox:p5.8
+    build:
+      context: ..
+      dockerfile: workers/quant_lab/rd_agent/Dockerfile
+      target: runtime
+    environment:
+      STONKS_RD_RUNTIME_HASH: ${STONKS_RD_RUNTIME_HASH:?required}
+      STONKS_RD_IMAGE_DIGEST: ${STONKS_RD_IMAGE_DIGEST:?required}
+    network_mode: none
+    user: "65532:65532"
+    read_only: true
+    privileged: false
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - apparmor=docker-default
+    ipc: private
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,nodev,size=32m,uid=65532,gid=65532,mode=0700"
+    pids_limit: 16
+    mem_limit: 256m
+    cpus: 1.0
+    stdin_open: true

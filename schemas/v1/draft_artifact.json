@@ -1,0 +1,58 @@
+{
+  "$defs": {
+    "DraftArtifactKind": {
+      "enum": [
+        "source",
+        "predictions",
+        "static_scan"
+      ],
+      "title": "DraftArtifactKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "byte_count": {
+      "maximum": 16777216,
+      "minimum": 1,
+      "title": "Byte Count",
+      "type": "integer"
+    },
+    "content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "draft_only": {
+      "const": true,
+      "title": "Draft Only",
+      "type": "boolean"
+    },
+    "kind": {
+      "$ref": "#/$defs/DraftArtifactKind"
+    },
+    "media_type": {
+      "enum": [
+        "text/x-python",
+        "application/json"
+      ],
+      "title": "Media Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "content_hash",
+    "byte_count",
+    "media_type",
+    "draft_only"
+  ],
+  "title": "DraftArtifact",
+  "type": "object"
+}

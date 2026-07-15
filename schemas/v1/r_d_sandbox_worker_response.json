@@ -1,0 +1,471 @@
+{
+  "$defs": {
+    "CandidateScanResult": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "const": true,
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "ast_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Ast Hash",
+          "type": "string"
+        },
+        "entrypoint": {
+          "const": "compute",
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "node_count": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Node Count",
+          "type": "integer"
+        },
+        "policy_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Policy Hash",
+          "type": "string"
+        },
+        "scan_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Scan Hash",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_hash",
+        "policy_hash",
+        "ast_hash",
+        "node_count",
+        "entrypoint",
+        "accepted",
+        "scan_hash"
+      ],
+      "title": "CandidateScanResult",
+      "type": "object"
+    },
+    "DraftArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "maximum": 16777216,
+          "minimum": 1,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "draft_only": {
+          "const": true,
+          "title": "Draft Only",
+          "type": "boolean"
+        },
+        "kind": {
+          "$ref": "#/$defs/DraftArtifactKind"
+        },
+        "media_type": {
+          "enum": [
+            "text/x-python",
+            "application/json"
+          ],
+          "title": "Media Type",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "content_hash",
+        "byte_count",
+        "media_type",
+        "draft_only"
+      ],
+      "title": "DraftArtifact",
+      "type": "object"
+    },
+    "DraftArtifactKind": {
+      "enum": [
+        "source",
+        "predictions",
+        "static_scan"
+      ],
+      "title": "DraftArtifactKind",
+      "type": "string"
+    },
+    "DraftEvaluationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "title": "As Of",
+          "type": "string"
+        },
+        "candidate_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,127}/[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "core_full_evaluation_required": {
+          "const": true,
+          "title": "Core Full Evaluation Required",
+          "type": "boolean"
+        },
+        "cost_model_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Cost Model Hash",
+          "type": "string"
+        },
+        "dataset_snapshot_id": {
+          "format": "uuid",
+          "title": "Dataset Snapshot Id",
+          "type": "string"
+        },
+        "evaluation_policy_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Evaluation Policy Hash",
+          "type": "string"
+        },
+        "feature_spec_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Feature Spec Hash",
+          "type": "string"
+        },
+        "label_spec_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Label Spec Hash",
+          "type": "string"
+        },
+        "prediction_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prediction Hash",
+          "type": "string"
+        },
+        "promotion_allowed": {
+          "const": false,
+          "title": "Promotion Allowed",
+          "type": "boolean"
+        },
+        "required_checks": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 9,
+          "minItems": 9,
+          "title": "Required Checks",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_data_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Data Hash",
+          "type": "string"
+        },
+        "source_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Hash",
+          "type": "string"
+        },
+        "split_policy_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Split Policy Hash",
+          "type": "string"
+        },
+        "universe_spec_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Universe Spec Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "source_hash",
+        "prediction_hash",
+        "dataset_snapshot_id",
+        "source_data_hash",
+        "as_of",
+        "feature_spec_hash",
+        "label_spec_hash",
+        "universe_spec_hash",
+        "cost_model_hash",
+        "split_policy_hash",
+        "evaluation_policy_hash",
+        "required_checks",
+        "core_full_evaluation_required",
+        "promotion_allowed"
+      ],
+      "title": "DraftEvaluationRequest",
+      "type": "object"
+    },
+    "RDSandboxResult": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,127}/[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "deterministic": {
+          "const": true,
+          "title": "Deterministic",
+          "type": "boolean"
+        },
+        "draft_evaluation_request": {
+          "$ref": "#/$defs/DraftEvaluationRequest"
+        },
+        "first_output_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "First Output Hash",
+          "type": "string"
+        },
+        "first_sandbox_instance_id": {
+          "format": "uuid",
+          "title": "First Sandbox Instance Id",
+          "type": "string"
+        },
+        "generated_at": {
+          "title": "Generated At",
+          "type": "string"
+        },
+        "prediction_artifact": {
+          "$ref": "#/$defs/DraftArtifact"
+        },
+        "predictions": {
+          "items": {
+            "$ref": "#/$defs/SandboxPrediction"
+          },
+          "maxItems": 1000000,
+          "minItems": 2,
+          "title": "Predictions",
+          "type": "array"
+        },
+        "proposal_id": {
+          "format": "uuid",
+          "title": "Proposal Id",
+          "type": "string"
+        },
+        "replay_output_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Replay Output Hash",
+          "type": "string"
+        },
+        "replay_sandbox_instance_id": {
+          "format": "uuid",
+          "title": "Replay Sandbox Instance Id",
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/$defs/RDSandboxRuntimeIdentity"
+        },
+        "sandbox_policy_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sandbox Policy Hash",
+          "type": "string"
+        },
+        "scan": {
+          "$ref": "#/$defs/CandidateScanResult"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_artifact": {
+          "$ref": "#/$defs/DraftArtifact"
+        }
+      },
+      "required": [
+        "proposal_id",
+        "candidate_id",
+        "runtime",
+        "sandbox_policy_hash",
+        "scan",
+        "source_artifact",
+        "prediction_artifact",
+        "predictions",
+        "first_sandbox_instance_id",
+        "replay_sandbox_instance_id",
+        "first_output_hash",
+        "replay_output_hash",
+        "draft_evaluation_request",
+        "deterministic",
+        "generated_at"
+      ],
+      "title": "RDSandboxResult",
+      "type": "object"
+    },
+    "RDSandboxRuntimeIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Adapter Version",
+          "type": "string"
+        },
+        "deterministic": {
+          "const": true,
+          "title": "Deterministic",
+          "type": "boolean"
+        },
+        "image_digest": {
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "title": "Image Digest",
+          "type": "string"
+        },
+        "python_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Python Version",
+          "type": "string"
+        },
+        "rd_agent_commit": {
+          "pattern": "^[a-f0-9]{40}$",
+          "title": "Rd Agent Commit",
+          "type": "string"
+        },
+        "rd_agent_source_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Rd Agent Source Hash",
+          "type": "string"
+        },
+        "runtime_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Runtime Hash",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "worker_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Worker Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "worker_version",
+        "adapter_version",
+        "rd_agent_commit",
+        "rd_agent_source_hash",
+        "runtime_hash",
+        "image_digest",
+        "python_version",
+        "deterministic"
+      ],
+      "title": "RDSandboxRuntimeIdentity",
+      "type": "object"
+    },
+    "SandboxPrediction": {
+      "additionalProperties": false,
+      "properties": {
+        "observation_id": {
+          "format": "uuid",
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "predicted_return": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+          "title": "Predicted Return",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation_id",
+        "predicted_return"
+      ],
+      "title": "SandboxPrediction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempt_generation": {
+      "minimum": 1,
+      "title": "Attempt Generation",
+      "type": "integer"
+    },
+    "attempt_nonce": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Attempt Nonce",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "result": {
+      "$ref": "#/$defs/RDSandboxResult"
+    },
+    "result_artifact_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Result Artifact Hash",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "run_id",
+    "job_id",
+    "attempt_generation",
+    "attempt_nonce",
+    "result_artifact_hash",
+    "result"
+  ],
+  "title": "RDSandboxWorkerResponse",
+  "type": "object"
+}

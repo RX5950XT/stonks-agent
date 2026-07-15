@@ -1,0 +1,66 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "adapter_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Adapter Version",
+      "type": "string"
+    },
+    "deterministic": {
+      "const": true,
+      "title": "Deterministic",
+      "type": "boolean"
+    },
+    "image_digest": {
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "title": "Image Digest",
+      "type": "string"
+    },
+    "python_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Python Version",
+      "type": "string"
+    },
+    "rd_agent_commit": {
+      "pattern": "^[a-f0-9]{40}$",
+      "title": "Rd Agent Commit",
+      "type": "string"
+    },
+    "rd_agent_source_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Rd Agent Source Hash",
+      "type": "string"
+    },
+    "runtime_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Runtime Hash",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "worker_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Worker Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "worker_version",
+    "adapter_version",
+    "rd_agent_commit",
+    "rd_agent_source_hash",
+    "runtime_hash",
+    "image_digest",
+    "python_version",
+    "deterministic"
+  ],
+  "title": "RDSandboxRuntimeIdentity",
+  "type": "object"
+}

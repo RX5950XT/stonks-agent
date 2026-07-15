@@ -187,6 +187,36 @@ def test_policy_rejects_openbb_core_import(tmp_path: Path) -> None:
     assert "NO_OPENBB_IMPORT_IN_CORE" in result.stdout
 
 
+def test_policy_allows_local_relative_module_named_like_upstream(
+    tmp_path: Path,
+) -> None:
+    root = _write_fixture_repo(tmp_path)
+    package = root / "packages" / "contracts" / "src" / "contracts"
+    package.mkdir()
+    (package / "rd_agent.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (package / "__init__.py").write_text(
+        "from .rd_agent import VALUE\n",
+        encoding="utf-8",
+    )
+
+    result = _run_policy(root)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_policy_rejects_absolute_rd_agent_import(tmp_path: Path) -> None:
+    root = _write_fixture_repo(tmp_path)
+    (root / "src" / "stonks_agent" / "lab.py").write_text(
+        "from rd_agent import Runner\n",
+        encoding="utf-8",
+    )
+
+    result = _run_policy(root)
+
+    assert result.returncode == 1
+    assert "FORBIDDEN_CORE_IMPORT" in result.stdout
+
+
 def test_policy_rejects_dexter_vendor_tree(tmp_path: Path) -> None:
     root = _write_fixture_repo(tmp_path)
     (root / "vendor" / "dexter").mkdir(parents=True)

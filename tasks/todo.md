@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.7 已完成，下一項 P5.8）
+> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.8 已完成，P5.9 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -454,9 +454,13 @@
   - [x] Reference/Nautilus/LEAN共用MARKET/LIMIT、DAY/GTC/IOC、BUY/SELL、partial/shared-volume與multi-session fixtures；真實sidecar replay保存exact runtime/image/result provenance。
   - [x] Sidecar disabled/failed回structured failure且不產生parity report；core無heavy runtime仍通過，完整phase gate後同步文件。
 
-- [ ] **P5.8 RD-Agent sandbox worker** — 建立`workers/quant_lab/rd_agent/{Dockerfile,uv.lock,README.md,sandbox_policy.yaml,adapter.py}`與escape/reproducibility tests。（Depends：P0.3、P3.4、P3.9；Complexity：XL；Risk：High）
+- [x] **P5.8 RD-Agent sandbox worker** — 建立`workers/quant_lab/rd_agent/{Dockerfile,uv.lock,README.md,sandbox_policy.yaml,adapter.py}`與escape/reproducibility tests。（Depends：P0.3、P3.4、P3.9；Complexity：XL；Risk：High）
   - Linux-only、ephemeral、read-only dataset、no core secrets、default no egress、CPU/RAM/time限制。
   - 只輸出draft source/artifacts/evaluation request；核心重新靜態掃描與完整evaluation，絕不auto-promote。
+  - [x] TDD：新增frozen/hash-bound proposal、sandbox job/result、draft artifact/evaluation contracts與static-scan policy；禁止target/order/promotion authority。
+  - [x] 實作固定entrypoint、AST allowlist、雙fresh-process replay、timeout/output/memory/process bounds與structured failures；dataset不暴露label且read-only。
+  - [x] Core重新驗fence/runtime/source/policy、重跑相同static scan並以P3.4完整evaluation產report；即使passed也不變更registry state。
+  - [x] Pinned RD-Agent MIT source/NOTICE/獨立lock/image與Linux actual escape/network/resource/non-reproducibility smoke、SBOM/CVE/license gates全通過。
 
 - [ ] **P5.9 Optional integration manifests and feature flags** — 建立`config/features.yaml`、`infra/compose.optional.yaml`、`docs/runbooks/optional-integrations.md`。（Depends：P5.2、P5.5、P5.6、P5.8；Complexity：M；Risk：Medium）
   - 所有optional integration default off；未配置不影響core readiness。
@@ -467,7 +471,7 @@
 - [x] AI-Trader adapter測試無order/copy endpoint且不在execution dependency graph；duplicate heartbeat/events去重。（Depends：P5.2）
 - [x] Community prompt injection/reputation/deadline tests證明feedback不能直接成signal/order。（Depends：P5.3）
 - [x] Nautilus/LEAN parity fixtures產生可解釋差異與完整provenance；任一sidecar關閉時core仍通過。（Depends：P5.7）
-- [ ] RD-Agent sandbox escape、network、resource、malicious candidate與non-reproducible artifact fixtures全部fail closed。（Depends：P5.8）
+- [x] RD-Agent sandbox escape、network、resource、malicious candidate與non-reproducible artifact fixtures全部fail closed。（Depends：P5.8）
 - [ ] 每個image有獨立lock、SBOM、license notice/source manifest，core lock無新增重型依賴。（Depends：P5.9）
 
 ### P5 Success criteria
@@ -904,3 +908,11 @@
 - Real replay / LEAN regression：7組fixture涵蓋MARKET/LIMIT、BUY/SELL、DAY/GTC/IOC、partial、shared-volume、multi-session、unfilled與halted；每個engine各重播2次，共28次authenticated HTTP execution，semantic exact match且各自native fill provenance stable。實測發現LEAN首根bar前scheduled event無data clock而遺失；以first-bar同open、volume=0的native-only bootstrap修正並新增GTC/IOC regression，最終runtime hash為`ca04cdf4d8cfe4e7f4dc4caf6deab622a21e77322b7d2956fb5b93a262834087`、image digest為`sha256:a8fa44799d6298dd343382d842665b2185fd3f7635ba0cab6435fd0a453d3857`。
 - Verification：focused core/backtest/parity/security為33 passed、LEAN sidecar為22 passed，Ruff、strict mypy與actionlint全通過；最終LEAN image的Syft SBOM為4,754 components/166 packages，Grype為0 High/Critical。完整PostgreSQL gate為1313 passed、coverage 87.32%，511 files format、ruff、mypy 282 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。CI新增internal-network雙image real replay並保存30日bounded provenance artifact。
 - 文件同步：`README.md`、`CONTEXT.md`、LEAN README與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.8 RD-Agent sandbox worker。
+
+### P5 Progress Review — P5.8 — 2026-07-15
+
+- Scope completed：新增16個frozen/hash-bound RD proposal、label-free dataset、runtime/job/invocation、one-shot run、雙run aggregate與draft evaluation schemas，以及default-deny AST allowlist。只接受單一`compute(rows)` factor subset；stochastic generation provenance先封存，deterministic replay從archived source開始。Worker只回canonical predictions/draft artifacts，沒有target/order/risk/ledger/registry/promotion authority。
+- Isolation / replay：可信launcher用相同job啟動兩個不同fresh containers；instance ID由實際container ID衍生，core要求policy/runtime/source/dataset/fence與canonical bytes完全一致，再重跑相同scanner、重建direction/exposure/turnover並呼叫P3.4完整evaluation。Candidate只見immutable label-free rows；fixed `python -I -S`、restricted builtins、clean env、no shell/stdin/log、RLIMIT與container CPU/RAM/PID/time/output bounds全部fail closed。
+- Supply chain / actual runtime：pinned RD-Agent commit `4f9ecb0`、MIT archive/license hashes與獨立48-package dev lock；upstream source只以archive保存，不進PYTHONPATH也不執行。Final Alpine/Python 3.12.13 image為UID/GID 65532、network none、read-only、cap-drop/NNP/AppArmor/private IPC；移除tar/XML/HTML/compression/webbrowser/Windows asyncio/SQLite/system pip capabilities。593-component SBOM/27 packages無SQLite、pip或heavy runtime；10個Python High以exact `pkg:generic/python@3.12.13` OpenVEX標記vulnerable code not present，任何新High/Critical仍由Grype拒絕。
+- Verification：focused root為31 passed、獨立worker為28 passed，Ruff、strict mypy、actionlint、Compose、pip-audit、schema、source/license與actual escape/network/CPU/output/reproducibility smoke全通過。Final runtime hash為`592710a3915da6fe45d8245d76d69c68263d31f9275df400b0b81285241bb9fe`，image digest為`sha256:62c9003c50793f35414a571e59ec4acacf7188649492624e75d200c146d08e5e`。完整PostgreSQL gate為1344 passed、coverage 87.41%，529 files format、ruff、mypy 285 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`、worker README與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.9 optional integration manifests and feature flags。

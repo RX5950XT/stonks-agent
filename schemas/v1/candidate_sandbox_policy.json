@@ -1,0 +1,272 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allowed_calls": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Allowed Calls",
+      "type": "array"
+    },
+    "apparmor_profile": {
+      "const": "docker-default",
+      "title": "Apparmor Profile",
+      "type": "string"
+    },
+    "capability_mode": {
+      "const": "drop_all",
+      "title": "Capability Mode",
+      "type": "string"
+    },
+    "core_full_evaluation_required": {
+      "const": true,
+      "title": "Core Full Evaluation Required",
+      "type": "boolean"
+    },
+    "core_static_rescan_required": {
+      "const": true,
+      "title": "Core Static Rescan Required",
+      "type": "boolean"
+    },
+    "cpu_cores": {
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+      "title": "Cpu Cores",
+      "type": "string"
+    },
+    "dataset_mount": {
+      "const": "read_only",
+      "title": "Dataset Mount",
+      "type": "string"
+    },
+    "device_access": {
+      "const": "none",
+      "title": "Device Access",
+      "type": "string"
+    },
+    "entrypoint": {
+      "const": "compute",
+      "title": "Entrypoint",
+      "type": "string"
+    },
+    "environment_mode": {
+      "const": "allowlist",
+      "title": "Environment Mode",
+      "type": "string"
+    },
+    "fixed_argv": {
+      "const": true,
+      "title": "Fixed Argv",
+      "type": "boolean"
+    },
+    "forbidden_names": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "title": "Forbidden Names",
+      "type": "array"
+    },
+    "host_namespace_mode": {
+      "const": "private",
+      "title": "Host Namespace Mode",
+      "type": "string"
+    },
+    "isolation_scope": {
+      "const": "fresh_container_per_repetition",
+      "title": "Isolation Scope",
+      "type": "string"
+    },
+    "max_ast_nodes": {
+      "maximum": 100000,
+      "minimum": 16,
+      "title": "Max Ast Nodes",
+      "type": "integer"
+    },
+    "max_log_bytes": {
+      "maximum": 1048576,
+      "minimum": 0,
+      "title": "Max Log Bytes",
+      "type": "integer"
+    },
+    "max_open_files": {
+      "maximum": 1024,
+      "minimum": 8,
+      "title": "Max Open Files",
+      "type": "integer"
+    },
+    "max_output_bytes": {
+      "maximum": 16777216,
+      "minimum": 1024,
+      "title": "Max Output Bytes",
+      "type": "integer"
+    },
+    "max_processes": {
+      "const": 1,
+      "title": "Max Processes",
+      "type": "integer"
+    },
+    "max_rows": {
+      "maximum": 1000000,
+      "minimum": 2,
+      "title": "Max Rows",
+      "type": "integer"
+    },
+    "max_source_bytes": {
+      "maximum": 1000000,
+      "minimum": 256,
+      "title": "Max Source Bytes",
+      "type": "integer"
+    },
+    "memory_megabytes": {
+      "maximum": 16384,
+      "minimum": 64,
+      "title": "Memory Megabytes",
+      "type": "integer"
+    },
+    "network_mode": {
+      "const": "none",
+      "title": "Network Mode",
+      "type": "string"
+    },
+    "no_new_privileges": {
+      "const": true,
+      "title": "No New Privileges",
+      "type": "boolean"
+    },
+    "output_tmpfs_options": {
+      "const": "rw,noexec,nosuid,nodev",
+      "title": "Output Tmpfs Options",
+      "type": "string"
+    },
+    "platform": {
+      "const": "linux",
+      "title": "Platform",
+      "type": "string"
+    },
+    "policy_id": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}/[0-9]+$",
+      "title": "Policy Id",
+      "type": "string"
+    },
+    "privileged": {
+      "const": false,
+      "title": "Privileged",
+      "type": "boolean"
+    },
+    "promotion_allowed": {
+      "const": false,
+      "title": "Promotion Allowed",
+      "type": "boolean"
+    },
+    "python_hash_seed": {
+      "const": 0,
+      "title": "Python Hash Seed",
+      "type": "integer"
+    },
+    "repetitions": {
+      "const": 2,
+      "title": "Repetitions",
+      "type": "integer"
+    },
+    "root_filesystem": {
+      "const": "read_only",
+      "title": "Root Filesystem",
+      "type": "string"
+    },
+    "run_as_gid": {
+      "const": 65532,
+      "title": "Run As Gid",
+      "type": "integer"
+    },
+    "run_as_uid": {
+      "const": 65532,
+      "title": "Run As Uid",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "seccomp_profile": {
+      "const": "runtime/default",
+      "title": "Seccomp Profile",
+      "type": "string"
+    },
+    "shell_allowed": {
+      "const": false,
+      "title": "Shell Allowed",
+      "type": "boolean"
+    },
+    "source_mount": {
+      "const": "read_only",
+      "title": "Source Mount",
+      "type": "string"
+    },
+    "timeout_seconds": {
+      "maximum": 600,
+      "minimum": 1,
+      "title": "Timeout Seconds",
+      "type": "integer"
+    },
+    "unix_socket_access": {
+      "const": "none",
+      "title": "Unix Socket Access",
+      "type": "string"
+    },
+    "writable_tmpfs_megabytes": {
+      "maximum": 1024,
+      "minimum": 1,
+      "title": "Writable Tmpfs Megabytes",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "policy_id",
+    "platform",
+    "network_mode",
+    "root_filesystem",
+    "dataset_mount",
+    "entrypoint",
+    "repetitions",
+    "max_source_bytes",
+    "max_ast_nodes",
+    "max_rows",
+    "max_output_bytes",
+    "timeout_seconds",
+    "memory_megabytes",
+    "cpu_cores",
+    "max_processes",
+    "max_open_files",
+    "max_log_bytes",
+    "writable_tmpfs_megabytes",
+    "run_as_uid",
+    "run_as_gid",
+    "privileged",
+    "capability_mode",
+    "no_new_privileges",
+    "seccomp_profile",
+    "apparmor_profile",
+    "device_access",
+    "host_namespace_mode",
+    "unix_socket_access",
+    "environment_mode",
+    "source_mount",
+    "output_tmpfs_options",
+    "fixed_argv",
+    "shell_allowed",
+    "isolation_scope",
+    "python_hash_seed",
+    "allowed_calls",
+    "forbidden_names",
+    "core_static_rescan_required",
+    "core_full_evaluation_required",
+    "promotion_allowed"
+  ],
+  "title": "CandidateSandboxPolicy",
+  "type": "object"
+}

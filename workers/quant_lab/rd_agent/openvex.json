@@ -1,0 +1,79 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://stonks-agent.invalid/vex/rd-factor-sandbox-python-3.12.13-v1",
+  "author": "Stonks Agent maintainers",
+  "timestamp": "2026-07-15T00:00:00Z",
+  "version": 1,
+  "statements": [
+    {
+      "vulnerability": {"name": "CVE-2026-11940"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-11972"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-15308"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-3298"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-3644"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-4224"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-4786"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-6100"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-7210"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    },
+    {
+      "vulnerability": {"name": "CVE-2026-9669"},
+      "products": [{"@id": "pkg:generic/python@3.12.13"}],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "timestamp": "2026-07-15T00:00:00Z"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "event_at": {
+      "title": "Event At",
+      "type": "string"
+    },
+    "feature_available_at": {
+      "title": "Feature Available At",
+      "type": "string"
+    },
+    "features": {
+      "items": {
+        "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Features",
+      "type": "array"
+    },
+    "instrument_id": {
+      "format": "uuid",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "observation_id": {
+      "format": "uuid",
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "prediction_at": {
+      "title": "Prediction At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "observation_id",
+    "instrument_id",
+    "event_at",
+    "feature_available_at",
+    "prediction_at",
+    "features"
+  ],
+  "title": "RDSandboxDatasetRow",
+  "type": "object"
+}

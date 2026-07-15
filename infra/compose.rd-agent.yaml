@@ -6,8 +6,8 @@ services:
       dockerfile: workers/quant_lab/rd_agent/Dockerfile
       target: runtime
     environment:
-      STONKS_RD_RUNTIME_HASH: ${STONKS_RD_RUNTIME_HASH:?required}
-      STONKS_RD_IMAGE_DIGEST: ${STONKS_RD_IMAGE_DIGEST:?required}
+      STONKS_RD_RUNTIME_HASH: ${STONKS_RD_RUNTIME_HASH:-disabled}
+      STONKS_RD_IMAGE_DIGEST: ${STONKS_RD_IMAGE_DIGEST:-disabled}
     network_mode: none
     user: "65532:65532"
     read_only: true

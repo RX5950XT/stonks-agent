@@ -8,7 +8,7 @@ services:
       STONKS_KRONOS_MODEL_ROOT: /models
       STONKS_KRONOS_PROFILE: cpu
     volumes:
-      - "${STONKS_KRONOS_MODEL_ROOT:?set a verified Kronos model directory}:/models:ro"
+      - "${STONKS_KRONOS_MODEL_ROOT:-../.data/models/kronos}:/models:ro"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -24,7 +24,7 @@ services:
       STONKS_KRONOS_MODEL_ROOT: /models
       STONKS_KRONOS_PROFILE: cuda
     volumes:
-      - "${STONKS_KRONOS_MODEL_ROOT:?set a verified Kronos model directory}:/models:ro"
+      - "${STONKS_KRONOS_MODEL_ROOT:-../.data/models/kronos}:/models:ro"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

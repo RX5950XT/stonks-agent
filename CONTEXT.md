@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation與P4 PostgreSQL paper fund phase gates已完成；P4.1–P4.10形成可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環，P5.1–P5.8 external platform、AI-Trader adapter、community feedback policy、canonical backtest contracts、NautilusTrader／QuantConnect LEAN sidecars、cross-engine parity evaluation與RD-Agent factor sandbox已完成，下一目標為P5.9 optional integration manifests and feature flags。
+- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation、P4 PostgreSQL paper fund與P5 external ecosystem phase gates已完成；P4.1–P4.10形成可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環，P5.1–P5.9以authority-free adapters/workers/sidecars、typed default-off catalog與explicit Compose profiles整合external platform、community、forecast、quant lab與simulation engines。下一目標為P6.1 production OIDC/RBAC and service identities。
 - P1/P3/P4目前包含PostgreSQL 0001–0014、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、paper account/trading ledger、execution receipts、operator action chain與immutable portfolio valuations、provider policy、US/HK/TW replay、snapshot與paper projection API/CLI。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
@@ -51,6 +51,7 @@
 - P5.6新增default-off QuantConnect LEAN `17917` / commit `c22774e` sidecar、獨立Python/NuGet locks、bounded authenticated HTTP adapter、固定C# algorithm與真實Launcher replay。Canonical scheduler擁有TIF/session/shared-volume/cost/projection，LEAN只回scheduled-child authority-free trace；core再次重建P5.4 result。Runtime/source/license/modification/image identity exact綁定，每job fresh process受deadline/work/trace bounds；internal、non-root、read-only container無core或paper credentials。Exact source隨image提供，NuGet transitive gate、Syft SBOM與Grype驗證0 High/Critical。
 - P5.7新增frozen/content-hash parity policy/request/report與reference-baseline evaluator。所有engine先各自通過P5.4 exact job/result validation，再比較order/fill/cash/position/fee/warning的bounded hashes；canonical threshold固定0，warnings可有bounded threshold。Report保存runtime/image/job/result/semantic/fill-provenance hashes並明示只涵蓋fixture的adapter-normalized semantics；不含raw warning、engine選擇、平均、promotion、target/order或paper authority。Disabled/failed/late/tampered engine直接structured failure，不產生可能被誤讀為equivalent的report。
 - P5.8新增clean-room RD-Agent `factor-expression-v1` sandbox。Frozen contracts綁定stochastic generation artifacts、archived source、label-free PIT dataset、sandbox/runtime/fence與one-shot receipts；default-deny AST只允許單一pure `compute(rows)`。可信launcher必須在兩個不同fresh containers取得exact canonical bytes，core再重掃、重建signals並呼叫P3.4完整evaluation；worker與aggregate都沒有target/order/risk/ledger/registry/promotion authority。Pinned MIT source只作provenance archive；Python 3.12.13/Alpine image為network none、UID/GID 65532、read-only、cap-drop/NNP/AppArmor與resource bounded，並移除未用tar/XML/HTML/compression/webbrowser/Windows asyncio/SQLite/system pip capabilities。Final runtime hash為`592710a3...b9fe`、digest為`sha256:62c9003c...08e5e`；593-component SBOM/27 packages、exact OpenVEX Grype與actual escape/network/CPU/output/reproducibility smoke全通過。
+- P5.9新增`config/features.yaml`與frozen typed loader，固定11個integration的kind、exact profile、config path、environment allowlist、network、output scope、readiness/execution denial與supply-chain policy。缺檔回全關閉，malformed/unknown/live-authority或boundary drift fail closed。`infra/compose.optional.yaml`沒有default-active/core/database/broker service，10個explicit profiles皆可零credential render；Nautilus新增hardened Compose manifest，LEAN/RD-Agent/Kronos以safe render placeholder保留runtime-side fail-closed identity/model驗證。Freqtrade、FinRL、vectorbt僅為future RFC，沒有image/profile/dependency；runbook與Linux CI固定操作及governance gate。
 - 自有 core 採 Apache-2.0，唯一 execution mode 是 `paper`；live trading 必須另立 RFC。
 
 ## 已完成的研究
@@ -133,11 +134,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P5.6 final hardened image經P5.7首根bar regression修正後，runtime hash為`ca04cdf4...34087`、digest為`sha256:a8fa4479...d3857`；4,754-component CycloneDX/166 packages，Grype仍為0 Critical/High。
 - P5.7 focused core/backtest/parity/security為33 passed、LEAN sidecar為22 passed；真實internal-network matrix涵蓋7組MARKET/LIMIT、BUY/SELL、DAY/GTC/IOC、partial/shared-volume/multi-session/halted fixtures，每個engine各重播2次，共28次HTTP執行且semantic exact match、native fill provenance各自stable。完整PostgreSQL gate為1313 passed、coverage 87.32%，511 files format、ruff、mypy 282 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P5.8 focused root為31 passed、獨立worker為28 passed；actual image runtime/Compose、source/license hashes、593-component SBOM、OpenVEX Grype、escape/network/rootfs/socket/CPU/output/reproducibility smoke全通過。完整PostgreSQL gate為1344 passed、coverage 87.41%，529 files format、ruff、mypy 285 source files、106 schemas、Alembic無drift、upstream/license、secret、core與worker locked dependency audit全通過。
+- P5.9 focused catalog/security為14 passed；zero-default與10個explicit Compose profiles逐一render通過。完整non-PostgreSQL gate為1119 passed、239 deselected、coverage 87.64%；完整PostgreSQL P5 gate為1358 passed、coverage 87.43%，532 files format、ruff、mypy 286 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
-1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P5 與架構藍圖。
-2. 保持 TDD；從P5.9 optional integration manifests與feature flags開始，所有optional服務必須default off，未配置不得影響core readiness。
+1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P6 與架構藍圖。
+2. 保持 TDD；從P6.1 production OIDC/RBAC and service identities開始，沿用P0 local permission port但不得信任client-supplied actor/role。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

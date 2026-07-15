@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P4 gate 已通過，P5.1–P5.8 已完成，P5.9 進行中）
+> 狀態：執行中（P0–P5 gate 已通過，P6.1 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -462,9 +462,13 @@
   - [x] Core重新驗fence/runtime/source/policy、重跑相同static scan並以P3.4完整evaluation產report；即使passed也不變更registry state。
   - [x] Pinned RD-Agent MIT source/NOTICE/獨立lock/image與Linux actual escape/network/resource/non-reproducibility smoke、SBOM/CVE/license gates全通過。
 
-- [ ] **P5.9 Optional integration manifests and feature flags** — 建立`config/features.yaml`、`infra/compose.optional.yaml`、`docs/runbooks/optional-integrations.md`。（Depends：P5.2、P5.5、P5.6、P5.8；Complexity：M；Risk：Medium）
+- [x] **P5.9 Optional integration manifests and feature flags** — 建立`config/features.yaml`、`infra/compose.optional.yaml`、`docs/runbooks/optional-integrations.md`。（Depends：P5.2、P5.5、P5.6、P5.8；Complexity：M；Risk：Medium）
   - 所有optional integration default off；未配置不影響core readiness。
   - Freqtrade、FinRL、vectorbt只保留future RFC條目，不在本phase安裝。
+  - [x] TDD：frozen typed catalog/flags、缺檔all-disabled fallback、malformed/unknown/live-authority fail closed。
+  - [x] 所有可部署integration映射exact Compose profile；零default-active service、無core dependency/readiness coupling。
+  - [x] 每個image catalog綁定獨立lock、notice、source/license、SBOM與CVE policy；future RFC不得有image/profile/dependency。
+  - [x] Linux Compose render、runbook、CI、完整phase gate與文件同步全通過。
 
 ### P5 Verification gate
 
@@ -472,13 +476,13 @@
 - [x] Community prompt injection/reputation/deadline tests證明feedback不能直接成signal/order。（Depends：P5.3）
 - [x] Nautilus/LEAN parity fixtures產生可解釋差異與完整provenance；任一sidecar關閉時core仍通過。（Depends：P5.7）
 - [x] RD-Agent sandbox escape、network、resource、malicious candidate與non-reproducible artifact fixtures全部fail closed。（Depends：P5.8）
-- [ ] 每個image有獨立lock、SBOM、license notice/source manifest，core lock無新增重型依賴。（Depends：P5.9）
+- [x] 每個image有獨立lock、SBOM、license notice/source manifest，core lock無新增重型依賴。（Depends：P5.9）
 
 ### P5 Success criteria
 
-- [ ] External community、quant lab與simulation engines能增加evidence/evaluation能力但無法改寫canonical control plane。
-- [ ] Optional services可單獨部署、升級、停用，不改domain contracts或paper safety。
-- [ ] 授權不清/strong-copyleft元件均維持正確external boundary與release流程。
+- [x] External community、quant lab與simulation engines能增加evidence/evaluation能力但無法改寫canonical control plane。
+- [x] Optional services可單獨部署、升級、停用，不改domain contracts或paper safety。
+- [x] 授權不清/strong-copyleft元件均維持正確external boundary與release流程。
 
 ---
 
@@ -916,3 +920,11 @@
 - Supply chain / actual runtime：pinned RD-Agent commit `4f9ecb0`、MIT archive/license hashes與獨立48-package dev lock；upstream source只以archive保存，不進PYTHONPATH也不執行。Final Alpine/Python 3.12.13 image為UID/GID 65532、network none、read-only、cap-drop/NNP/AppArmor/private IPC；移除tar/XML/HTML/compression/webbrowser/Windows asyncio/SQLite/system pip capabilities。593-component SBOM/27 packages無SQLite、pip或heavy runtime；10個Python High以exact `pkg:generic/python@3.12.13` OpenVEX標記vulnerable code not present，任何新High/Critical仍由Grype拒絕。
 - Verification：focused root為31 passed、獨立worker為28 passed，Ruff、strict mypy、actionlint、Compose、pip-audit、schema、source/license與actual escape/network/CPU/output/reproducibility smoke全通過。Final runtime hash為`592710a3915da6fe45d8245d76d69c68263d31f9275df400b0b81285241bb9fe`，image digest為`sha256:62c9003c50793f35414a571e59ec4acacf7188649492624e75d200c146d08e5e`。完整PostgreSQL gate為1344 passed、coverage 87.41%，529 files format、ruff、mypy 285 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`、worker README與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。下一項為P5.9 optional integration manifests and feature flags。
+
+### P5 Progress Review — P5.9 / Phase Gate — 2026-07-15
+
+- Scope completed：新增frozen typed optional feature catalog與flags，固定11個integration的kind、exact Compose profiles、config paths、environment allowlist、network、output scope、readiness/execution denial及supply-chain metadata。缺檔回全關閉；malformed、unknown、live mode、authority或boundary drift皆structured fail closed。Freqtrade、FinRL、vectorbt只有future RFC條目，無image/profile/dependency。
+- Deployment / isolation：新增zero-default `compose.optional.yaml`與Nautilus hardened manifest；OpenBB、TradingAgents、Kronos CPU/CUDA、Qlib、Nautilus、LEAN、RD-Agent共10個explicit profiles可逐一render，aggregate沒有core/database/broker/default service或`depends_on`。Safe render placeholder不會繞過sidecar runtime identity/token/model hash驗證，RD-Agent仍是network-none one-shot sandbox。
+- Supply chain / operations：catalog逐image綁定獨立lock、NOTICE、source identity/license、SBOM mode/ref與fail-on-High CVE policy；core lock掃描拒絕heavy runtimes。新增operator runbook與Linux CI，驗zero-default/所有profiles、typed boundary、future RFC及core dependency isolation；OpenBB AGPL corresponding source流程與AI-Trader no-copy boundary保持不變。
+- Verification：focused catalog/security為14 passed；zero-default與10 profiles Compose render全通過。完整non-PostgreSQL gate為1119 passed、239 deselected、coverage 87.64%；完整PostgreSQL P5 gate為1358 passed、coverage 87.43%，532 files format、ruff、mypy 286 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- 文件同步：`README.md`、`CONTEXT.md`、optional runbook與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。P5 phase gate與success criteria全部通過，下一項為P6.1 production OIDC/RBAC and service identities。

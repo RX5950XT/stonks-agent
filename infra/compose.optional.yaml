@@ -1,0 +1,76 @@
+name: stonks-optional
+
+services:
+  openbb:
+    extends:
+      file: compose.openbb.yaml
+      service: openbb
+    profiles: [openbb]
+
+  tradingagents-paper:
+    extends:
+      file: compose.tradingagents.yaml
+      service: tradingagents-paper
+    profiles: [tradingagents-paper]
+
+  tradingagents-backtest:
+    extends:
+      file: compose.tradingagents.yaml
+      service: tradingagents-backtest
+    profiles: [tradingagents-backtest]
+
+  tradingagents-production:
+    extends:
+      file: compose.tradingagents.yaml
+      service: tradingagents-production
+    profiles: [tradingagents-production]
+
+  kronos-cpu:
+    extends:
+      file: compose.kronos.yaml
+      service: kronos-cpu
+    profiles: [kronos-cpu]
+
+  kronos-cuda:
+    extends:
+      file: compose.kronos.yaml
+      service: kronos-cuda
+    profiles: [kronos-cuda]
+
+  quant-lab:
+    extends:
+      file: compose.quant-lab.yaml
+      service: quant-lab
+    profiles: [qlib]
+
+  nautilus:
+    extends:
+      file: compose.nautilus.yaml
+      service: nautilus
+    profiles: [nautilus]
+
+  lean:
+    extends:
+      file: compose.lean.yaml
+      service: lean
+    profiles: [lean]
+
+  rd-agent-factor-sandbox:
+    extends:
+      file: compose.rd-agent.yaml
+      service: rd-agent-factor-sandbox
+    profiles: [rd-agent]
+
+networks:
+  openbb_internal:
+    driver: bridge
+  tradingagents-internal:
+    internal: true
+  kronos-internal:
+    internal: true
+  quant-lab-internal:
+    internal: true
+  nautilus-internal:
+    internal: true
+  lean-internal:
+    internal: true

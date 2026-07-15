@@ -1,0 +1,217 @@
+schema_version: 1
+execution_mode: paper
+integrations:
+  - name: ai_trader
+    enabled: false
+    kind: external_http
+    compose_profiles: []
+    config_paths: [config/platforms/ai_trader.yaml]
+    required_environment: [AI_TRADER_ACCESS_TOKEN]
+    network_policy: external_https
+    output_scope: untrusted_evidence
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain: null
+
+  - name: openbb
+    enabled: false
+    kind: sidecar
+    compose_profiles: [openbb]
+    config_paths:
+      - sidecars/openbb/provider-manifest.yaml
+      - sidecars/openbb/license-policy.yaml
+    required_environment: []
+    network_policy: provider_egress
+    output_scope: canonical_observation
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain:
+      images: [stonks-openbb-sidecar:local]
+      lock_paths: [sidecars/openbb/uv.lock]
+      notice_paths: [sidecars/openbb/NOTICE.md, sidecars/openbb/SOURCE_OFFER.md]
+      upstream_project: OpenBB
+      source_identity: 1c74893140292944e71ff5cdd9536edf12f05483
+      license_expression: AGPL-3.0-only
+      sbom_mode: committed
+      sbom_ref: sidecars/openbb/sbom.cdx.json
+      cve_policy: fail_on_high
+      core_dependency_allowed: false
+
+  - name: tradingagents
+    enabled: false
+    kind: worker
+    compose_profiles:
+      - tradingagents-paper
+      - tradingagents-backtest
+      - tradingagents-production
+    config_paths: [config/workers/tradingagents.yaml]
+    required_environment: []
+    network_policy: internal
+    output_scope: research_artifact
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain:
+      images: [stonks-tradingagents-worker:local]
+      lock_paths: [workers/tradingagents/uv.lock]
+      notice_paths: [workers/tradingagents/NOTICE.md]
+      upstream_project: TradingAgents
+      source_identity: 01477f9afb7a47b849ed4c9259d3a9a4738d9fda
+      license_expression: Apache-2.0
+      sbom_mode: ci_generated
+      sbom_ref: tradingagents-sbom
+      cve_policy: fail_on_high
+      core_dependency_allowed: false
+
+  - name: kronos
+    enabled: false
+    kind: worker
+    compose_profiles: [kronos-cpu, kronos-cuda]
+    config_paths: [config/workers/kronos_cpu.yaml, config/workers/kronos_cuda.yaml]
+    required_environment: [STONKS_KRONOS_MODEL_ROOT]
+    network_policy: internal
+    output_scope: forecast_only
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain:
+      images: [stonks-kronos-cpu:local, stonks-kronos-cuda:local]
+      lock_paths: [workers/kronos/uv.lock, workers/kronos/profiles/cuda/uv.lock]
+      notice_paths: [workers/kronos/NOTICE.md]
+      upstream_project: Kronos
+      source_identity: 67b630e67f6a18c9e9be918d9b4337c960db1e9a
+      license_expression: MIT
+      sbom_mode: ci_generated
+      sbom_ref: kronos-sbom
+      cve_policy: fail_on_high
+      core_dependency_allowed: false
+
+  - name: qlib
+    enabled: false
+    kind: worker
+    compose_profiles: [qlib]
+    config_paths: []
+    required_environment: []
+    network_policy: internal
+    output_scope: evaluation_only
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain:
+      images: [stonks-quant-lab:local]
+      lock_paths: [workers/quant_lab/uv.lock]
+      notice_paths: [workers/quant_lab/NOTICE.md]
+      upstream_project: Qlib
+      source_identity: d5379c520f66a39953bad76234a7019a72796fd0
+      license_expression: MIT
+      sbom_mode: ci_generated
+      sbom_ref: qlib-sbom
+      cve_policy: fail_on_high
+      core_dependency_allowed: false
+
+  - name: nautilus
+    enabled: false
+    kind: sidecar
+    compose_profiles: [nautilus]
+    config_paths: [sidecars/nautilus/distribution-manifest.yaml]
+    required_environment:
+      - STONKS_NAUTILUS_RUNTIME_HASH
+      - STONKS_NAUTILUS_IMAGE_DIGEST
+      - STONKS_NAUTILUS_SERVICE_TOKEN
+    network_policy: internal
+    output_scope: evaluation_only
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain:
+      images: [stonks-nautilus-sidecar:p5.5]
+      lock_paths: [sidecars/nautilus/uv.lock]
+      notice_paths: [sidecars/nautilus/NOTICE.md]
+      upstream_project: NautilusTrader
+      source_identity: 8160730c7c550480b0a439fb11086a4c4de15f0b
+      license_expression: LGPL-3.0-or-later
+      sbom_mode: ci_generated
+      sbom_ref: nautilus-sbom
+      cve_policy: fail_on_high
+      core_dependency_allowed: false
+
+  - name: lean
+    enabled: false
+    kind: sidecar
+    compose_profiles: [lean]
+    config_paths: [sidecars/lean/distribution-manifest.yaml]
+    required_environment:
+      - STONKS_LEAN_RUNTIME_HASH
+      - STONKS_LEAN_IMAGE_DIGEST
+      - STONKS_LEAN_SERVICE_TOKEN
+    network_policy: internal
+    output_scope: evaluation_only
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain:
+      images: [stonks-lean-sidecar:p5.6]
+      lock_paths: [sidecars/lean/uv.lock]
+      notice_paths: [sidecars/lean/NOTICE.md]
+      upstream_project: QuantConnect LEAN
+      source_identity: c22774e49ee80ecef5ca84f57616f6b66fad8bc5
+      license_expression: Apache-2.0
+      sbom_mode: ci_generated
+      sbom_ref: lean-sbom
+      cve_policy: fail_on_high
+      core_dependency_allowed: false
+
+  - name: rd_agent
+    enabled: false
+    kind: sandbox
+    compose_profiles: [rd-agent]
+    config_paths:
+      - workers/quant_lab/rd_agent/distribution-manifest.yaml
+      - workers/quant_lab/rd_agent/sandbox_policy.yaml
+    required_environment: [STONKS_RD_RUNTIME_HASH, STONKS_RD_IMAGE_DIGEST]
+    network_policy: none
+    output_scope: evaluation_only
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain:
+      images: [stonks-rd-agent-factor-sandbox:p5.8]
+      lock_paths: [workers/quant_lab/rd_agent/uv.lock]
+      notice_paths: [workers/quant_lab/rd_agent/NOTICE.md]
+      upstream_project: RD-Agent
+      source_identity: 4f9ecb005881cddc08df0124a2e894c018007679
+      license_expression: MIT
+      sbom_mode: ci_generated
+      sbom_ref: rd-agent-sbom
+      cve_policy: fail_on_high
+      core_dependency_allowed: false
+
+  - name: freqtrade
+    enabled: false
+    kind: future_rfc
+    compose_profiles: []
+    config_paths: []
+    required_environment: []
+    network_policy: none
+    output_scope: none
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain: null
+
+  - name: finrl
+    enabled: false
+    kind: future_rfc
+    compose_profiles: []
+    config_paths: []
+    required_environment: []
+    network_policy: none
+    output_scope: none
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain: null
+
+  - name: vectorbt
+    enabled: false
+    kind: future_rfc
+    compose_profiles: []
+    config_paths: []
+    required_environment: []
+    network_policy: none
+    output_scope: none
+    affects_core_readiness: false
+    execution_authority: false
+    supply_chain: null

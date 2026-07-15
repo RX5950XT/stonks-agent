@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation 與 P4 PostgreSQL paper fund 已通過 phase gate；P5.1–P5.8 external platform、AI-Trader adapter、community feedback policy、canonical backtest contracts、NautilusTrader／QuantConnect LEAN sidecars、cross-engine parity evaluation與RD-Agent factor sandbox已完成，後續工作依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation、P4 PostgreSQL paper fund 與 P5 external ecosystem phase gates 已通過，後續 production hardening 依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -24,6 +24,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Optional QuantConnect LEAN `17917` sidecar從固定Apache-2.0 source commit以16份NuGet locks建置真實Launcher與固定C# algorithm。Canonical scheduler擁有TIF/session/shared-volume/cost/projection，只把scheduled fillable children送入LEAN；同job重播會保留stable semantic hash/raw fill refs，core仍重驗完整P5.4 result。Hardened image固定runtime/source/license/modification provenance，內建NuGet vulnerability gate並以Syft/Grype驗證0 High/Critical；HTTP/process/container皆bounded、internal、non-root、read-only且無paper authority或credentials。
 - Cross-engine parity evaluator以reference為唯一baseline，先逐一通過P5.4 exact validation，再按order outcome、fill schedule/quantity/price/fee/slippage、cash、position、total fee與warning做bounded hash comparison。Canonical economic threshold固定為0；warning差異只標`engine_specific`，不平均或選擇engine。缺少、失敗、逾期或tampered engine一律structured failure且不產report；報告明示只代表該fixture與pinned adapter-normalized runtimes，不代表native matching普遍等價。
 - RD-Agent整合只提供clean-room `factor-expression-v1` sandbox，不執行upstream DockerEnv/LocalEnv、model template、pickle、LLM或GPU。Proposal、label-free dataset、policy/runtime/fence與canonical predictions完整hash-bound；同一archived source必須在兩個不同fresh containers產生exact bytes，core再重跑default-deny AST scanner與P3.4完整evaluation，結果永不auto-promote。Hardened Python 3.12.13/Alpine image為network none、non-root、read-only、cap-drop/NNP且resource bounded；pinned MIT source只作provenance archive。實際smoke涵蓋import escape、network/rootfs/socket probe、CPU/output bomb與non-reproducibility；593-component SBOM無SQLite/system pip/heavy runtime，exact OpenVEX只標記已從image移除的vulnerable stdlib code，其他High/Critical仍fail closed。
+- Optional integration catalog以frozen typed boundary固定11個integration的kind、profile、config、environment allowlist、network、output scope與supply-chain policy。所有flags預設關閉，缺檔回全關閉；malformed、unknown、live-authority或boundary drift會fail closed。Aggregate Compose沒有default-active/core/database/broker service，10個explicit profiles可逐一render；Freqtrade、FinRL、vectorbt只有future RFC條目，未加入image或dependency。
 - Audited paper operations提供global/account kill-switch、exact ledger reconciliation與resume CLI/API。只有`paper_operator`/`admin`可變更；啟動時在同一transaction終止pending orders並釋放reservations，立即拒絕新execution，保留既有fills/journals。所有operator actions以DB sequence、previous hash與head CAS形成append-only chain；reconciliation或resume drift會fail closed並維持/啟動global switch。
 - Read-only portfolio/NAV/risk CLI/API projections會驗證完整account event chain、latest target/risk payload與ledger replay hash；portfolio明示settled/reserved/available cash/positions，NAV只讀append-only PIT valuation且ledger一移動就拒絕stale值。`AnalysisReport`由core加入帶content hash的target/risk/order/fill/outcome refs，LLM output schema不能自行建立或竄改這些引用。
 - Idempotency、同帳戶並行防雙花、job generation/nonce fencing、late-result quarantine。
@@ -73,6 +74,7 @@ P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與
 - [實作計畫](./tasks/todo.md)
 - [上游研究索引](./docs/research/README.md)
 - [研究一致性驗證](./docs/research/verification.md)
+- [Optional integrations 操作手冊](./docs/runbooks/optional-integrations.md)
 - [開發交接](./CONTEXT.md)
 
 ## 安全邊界

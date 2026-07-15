@@ -676,3 +676,58 @@ jobs:
           path: ${{ runner.temp }}/rd-agent-sbom.cdx.json
           if-no-files-found: error
           retention-days: 30
+
+  optional-integration-manifests:
+    name: Default-off optional integration manifests / ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: "1"
+      UV_FROZEN: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          version: "0.9.27"
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Install frozen core verification environment
+        run: uv sync --frozen
+
+      - name: Verify typed catalog and deployment boundary
+        run: |
+          uv run ruff format --check \
+            src/stonks_agent/config/features.py \
+            tests/config/test_optional_features.py \
+            tests/security/test_optional_integrations.py
+          uv run ruff check \
+            src/stonks_agent/config/features.py \
+            tests/config/test_optional_features.py \
+            tests/security/test_optional_integrations.py
+          uv run mypy --strict src/stonks_agent/config/features.py
+          uv run pytest -q --no-cov \
+            tests/config/test_optional_features.py \
+            tests/security/test_optional_integrations.py
+
+      - name: Render zero-default and every explicit profile
+        shell: bash
+        run: |
+          docker compose -f infra/compose.optional.yaml config --quiet
+          test -z "$(docker compose -f infra/compose.optional.yaml config --services)"
+          mapfile -t profiles < <(
+            docker compose -f infra/compose.optional.yaml config --profiles
+          )
+          test "${#profiles[@]}" -eq 10
+          for profile in "${profiles[@]}"; do
+            docker compose -f infra/compose.optional.yaml \
+              --profile "$profile" config --quiet
+          done

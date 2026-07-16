@@ -1358,6 +1358,20 @@ wheels = [
 ]
 
 [[package]]
+name = "pyjwt"
+version = "2.13.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
+]
+
+[package.optional-dependencies]
+crypto = [
+    { name = "cryptography" },
+]
+
+[[package]]
 name = "pyparsing"
 version = "3.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1698,6 +1712,21 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [[package]]
+name = "stonks-service-auth"
+version = "0.1.0"
+source = { directory = "../../packages/service-auth" }
+dependencies = [
+    { name = "pydantic" },
+    { name = "pyjwt", extra = ["crypto"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = "==2.12.5" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.13,<3" },
+]
+
+[[package]]
 name = "stonks-tradingagents-worker"
 version = "0.1.0"
 source = { virtual = "." }
@@ -1706,6 +1735,7 @@ dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "stonks-contracts" },
+    { name = "stonks-service-auth" },
     { name = "tradingagents" },
     { name = "uvicorn" },
 ]
@@ -1725,6 +1755,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1,<1" },
     { name = "pydantic", specifier = ">=2.12.5,<3" },
     { name = "stonks-contracts", directory = "../../packages/contracts" },
+    { name = "stonks-service-auth", directory = "../../packages/service-auth" },
     { name = "tradingagents", url = "https://github.com/TauricResearch/TradingAgents/archive/01477f9afb7a47b849ed4c9259d3a9a4738d9fda.tar.gz" },
     { name = "uvicorn", specifier = ">=0.40,<1" },
 ]

@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from uuid import UUID
 
+import pytest
 from fastapi.testclient import TestClient
 
 from stonks_agent.adapters.auth.local_token import LocalTokenAuthenticator
@@ -34,6 +35,10 @@ class Requests:
     def submit(self, request: ResearchRunRequest) -> Result[ResearchRunRefs]:
         self.submitted.append(request)
         return Success(ResearchRunRefs(run_id=RUN_ID, job_id=JOB_ID))
+
+    def snapshot_owner(self, snapshot_id: UUID) -> Result[str]:
+        assert snapshot_id == SNAPSHOT_ID
+        return Success("local-api")
 
 
 class ExplodingRequests(Requests):
@@ -68,8 +73,16 @@ class Events:
             )
         )
 
+    def owner_subject(self, run_id: UUID) -> Result[str]:
+        assert run_id == RUN_ID
+        return Success("local-api")
+
 
 class Reports:
+    def owner_subject(self, content_hash: str) -> Result[str]:
+        assert content_hash == REPORT_HASH
+        return Success("local-api")
+
     def read(self, content_hash: str) -> Result[ReportProjection]:
         assert content_hash == REPORT_HASH
         return Success(
@@ -101,6 +114,7 @@ def test_research_api_only_enqueues_and_returns_refs() -> None:
     assert len(requests.submitted) == 1
     submitted = requests.submitted[0]
     assert submitted.requested_at == NOW
+    assert submitted.owner_subject == "local-api"
     assert submitted.execution_mode == "paper"
     assert "order" not in submitted.model_dump(mode="json")
 
@@ -141,6 +155,16 @@ def test_report_api_reads_only_typed_report_projection() -> None:
         "media_type": "text/markdown",
         "content": "# AAPL\nResearch only.",
     }
+
+
+@pytest.mark.parametrize("content_hash", ["A" * 64, "a" * 63, "../" + "a" * 64])
+def test_report_api_rejects_noncanonical_content_hash(content_hash: str) -> None:
+    response = TestClient(app()).get(
+        f"/v1/reports/{content_hash}",
+        headers=authorization(),
+    )
+
+    assert response.status_code in {400, 404}
 
 
 def test_viewer_cannot_create_research_but_can_read_events() -> None:
@@ -213,6 +237,7 @@ def app(
         events or Events(),
         Reports(),
         LocalTokenAuthenticator(
+            environment="test",
             token=TOKEN,
             subject="local-api",
             roles=roles,

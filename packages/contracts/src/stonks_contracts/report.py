@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Self
 from uuid import UUID
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from .common import ArtifactRef, ContractModel, NonEmptyString, Sha256, UnitDecimal, UTCDateTime
 from .market_data import DataQualityStatus
@@ -64,6 +64,12 @@ class ReportReference(ContractModel):
 
 class AnalysisReport(ContractModel):
     report_id: UUID
+    run_id: UUID
+    owner_subject: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:@/+=-]{0,254}$",
+    )
     subject: NonEmptyString
     as_of: UTCDateTime
     language: NonEmptyString

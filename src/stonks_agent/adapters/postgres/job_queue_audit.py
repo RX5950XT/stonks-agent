@@ -405,6 +405,7 @@ def _run_identity_hash(run: WorkflowRunRow) -> str:
             "policy_id": run.policy_id,
             "idempotency_key": run.idempotency_key,
             "input_hash": run.input_hash,
+            "owner_subject": run.owner_subject,
             "created_at": _timestamp(run.created_at),
         }
     )

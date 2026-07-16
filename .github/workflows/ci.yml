@@ -127,13 +127,19 @@ jobs:
         shell: bash
         run: |
           uv export --project sidecars/openbb --quiet --frozen --no-dev \
-            --no-emit-project --format requirements.txt \
+            --no-emit-project --no-emit-local --format requirements.txt \
             --output-file "$RUNNER_TEMP/openbb-requirements.txt"
           uv run pip-audit --strict --requirement \
             "$RUNNER_TEMP/openbb-requirements.txt"
 
       - name: Build exact optional sidecar image
         run: docker compose -f infra/compose.openbb.yaml build --pull openbb
+
+      - name: Prepare ephemeral OpenBB service identity
+        run: >-
+          uv run python scripts/prepare_openbb_smoke_auth.py
+          --jwks-file "$RUNNER_TEMP/openbb-service-jwks.json"
+          --github-env "$GITHUB_ENV"
 
       - name: Start healthy optional sidecar
         run: >-
@@ -164,6 +170,15 @@ jobs:
             Dockerfile NOTICE.md OPENBB_LICENSE.txt SOURCE_OFFER.md \
             license-policy.yaml \
             provider-manifest.yaml pyproject.toml sbom.cdx.json uv.lock \
+            packages/service-auth/LICENSE \
+            packages/service-auth/pyproject.toml \
+            packages/service-auth/src/stonks_service_auth/__init__.py \
+            packages/service-auth/src/stonks_service_auth/authorization.py \
+            packages/service-auth/src/stonks_service_auth/environment.py \
+            packages/service-auth/src/stonks_service_auth/headers.py \
+            packages/service-auth/src/stonks_service_auth/oidc.py \
+            packages/service-auth/src/stonks_service_auth/py.typed \
+            packages/service-auth/src/stonks_service_auth/source_identity.py \
             upstream/openbb_core-1.6.13.tar.gz \
             upstream/openbb_equity-1.6.2.tar.gz \
             upstream/openbb_platform_api-1.3.6.tar.gz \
@@ -242,25 +257,42 @@ jobs:
           docker build -f sidecars/nautilus/Dockerfile
           -t stonks-nautilus-sidecar:p5.5 .
 
-      - name: Start sidecar with exact runtime identity
+      - name: Resolve exact Nautilus runtime identity
         shell: bash
         run: |
           runtime_hash="$(uv run python -c "from pathlib import Path; from sidecars.nautilus.adapter import compute_runtime_hash; print(compute_runtime_hash(Path('sidecars/nautilus')))")"
           image_digest="$(docker image inspect stonks-nautilus-sidecar:p5.5 --format '{{.Id}}')"
-          service_token="$(openssl rand -hex 32)"
           echo "NAUTILUS_RUNTIME_HASH=$runtime_hash" >> "$GITHUB_ENV"
           echo "NAUTILUS_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
-          echo "NAUTILUS_SERVICE_TOKEN=$service_token" >> "$GITHUB_ENV"
+
+      - name: Prepare exact Nautilus service identity
+        run: >-
+          uv run python scripts/prepare_backtest_smoke_auth.py
+          --jwks-file "$RUNNER_TEMP/nautilus-service-jwks.json"
+          --github-env "$GITHUB_ENV" single --receiver nautilus
+          --runtime-hash "$NAUTILUS_RUNTIME_HASH"
+          --image-digest "$NAUTILUS_IMAGE_DIGEST"
+
+      - name: Start sidecar with exact runtime identity
+        shell: bash
+        run: |
           docker network create --internal stonks-nautilus-ci
           docker run --detach --rm --name stonks-nautilus-ci \
             --network stonks-nautilus-ci \
             --read-only --tmpfs /tmp:size=64m,mode=1777 --cap-drop ALL \
             --security-opt no-new-privileges --memory 2g --memory-swap 2g \
             --cpus 2 --pids-limit 256 \
-            --env STONKS_NAUTILUS_RUNTIME_HASH="$runtime_hash" \
-            --env STONKS_NAUTILUS_IMAGE_DIGEST="$image_digest" \
-            --env STONKS_NAUTILUS_SERVICE_TOKEN="$service_token" \
-            "$image_digest"
+            --volume "$STONKS_SERVICE_OIDC_JWKS_HOST_FILE:/run/secrets/stonks-service-jwks.json:ro" \
+            --env STONKS_NAUTILUS_RUNTIME_HASH="$NAUTILUS_RUNTIME_HASH" \
+            --env STONKS_NAUTILUS_IMAGE_DIGEST="$NAUTILUS_IMAGE_DIGEST" \
+            --env STONKS_SERVICE_OIDC_ISSUER \
+            --env STONKS_SERVICE_OIDC_AUDIENCE="$STONKS_NAUTILUS_SERVICE_OIDC_AUDIENCE" \
+            --env STONKS_SERVICE_OIDC_CORE_SUBJECT \
+            --env STONKS_SERVICE_OIDC_CORE_CLIENT_ID \
+            --env STONKS_SERVICE_OIDC_ALGORITHMS \
+            --env STONKS_SERVICE_OIDC_RECEIVER=nautilus \
+            --env STONKS_SERVICE_OIDC_JWKS_FILE=/run/secrets/stonks-service-jwks.json \
+            "$NAUTILUS_IMAGE_DIGEST"
           for attempt in {1..30}; do
             docker exec stonks-nautilus-ci python -c \
               "from urllib.request import urlopen; assert urlopen('http://127.0.0.1:7400/healthz', timeout=1).status == 200" \
@@ -275,7 +307,8 @@ jobs:
           docker exec stonks-nautilus-ci python /workspace/scripts/smoke_nautilus.py \
             --runtime-hash "$NAUTILUS_RUNTIME_HASH" \
             --image-digest "$NAUTILUS_IMAGE_DIGEST" \
-            --service-token "$NAUTILUS_SERVICE_TOKEN"
+            --service-token "$NAUTILUS_SMOKE_TOKEN" \
+            --requested-at "$NAUTILUS_SMOKE_REQUESTED_AT"
           test "$(docker image inspect stonks-nautilus-sidecar:p5.5 --format '{{.Config.User}}')" = "65532:65532"
           test "$(docker network inspect stonks-nautilus-ci --format '{{.Internal}}')" = "true"
           docker exec stonks-nautilus-ci python -c \
@@ -372,25 +405,42 @@ jobs:
             anchore/grype@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d \
             docker:stonks-lean-sidecar:p5.6 --fail-on high --output table
 
-      - name: Start hardened sidecar with exact runtime identity
+      - name: Resolve exact LEAN runtime identity
         shell: bash
         run: |
           runtime_hash="$(PYTHONPATH=.:src:packages/contracts/src uv run --project sidecars/lean python -c 'from pathlib import Path; from sidecars.lean.adapter import compute_runtime_hash; print(compute_runtime_hash(Path("sidecars/lean")))')"
           image_digest="$(docker image inspect stonks-lean-sidecar:p5.6 --format '{{.Id}}')"
-          service_token="$(openssl rand -hex 32)"
           echo "LEAN_RUNTIME_HASH=$runtime_hash" >> "$GITHUB_ENV"
           echo "LEAN_IMAGE_DIGEST=$image_digest" >> "$GITHUB_ENV"
-          echo "LEAN_SERVICE_TOKEN=$service_token" >> "$GITHUB_ENV"
+
+      - name: Prepare exact LEAN service identity
+        run: >-
+          uv run python scripts/prepare_backtest_smoke_auth.py
+          --jwks-file "$RUNNER_TEMP/lean-service-jwks.json"
+          --github-env "$GITHUB_ENV" single --receiver lean
+          --runtime-hash "$LEAN_RUNTIME_HASH"
+          --image-digest "$LEAN_IMAGE_DIGEST"
+
+      - name: Start hardened sidecar with exact runtime identity
+        shell: bash
+        run: |
           docker network create --internal stonks-lean-ci
           docker run --detach --name stonks-lean-ci \
             --network stonks-lean-ci --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=512m,uid=65532,gid=65532,mode=0700 \
             --cap-drop ALL --security-opt no-new-privileges \
             --memory 3g --memory-swap 3g --cpus 2 --pids-limit 256 \
-            --env STONKS_LEAN_RUNTIME_HASH="$runtime_hash" \
-            --env STONKS_LEAN_IMAGE_DIGEST="$image_digest" \
-            --env STONKS_LEAN_SERVICE_TOKEN="$service_token" \
-            "$image_digest"
+            --volume "$STONKS_SERVICE_OIDC_JWKS_HOST_FILE:/run/secrets/stonks-service-jwks.json:ro" \
+            --env STONKS_LEAN_RUNTIME_HASH="$LEAN_RUNTIME_HASH" \
+            --env STONKS_LEAN_IMAGE_DIGEST="$LEAN_IMAGE_DIGEST" \
+            --env STONKS_SERVICE_OIDC_ISSUER \
+            --env STONKS_SERVICE_OIDC_AUDIENCE="$STONKS_LEAN_SERVICE_OIDC_AUDIENCE" \
+            --env STONKS_SERVICE_OIDC_CORE_SUBJECT \
+            --env STONKS_SERVICE_OIDC_CORE_CLIENT_ID \
+            --env STONKS_SERVICE_OIDC_ALGORITHMS \
+            --env STONKS_SERVICE_OIDC_RECEIVER=lean \
+            --env STONKS_SERVICE_OIDC_JWKS_FILE=/run/secrets/stonks-service-jwks.json \
+            "$LEAN_IMAGE_DIGEST"
           for attempt in {1..30}; do
             docker exec stonks-lean-ci python3 -c \
               "from urllib.request import urlopen; assert urlopen('http://127.0.0.1:7410/healthz', timeout=1).status == 200" \
@@ -405,7 +455,8 @@ jobs:
           docker exec stonks-lean-ci python3 /workspace/scripts/smoke_lean.py \
             --runtime-hash "$LEAN_RUNTIME_HASH" \
             --image-digest "$LEAN_IMAGE_DIGEST" \
-            --service-token "$LEAN_SERVICE_TOKEN" --timeout 120
+            --service-token "$LEAN_SMOKE_TOKEN" \
+            --requested-at "$LEAN_SMOKE_REQUESTED_AT" --timeout 120
           test "$(docker image inspect stonks-lean-sidecar:p5.6 --format '{{.Config.User}}')" = "65532:65532"
           test "$(docker network inspect stonks-lean-ci --format '{{.Internal}}')" = "true"
           docker exec stonks-lean-ci python3 -c \
@@ -461,42 +512,66 @@ jobs:
           docker build -f sidecars/lean/Dockerfile \
             -t stonks-lean-sidecar:p5.6 .
 
-      - name: Start isolated sidecars with exact identities
+      - name: Resolve exact parity runtime identities
         shell: bash
         run: |
           nautilus_hash="$(PYTHONPATH=.:src:packages/contracts/src uv run python -c 'from pathlib import Path; from sidecars.nautilus.adapter import compute_runtime_hash; print(compute_runtime_hash(Path("sidecars/nautilus")))')"
           lean_hash="$(PYTHONPATH=.:src:packages/contracts/src uv run python -c 'from pathlib import Path; from sidecars.lean.adapter import compute_runtime_hash; print(compute_runtime_hash(Path("sidecars/lean")))')"
           nautilus_image="$(docker image inspect stonks-nautilus-sidecar:p5.5 --format '{{.Id}}')"
           lean_image="$(docker image inspect stonks-lean-sidecar:p5.6 --format '{{.Id}}')"
-          nautilus_token="$(openssl rand -hex 32)"
-          lean_token="$(openssl rand -hex 32)"
           {
             echo "PARITY_NAUTILUS_HASH=$nautilus_hash"
             echo "PARITY_LEAN_HASH=$lean_hash"
             echo "PARITY_NAUTILUS_IMAGE=$nautilus_image"
             echo "PARITY_LEAN_IMAGE=$lean_image"
-            echo "PARITY_NAUTILUS_TOKEN=$nautilus_token"
-            echo "PARITY_LEAN_TOKEN=$lean_token"
           } >> "$GITHUB_ENV"
+
+      - name: Prepare exact parity service identities
+        run: >-
+          uv run python scripts/prepare_backtest_smoke_auth.py
+          --jwks-file "$RUNNER_TEMP/parity-service-jwks.json"
+          --github-env "$GITHUB_ENV" parity
+          --nautilus-runtime-hash "$PARITY_NAUTILUS_HASH"
+          --nautilus-image-digest "$PARITY_NAUTILUS_IMAGE"
+          --lean-runtime-hash "$PARITY_LEAN_HASH"
+          --lean-image-digest "$PARITY_LEAN_IMAGE"
+
+      - name: Start isolated sidecars with exact identities
+        shell: bash
+        run: |
           docker network create --internal stonks-engine-parity-ci
           docker run --detach --name stonks-parity-nautilus-ci \
             --network stonks-engine-parity-ci --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=512m,uid=65532,gid=65532,mode=0700 \
             --cap-drop ALL --security-opt no-new-privileges \
             --memory 3g --memory-swap 3g --cpus 2 --pids-limit 256 \
-            --env STONKS_NAUTILUS_RUNTIME_HASH="$nautilus_hash" \
-            --env STONKS_NAUTILUS_IMAGE_DIGEST="$nautilus_image" \
-            --env STONKS_NAUTILUS_SERVICE_TOKEN="$nautilus_token" \
-            "$nautilus_image"
+            --volume "$STONKS_SERVICE_OIDC_JWKS_HOST_FILE:/run/secrets/stonks-service-jwks.json:ro" \
+            --env STONKS_NAUTILUS_RUNTIME_HASH="$PARITY_NAUTILUS_HASH" \
+            --env STONKS_NAUTILUS_IMAGE_DIGEST="$PARITY_NAUTILUS_IMAGE" \
+            --env STONKS_SERVICE_OIDC_ISSUER \
+            --env STONKS_SERVICE_OIDC_AUDIENCE="$STONKS_NAUTILUS_SERVICE_OIDC_AUDIENCE" \
+            --env STONKS_SERVICE_OIDC_CORE_SUBJECT \
+            --env STONKS_SERVICE_OIDC_CORE_CLIENT_ID \
+            --env STONKS_SERVICE_OIDC_ALGORITHMS \
+            --env STONKS_SERVICE_OIDC_RECEIVER=nautilus \
+            --env STONKS_SERVICE_OIDC_JWKS_FILE=/run/secrets/stonks-service-jwks.json \
+            "$PARITY_NAUTILUS_IMAGE"
           docker run --detach --name stonks-parity-lean-ci \
             --network stonks-engine-parity-ci --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=512m,uid=65532,gid=65532,mode=0700 \
             --cap-drop ALL --security-opt no-new-privileges \
             --memory 3g --memory-swap 3g --cpus 2 --pids-limit 256 \
-            --env STONKS_LEAN_RUNTIME_HASH="$lean_hash" \
-            --env STONKS_LEAN_IMAGE_DIGEST="$lean_image" \
-            --env STONKS_LEAN_SERVICE_TOKEN="$lean_token" \
-            "$lean_image"
+            --volume "$STONKS_SERVICE_OIDC_JWKS_HOST_FILE:/run/secrets/stonks-service-jwks.json:ro" \
+            --env STONKS_LEAN_RUNTIME_HASH="$PARITY_LEAN_HASH" \
+            --env STONKS_LEAN_IMAGE_DIGEST="$PARITY_LEAN_IMAGE" \
+            --env STONKS_SERVICE_OIDC_ISSUER \
+            --env STONKS_SERVICE_OIDC_AUDIENCE="$STONKS_LEAN_SERVICE_OIDC_AUDIENCE" \
+            --env STONKS_SERVICE_OIDC_CORE_SUBJECT \
+            --env STONKS_SERVICE_OIDC_CORE_CLIENT_ID \
+            --env STONKS_SERVICE_OIDC_ALGORITHMS \
+            --env STONKS_SERVICE_OIDC_RECEIVER=lean \
+            --env STONKS_SERVICE_OIDC_JWKS_FILE=/run/secrets/stonks-service-jwks.json \
+            "$PARITY_LEAN_IMAGE"
           for attempt in {1..30}; do
             docker exec stonks-parity-nautilus-ci python -c \
               "from urllib.request import urlopen; assert urlopen('http://127.0.0.1:7400/healthz', timeout=1).status == 200" \
@@ -519,11 +594,12 @@ jobs:
             --nautilus-url http://stonks-parity-nautilus-ci:7400 \
             --nautilus-runtime-hash "$PARITY_NAUTILUS_HASH" \
             --nautilus-image-digest "$PARITY_NAUTILUS_IMAGE" \
-            --nautilus-token "$PARITY_NAUTILUS_TOKEN" \
+            --nautilus-tokens-json "$PARITY_NAUTILUS_TOKENS_JSON" \
             --lean-url http://stonks-parity-lean-ci:7410 \
             --lean-runtime-hash "$PARITY_LEAN_HASH" \
             --lean-image-digest "$PARITY_LEAN_IMAGE" \
-            --lean-token "$PARITY_LEAN_TOKEN" --timeout 180 \
+            --lean-tokens-json "$PARITY_LEAN_TOKENS_JSON" \
+            --requested-at "$PARITY_SMOKE_REQUESTED_AT" --timeout 180 \
             < scripts/smoke_engine_parity.py \
             | tee "$RUNNER_TEMP/engine-parity-report.json"
           python -c 'import json,os; from pathlib import Path; payload=json.loads(Path(os.environ["RUNNER_TEMP"], "engine-parity-report.json").read_text()); assert payload["claim_scope"] == "fixture_canonical_semantics_only" and payload["case_count"] == 7'
@@ -684,6 +760,15 @@ jobs:
     env:
       PYTHONUTF8: "1"
       UV_FROZEN: "1"
+      STONKS_SERVICE_OIDC_ISSUER: https://identity.manifest.invalid
+      STONKS_SERVICE_OIDC_CORE_SUBJECT: service:core-runner
+      STONKS_SERVICE_OIDC_CORE_CLIENT_ID: stonks-core-runner
+      STONKS_SERVICE_OIDC_JWKS_HOST_FILE: /tmp/manifest-service-jwks.json
+      STONKS_KRONOS_SERVICE_OIDC_AUDIENCE: stonks-kronos-ingress
+      STONKS_TRADINGAGENTS_SERVICE_OIDC_AUDIENCE: stonks-tradingagents-ingress
+      STONKS_QUANT_LAB_SERVICE_OIDC_AUDIENCE: stonks-quant-lab-ingress
+      STONKS_NAUTILUS_SERVICE_OIDC_AUDIENCE: stonks-nautilus-ingress
+      STONKS_LEAN_SERVICE_OIDC_AUDIENCE: stonks-lean-ingress
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -708,15 +793,18 @@ jobs:
           uv run ruff format --check \
             src/stonks_agent/config/features.py \
             tests/config/test_optional_features.py \
-            tests/security/test_optional_integrations.py
+            tests/security/test_optional_integrations.py \
+            tests/security/test_service_runtime_manifests.py
           uv run ruff check \
             src/stonks_agent/config/features.py \
             tests/config/test_optional_features.py \
-            tests/security/test_optional_integrations.py
+            tests/security/test_optional_integrations.py \
+            tests/security/test_service_runtime_manifests.py
           uv run mypy --strict src/stonks_agent/config/features.py
           uv run pytest -q --no-cov \
             tests/config/test_optional_features.py \
-            tests/security/test_optional_integrations.py
+            tests/security/test_optional_integrations.py \
+            tests/security/test_service_runtime_manifests.py
 
       - name: Render zero-default and every explicit profile
         shell: bash

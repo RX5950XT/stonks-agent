@@ -68,6 +68,17 @@ FUTURE_RFC_INTEGRATIONS = (
     IntegrationName.VECTORBT,
 )
 
+_SERVICE_OIDC_TRUST_ENVIRONMENT = (
+    "STONKS_SERVICE_OIDC_ISSUER",
+    "STONKS_SERVICE_OIDC_CORE_SUBJECT",
+    "STONKS_SERVICE_OIDC_CORE_CLIENT_ID",
+    "STONKS_SERVICE_OIDC_JWKS_HOST_FILE",
+)
+
+
+def _service_oidc_environment(audience: str) -> tuple[str, ...]:
+    return (*_SERVICE_OIDC_TRUST_ENVIRONMENT, audience)
+
 
 @dataclass(frozen=True, slots=True)
 class IntegrationBoundary:
@@ -109,7 +120,7 @@ INTEGRATION_BOUNDARIES: Final[Mapping[IntegrationName, IntegrationBoundary]] = (
                     "tradingagents-production",
                 ),
                 ("config/workers/tradingagents.yaml",),
-                (),
+                _service_oidc_environment("STONKS_TRADINGAGENTS_SERVICE_OIDC_AUDIENCE"),
                 NetworkPolicy.INTERNAL,
                 OutputScope.RESEARCH_ARTIFACT,
             ),
@@ -120,7 +131,10 @@ INTEGRATION_BOUNDARIES: Final[Mapping[IntegrationName, IntegrationBoundary]] = (
                     "config/workers/kronos_cpu.yaml",
                     "config/workers/kronos_cuda.yaml",
                 ),
-                ("STONKS_KRONOS_MODEL_ROOT",),
+                (
+                    "STONKS_KRONOS_MODEL_ROOT",
+                    *_service_oidc_environment("STONKS_KRONOS_SERVICE_OIDC_AUDIENCE"),
+                ),
                 NetworkPolicy.INTERNAL,
                 OutputScope.FORECAST_ONLY,
             ),
@@ -128,7 +142,7 @@ INTEGRATION_BOUNDARIES: Final[Mapping[IntegrationName, IntegrationBoundary]] = (
                 IntegrationKind.WORKER,
                 ("qlib",),
                 (),
-                (),
+                _service_oidc_environment("STONKS_QUANT_LAB_SERVICE_OIDC_AUDIENCE"),
                 NetworkPolicy.INTERNAL,
                 OutputScope.EVALUATION_ONLY,
             ),
@@ -139,7 +153,7 @@ INTEGRATION_BOUNDARIES: Final[Mapping[IntegrationName, IntegrationBoundary]] = (
                 (
                     "STONKS_NAUTILUS_RUNTIME_HASH",
                     "STONKS_NAUTILUS_IMAGE_DIGEST",
-                    "STONKS_NAUTILUS_SERVICE_TOKEN",
+                    *_service_oidc_environment("STONKS_NAUTILUS_SERVICE_OIDC_AUDIENCE"),
                 ),
                 NetworkPolicy.INTERNAL,
                 OutputScope.EVALUATION_ONLY,
@@ -151,7 +165,7 @@ INTEGRATION_BOUNDARIES: Final[Mapping[IntegrationName, IntegrationBoundary]] = (
                 (
                     "STONKS_LEAN_RUNTIME_HASH",
                     "STONKS_LEAN_IMAGE_DIGEST",
-                    "STONKS_LEAN_SERVICE_TOKEN",
+                    *_service_oidc_environment("STONKS_LEAN_SERVICE_OIDC_AUDIENCE"),
                 ),
                 NetworkPolicy.INTERNAL,
                 OutputScope.EVALUATION_ONLY,

@@ -261,6 +261,7 @@ class WorkflowRunRow(Base):
     policy_id: Mapped[str] = mapped_column(String(128))
     idempotency_key: Mapped[str] = mapped_column(String(256))
     input_hash: Mapped[str] = mapped_column(String(64))
+    owner_subject: Mapped[str] = mapped_column(String(255), index=True)
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -46,6 +46,11 @@ class CreateSnapshotRequest(BaseModel):
         max_length=128,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$",
     )
+    owner_subject: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:@/+=-]{0,254}$",
+    )
     requested_at: UTCDateTime
 
     @model_validator(mode="after")
@@ -63,7 +68,7 @@ class CreateSnapshotRequest(BaseModel):
         return self
 
     @property
-    def input_hash(self) -> str:
+    def request_hash(self) -> str:
         return stable_payload_hash(
             {
                 "market": self.market,
@@ -71,6 +76,15 @@ class CreateSnapshotRequest(BaseModel):
                 "as_of": self.as_of.isoformat(),
                 "query": self.query,
                 "provider_policy_id": self.provider_policy_id,
+            }
+        )
+
+    @property
+    def input_hash(self) -> str:
+        return stable_payload_hash(
+            {
+                "request_hash": self.request_hash,
+                "owner_subject": self.owner_subject,
             }
         )
 
@@ -200,7 +214,7 @@ def snapshot_manifest_is_authorized(
             endpoint=manifest.endpoint,
         )
         is not None
-        and manifest.request_hash == request.input_hash
+        and manifest.request_hash == request.request_hash
         and manifest.market == request.market
         and manifest.capability == request.capability
         and manifest.as_of == request.as_of

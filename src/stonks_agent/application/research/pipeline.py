@@ -130,6 +130,8 @@ def run_research_pipeline(
         GenerateReportRequest(
             request_id=command.report_request_id,
             report_id=command.report_id,
+            run_id=command.run_id,
+            owner_subject=command.owner_subject,
             context=context,
             language=command.language,
             report_type=command.report_type,

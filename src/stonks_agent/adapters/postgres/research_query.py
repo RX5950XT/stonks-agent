@@ -38,8 +38,9 @@ class PostgresResearchRequestStore:
         self._engine = engine
 
     def submit(self, request: ResearchRunRequest) -> Result[ResearchRunRefs]:
-        references = _identifiers(request.idempotency_key)
-        run_key = f"research:{request.idempotency_key}"
+        owner_scope = _owner_scope(request.owner_subject)
+        references = _identifiers(owner_scope, request.idempotency_key)
+        run_key = f"research:{owner_scope}:{request.idempotency_key}"
         try:
             with (
                 Session(self._engine, expire_on_commit=False) as session,
@@ -76,6 +77,34 @@ class PostgresResearchRequestStore:
             return self._after_race(request, references, run_key)
         except SQLAlchemyError:
             return _failure(ErrorCode.INTERNAL_ERROR, "Research request failed")
+
+    def snapshot_owner(self, snapshot_id: UUID) -> Result[str]:
+        try:
+            with Session(self._engine) as session:
+                owners = tuple(
+                    session.scalars(
+                        select(WorkflowRunRow.owner_subject)
+                        .join(
+                            RunDatasetSnapshotRow,
+                            RunDatasetSnapshotRow.run_id == WorkflowRunRow.run_id,
+                        )
+                        .where(
+                            RunDatasetSnapshotRow.snapshot_id == snapshot_id,
+                            WorkflowRunRow.run_type == "data_snapshot",
+                        )
+                        .distinct()
+                    )
+                )
+                if len(owners) != 1:
+                    return _failure(
+                        ErrorCode.NOT_FOUND,
+                        "Dataset snapshot ownership was not found",
+                    )
+                return Success(owners[0])
+        except SQLAlchemyError:
+            return _failure(
+                ErrorCode.INTERNAL_ERROR, "Snapshot ownership is unavailable"
+            )
 
     def _after_race(
         self,
@@ -127,6 +156,20 @@ class PostgresRunEventReader:
         except (SQLAlchemyError, ValueError):
             return _failure(ErrorCode.INTERNAL_ERROR, "Run events are unavailable")
 
+    def owner_subject(self, run_id: UUID) -> Result[str]:
+        try:
+            with Session(self._engine) as session:
+                owner = session.scalar(
+                    select(WorkflowRunRow.owner_subject).where(
+                        WorkflowRunRow.run_id == run_id
+                    )
+                )
+                if owner is None:
+                    return _failure(ErrorCode.NOT_FOUND, "Research run was not found")
+                return Success(owner)
+        except SQLAlchemyError:
+            return _failure(ErrorCode.INTERNAL_ERROR, "Run ownership is unavailable")
+
 
 def _validate_snapshot(
     snapshot: DatasetSnapshotRow | None, request: ResearchRunRequest
@@ -153,6 +196,7 @@ def _run_row(request: ResearchRunRequest, run_id: UUID, run_key: str) -> Workflo
         policy_id=request.research_profile_id,
         idempotency_key=run_key,
         input_hash=request.input_hash,
+        owner_subject=request.owner_subject,
         version=1,
         created_at=request.requested_at,
         updated_at=request.requested_at,
@@ -200,6 +244,7 @@ def _existing(
         or run.policy_id != request.research_profile_id
         or run.idempotency_key != run_key
         or run.input_hash != request.input_hash
+        or run.owner_subject != request.owner_subject
         or len(jobs) != 1
         or jobs[0].job_id != refs.job_id
         or jobs[0].job_type != "research_pipeline"
@@ -249,15 +294,19 @@ def _projection(row: RunEventRow) -> CanonicalRunEvent:
     )
 
 
-def _identifiers(key: str) -> ResearchRunRefs:
+def _identifiers(owner_scope: str, key: str) -> ResearchRunRefs:
     return ResearchRunRefs(
-        run_id=uuid5(NAMESPACE_URL, f"stonks:research:{key}:run"),
-        job_id=uuid5(NAMESPACE_URL, f"stonks:research:{key}:job"),
+        run_id=uuid5(NAMESPACE_URL, f"stonks:research:{owner_scope}:{key}:run"),
+        job_id=uuid5(NAMESPACE_URL, f"stonks:research:{owner_scope}:{key}:job"),
     )
 
 
 def _job_payload(request: ResearchRunRequest) -> dict[str, object]:
     return request.model_dump(mode="json", exclude={"requested_at"})
+
+
+def _owner_scope(owner_subject: str) -> str:
+    return stable_payload_hash({"owner_subject": owner_subject})[:32]
 
 
 def _identity_conflict() -> Failure:

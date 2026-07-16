@@ -155,6 +155,7 @@ def create_run(*, input_hash: str) -> CreateWorkflowRun:
         policy_id="policy/1",
         idempotency_key="run-idempotency",
         input_hash=input_hash,
+        owner_subject="test-owner",
         created_at=NOW,
     )
 

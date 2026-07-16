@@ -11,6 +11,7 @@ from stonks_contracts.evidence import Sensitivity
 
 NOW = datetime(2026, 7, 13, 8, tzinfo=UTC)
 REPORT_ID = UUID("37000000-0000-4000-8000-000000000001")
+RUN_ID = UUID("37000000-0000-4000-8000-000000000002")
 
 
 def test_reader_accepts_only_typed_renderer_artifact() -> None:
@@ -23,8 +24,11 @@ def test_reader_accepts_only_typed_renderer_artifact() -> None:
     assert isinstance(stored, Success)
 
     result = ArtifactReportReader(store).read(stored.value.content_hash)
+    owner = ArtifactReportReader(store).owner_subject(stored.value.content_hash)
 
     assert isinstance(result, Success)
+    assert isinstance(owner, Success)
+    assert owner.value == "research-owner"
     assert result.value.report_id == REPORT_ID
     assert result.value.format == "markdown_full"
     assert result.value.content == "# report\n"
@@ -62,7 +66,9 @@ def metadata(*, source: str = "stonks-agent-report-renderer") -> ArtifactMetadat
         source=source,
         attributes=(
             ("format", "markdown_full"),
+            ("owner_subject", "research-owner"),
             ("report_id", str(REPORT_ID)),
+            ("run_id", str(RUN_ID)),
             ("template_version", "stonks-report-templates/1.0.0"),
         ),
     )

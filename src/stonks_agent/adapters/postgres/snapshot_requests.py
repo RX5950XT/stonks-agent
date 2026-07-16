@@ -28,8 +28,9 @@ class PostgresSnapshotRequestStore:
         self._engine = engine
 
     def submit(self, request: CreateSnapshotRequest) -> Result[SnapshotJobRefs]:
-        identifiers = _identifiers(request.idempotency_key)
-        run_key = f"snapshot:{request.idempotency_key}"
+        owner_scope = _owner_scope(request.owner_subject)
+        identifiers = _identifiers(owner_scope, request.idempotency_key)
+        run_key = f"snapshot:{owner_scope}:{request.idempotency_key}"
         payload = request.model_dump(mode="json")
         try:
             with (
@@ -52,6 +53,7 @@ class PostgresSnapshotRequestStore:
                         policy_id=request.provider_policy_id,
                         idempotency_key=run_key,
                         input_hash=request.input_hash,
+                        owner_subject=request.owner_subject,
                         version=1,
                         created_at=request.requested_at,
                         updated_at=request.requested_at,
@@ -98,7 +100,9 @@ def _existing_result(
     request: CreateSnapshotRequest,
     identifiers: SnapshotJobRefs,
 ) -> Result[SnapshotJobRefs]:
-    run_key = f"snapshot:{request.idempotency_key}"
+    run_key = (
+        f"snapshot:{_owner_scope(request.owner_subject)}:{request.idempotency_key}"
+    )
     if not _run_identity_matches(run, request, identifiers, run_key):
         return _identity_conflict()
     jobs = tuple(session.scalars(select(JobRow).where(JobRow.run_id == run.run_id)))
@@ -122,6 +126,7 @@ def _run_identity_matches(
         and run.policy_id == request.provider_policy_id
         and run.idempotency_key == run_key
         and run.input_hash == request.input_hash
+        and run.owner_subject == request.owner_subject
         and run.created_at == request.requested_at
     )
 
@@ -154,9 +159,12 @@ def _identity_conflict() -> Failure:
     )
 
 
-def _identifiers(idempotency_key: str) -> SnapshotJobRefs:
+def _identifiers(owner_scope: str, idempotency_key: str) -> SnapshotJobRefs:
     def identifier(kind: str) -> UUID:
-        return uuid5(NAMESPACE_URL, f"stonks:snapshot:{idempotency_key}:{kind}")
+        return uuid5(
+            NAMESPACE_URL,
+            f"stonks:snapshot:{owner_scope}:{idempotency_key}:{kind}",
+        )
 
     return SnapshotJobRefs(
         run_id=identifier("run"),
@@ -164,6 +172,10 @@ def _identifiers(idempotency_key: str) -> SnapshotJobRefs:
         snapshot_id=None,
         evidence_refs=(),
     )
+
+
+def _owner_scope(owner_subject: str) -> str:
+    return stable_payload_hash({"owner_subject": owner_subject})[:32]
 
 
 def _failure(code: ErrorCode, message: str) -> Failure:

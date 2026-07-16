@@ -6,6 +6,10 @@ import os
 from importlib.metadata import version
 from pathlib import Path
 
+from stonks_service_auth import (
+    load_static_oidc_service_authenticator,
+    validate_isolated_runtime_environment,
+)
 from workers.kronos.adapter import (
     KronosWorker,
     KronosWorkerPolicy,
@@ -20,6 +24,8 @@ from workers.kronos.model_loader import (
 )
 
 _WORKER_ROOT = Path(__file__).resolve().parent
+validate_isolated_runtime_environment(os.environ)
+_authenticator = load_static_oidc_service_authenticator(os.environ)
 _environment = validate_worker_environment(os.environ)
 _manifest = load_model_manifest(_WORKER_ROOT / "model-manifest.json")
 _loader = WarmOnceModelLoader(
@@ -56,4 +62,7 @@ _worker = KronosWorker(
     loader=_loader,
 )
 
-app = create_app(worker=_worker)
+app = create_app(
+    worker=_worker,
+    authenticator=_authenticator,
+)

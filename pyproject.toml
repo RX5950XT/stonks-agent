@@ -26,9 +26,11 @@ dependencies = [
     "opentelemetry-api>=1.39,<2",
     "psycopg[binary]>=3.3.2,<4",
     "pydantic>=2.12.5,<3",
+    "pyjwt[crypto]>=2.13,<3",
     "pyyaml>=6.0.3,<7",
     "sqlalchemy>=2.0.45,<3",
     "stonks-contracts",
+    "stonks-service-auth",
     "structlog>=25.5,<26",
     "typer>=0.21,<1",
 ]
@@ -61,9 +63,10 @@ default-groups = ["dev"]
 
 [tool.uv.sources]
 stonks-contracts = { workspace = true }
+stonks-service-auth = { workspace = true }
 
 [tool.uv.workspace]
-members = ["packages/contracts"]
+members = ["packages/contracts", "packages/service-auth"]
 
 [tool.pytest.ini_options]
 addopts = [
@@ -71,6 +74,7 @@ addopts = [
     "--strict-markers",
     "--cov=stonks_agent",
     "--cov=stonks_contracts",
+    "--cov=stonks_service_auth",
     "--cov-report=term-missing",
     "--cov-report=xml",
     "--cov-fail-under=80",
@@ -88,7 +92,7 @@ markers = [
 
 [tool.coverage.run]
 branch = true
-source = ["stonks_agent", "stonks_contracts"]
+source = ["stonks_agent", "stonks_contracts", "stonks_service_auth"]
 
 [tool.coverage.report]
 fail_under = 80
@@ -104,7 +108,7 @@ extend-exclude = [".research", ".data"]
 select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["stonks_agent", "stonks_contracts"]
+known-first-party = ["stonks_agent", "stonks_contracts", "stonks_service_auth"]
 
 [tool.ruff.format]
 line-ending = "lf"

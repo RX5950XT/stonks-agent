@@ -626,6 +626,7 @@ def snapshot_request(key: str, *, requested_at: datetime) -> CreateSnapshotReque
         query={"symbol": "AAPL"},
         provider_policy_id="us-prices/1",
         idempotency_key=key,
+        owner_subject="test-owner",
         requested_at=requested_at,
     )
 

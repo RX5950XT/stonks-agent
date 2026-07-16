@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 
 from stonks_agent.domain._trading import failure
-from stonks_agent.domain.auth import LocalPrincipal, Permission, authorize
+from stonks_agent.domain.auth import (
+    AccessTarget,
+    LocalPrincipal,
+    Permission,
+    ResourceKind,
+    authorize_target,
+)
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, Success
 from stonks_agent.domain.monitoring import PortfolioValuation
 from stonks_agent.domain.projections import PortfolioProjection, RiskProjection
@@ -18,7 +24,7 @@ def read_portfolio_projection(
     account_id: str,
     unit_of_work: PaperProjectionUnitOfWorkFactory,
 ) -> Result[PortfolioProjection]:
-    denied = _read_denied(principal)
+    denied = _account_read_denied(principal, account_id)
     if denied is not None:
         return denied
     with unit_of_work() as transaction:
@@ -30,7 +36,7 @@ def read_nav_projection(
     account_id: str,
     unit_of_work: PaperProjectionUnitOfWorkFactory,
 ) -> Result[PortfolioValuation]:
-    denied = _read_denied(principal)
+    denied = _account_read_denied(principal, account_id)
     if denied is not None:
         return denied
     with unit_of_work() as transaction:
@@ -44,7 +50,7 @@ def read_risk_projection(
     as_of: datetime,
     unit_of_work: PaperProjectionUnitOfWorkFactory,
 ) -> Result[RiskProjection]:
-    denied = _read_denied(principal)
+    denied = _account_read_denied(principal, account_id)
     if denied is not None:
         return denied
     with unit_of_work() as transaction:
@@ -78,6 +84,13 @@ def record_nav_projection(
         return Success(saved.value)
 
 
-def _read_denied(principal: LocalPrincipal) -> Failure | None:
-    result = authorize(principal, Permission.READ)
+def _account_read_denied(
+    principal: LocalPrincipal,
+    account_id: str,
+) -> Failure | None:
+    result = authorize_target(
+        principal,
+        Permission.READ,
+        AccessTarget(kind=ResourceKind.ACCOUNT, identifier=account_id),
+    )
     return result if isinstance(result, Failure) else None

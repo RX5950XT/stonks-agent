@@ -5,7 +5,7 @@ manifest:
   strategy_version: 1.0.0
   kind: forecast_mapper
   source_artifact_ref: sha256:1d31d9bbdefa6ab4df0f45349d512cd068971a6731e01c201077f9afaf529cda
-  runtime_hash: c3542191fc3a6137540219098a66be4f3f32c7c7203e52f44018eb4e66dfa866
+  runtime_hash: 0e1ac0d0a47253106d082fb30b47d3159ac67ec4363f2753efc9e1d98d76f328
   feature_spec_hash: 0f340f46255ca9507d4a97f3591d96a098de65e8c28dbfb14011de43d4a5aa22
   label_spec_hash: 6d2431c8fd2f072cb28605518fc3e504c5c287529949495338451f0cf17ec034
   universe_spec_hash: 9dc5e618eb8ff83fa7fa20de2031eb7dcbd3f2caed250876882c3a134046540d

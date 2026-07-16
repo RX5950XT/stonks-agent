@@ -2,39 +2,28 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Protocol
+from typing import Annotated
 
-from fastapi import Header, Request
+from fastapi import Path
 from fastapi.responses import JSONResponse
 
 from stonks_agent.application.research.request_run import read_report
-from stonks_agent.domain.auth import LocalPrincipal
-from stonks_agent.domain.errors import Failure, Result
+from stonks_agent.domain.errors import Failure
+from stonks_agent.entrypoints.api.dependencies.auth import ReadPrincipal
 from stonks_agent.entrypoints.api.envelope import success_envelope
 from stonks_agent.ports.research_query import ReportReader
 
 
-class Authenticate(Protocol):
-    def __call__(
-        self, request: Request, authorization: str | None
-    ) -> Result[LocalPrincipal]: ...
-
-
 class ReportEndpoint:
-    def __init__(self, reader: ReportReader, authenticate: Authenticate) -> None:
+    def __init__(self, reader: ReportReader) -> None:
         self._reader = reader
-        self._authenticate = authenticate
 
     def __call__(
         self,
-        request: Request,
-        content_hash: str,
-        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        content_hash: Annotated[str, Path(pattern=r"^[a-f0-9]{64}$")],
+        principal: ReadPrincipal,
     ) -> JSONResponse:
-        principal = self._authenticate(request, authorization)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
-        result = read_report(principal.value, content_hash, self._reader)
+        result = read_report(principal, content_hash, self._reader)
         if isinstance(result, Failure):
             return _error_response(result)
         envelope = success_envelope(result.value)

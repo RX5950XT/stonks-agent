@@ -60,6 +60,7 @@ def _request() -> CreateSnapshotRequest:
         query={"symbol": "AAPL", "interval": "1d"},
         provider_policy_id="us-prices/1",
         idempotency_key="snapshot-limit-test",
+        owner_subject="test-owner",
         requested_at=NOW,
     )
 

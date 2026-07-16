@@ -8,6 +8,10 @@ from uuid import UUID
 
 import httpx
 import pytest
+from fixtures.service_credentials import (
+    TEST_SERVICE_TOKEN,
+    RecordingServiceCredentialProvider,
+)
 from pydantic import ValidationError
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
@@ -16,7 +20,9 @@ from stonks_agent.adapters.research.tradingagents_http import (
     TradingAgentsWorkerPolicy,
     load_worker_policy,
 )
+from stonks_agent.domain.auth import Permission, ResourceKind
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
+from stonks_agent.ports.service_credentials import ServiceReceiver
 from stonks_contracts.common import ConfidenceCalibration
 from stonks_contracts.research import AgentOpinion, AnalysisBundle
 from stonks_contracts.tradingagents import (
@@ -144,6 +150,7 @@ def adapter(
     artifacts: MemoryArtifactStore | None = None,
     worker_policy: TradingAgentsWorkerPolicy | None = None,
     sleeper: object = lambda _: None,
+    credentials: RecordingServiceCredentialProvider | None = None,
 ) -> tuple[TradingAgentsHttpAdapter, httpx.Client, MemoryArtifactStore]:
     store = artifacts or MemoryArtifactStore()
     client = httpx.Client(
@@ -154,6 +161,7 @@ def adapter(
         client=client,
         artifacts=store,
         policy=worker_policy or policy(),
+        credentials=credentials or RecordingServiceCredentialProvider(),
         clock=lambda: NOW,
         monotonic_clock=lambda: 1.0,
         sleeper=sleeper,  # type: ignore[arg-type]
@@ -166,6 +174,7 @@ def test_success_is_fixed_origin_ref_only_fenced_and_archived() -> None:
         payload = json.loads(incoming.content)
         assert incoming.url == "http://tradingagents-paper:8080/v1/analyze"
         assert incoming.headers["Accept-Encoding"] == "identity"
+        assert incoming.headers["Authorization"] == f"Bearer {TEST_SERVICE_TOKEN}"
         assert incoming.extensions["timeout"]["read"] == 5
         assert all("content" not in item for item in payload["evidence"])
         assert payload["attempt_generation"] == 3
@@ -180,6 +189,28 @@ def test_success_is_fixed_origin_ref_only_fenced_and_archived() -> None:
     assert result.value.response.result.analysis_bundle.run_id == RUN_ID
     assert result.value.artifact.content_hash == response().result_artifact_hash
     assert store.is_finalized(response().result_artifact_hash)
+
+
+def test_credential_failure_denies_dispatch_before_network() -> None:
+    credentials = RecordingServiceCredentialProvider(available=False)
+    subject, client, _ = adapter(
+        lambda _request: pytest.fail("network must not be called"),
+        credentials=credentials,
+    )
+
+    with client:
+        result = subject.analyze(request())
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.UNAUTHORIZED
+    assert len(credentials.requests) == 1
+    issued = credentials.requests[0]
+    assert issued.receiver is ServiceReceiver.TRADINGAGENTS
+    assert issued.permission is Permission.DISPATCH_ASSIGNED_RESEARCH
+    assert issued.target.kind is ResourceKind.JOB
+    assert issued.target.identifier == str(JOB_ID)
+    assert issued.attempt_generation == request().attempt_generation
+    assert issued.expires_no_later_than == request().deadline
 
 
 def test_fence_mismatch_and_schema_drift_fail_before_archive() -> None:

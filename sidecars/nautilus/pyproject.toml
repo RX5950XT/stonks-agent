@@ -8,6 +8,7 @@ dependencies = [
     "fastapi>=0.128,<1",
     "nautilus_trader==1.230.0",
     "stonks-contracts",
+    "stonks-service-auth",
     "uvicorn>=0.40,<1",
 ]
 
@@ -26,3 +27,4 @@ package = false
 
 [tool.uv.sources]
 stonks-contracts = { path = "../../packages/contracts" }
+stonks-service-auth = { path = "../../packages/service-auth" }

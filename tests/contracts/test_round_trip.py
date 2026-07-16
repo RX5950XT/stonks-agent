@@ -113,6 +113,8 @@ def canonical_models() -> tuple[ContractModel, ...]:
     )
     report = AnalysisReport(
         report_id=IDS[10],
+        run_id=IDS[0],
+        owner_subject="research-owner",
         subject="AAPL",
         as_of=NOW,
         language="zh-TW",

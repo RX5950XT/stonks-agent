@@ -25,7 +25,7 @@ from stonks_agent.application.projections.queries import (
     read_portfolio_projection,
     read_risk_projection,
 )
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import AccessTarget, LocalPrincipal, ResourceKind, Role
 from stonks_agent.domain.errors import Failure, Result
 from stonks_agent.domain.operations import (
     ActivateKillSwitchCommand,
@@ -34,6 +34,7 @@ from stonks_agent.domain.operations import (
     ResumePaperCommand,
 )
 from stonks_agent.entrypoints.api.envelope import error_envelope, success_envelope
+from stonks_agent.entrypoints.cli_commands._local_auth import local_cli_principal
 from stonks_agent.ports.paper_operations import (
     PaperOperationsUnitOfWork,
     PaperOperationsUnitOfWorkFactory,
@@ -44,10 +45,18 @@ from stonks_agent.ports.paper_projections import (
 )
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
-_PRINCIPAL = LocalPrincipal(
-    subject="local-paper-operator",
-    roles=frozenset({Role.PAPER_OPERATOR}),
-)
+
+
+def _principal(
+    target: AccessTarget | None,
+    *,
+    role: Role = Role.PAPER_OPERATOR,
+) -> LocalPrincipal:
+    return local_cli_principal(
+        subject="local-paper-admin" if role is Role.ADMIN else "local-paper-operator",
+        role=role,
+        targets=frozenset() if target is None else frozenset({target}),
+    )
 
 
 @app.command("status")
@@ -57,11 +66,12 @@ def status_command(
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
 ) -> None:
     """Read one global or account paper kill switch."""
+    principal = _principal(_scope_target(scope, account_id))
     _emit_result(
         _run_database(
             database_url,
             lambda unit_of_work: read_kill_switch(
-                _PRINCIPAL,
+                principal,
                 scope,
                 account_id or None,
                 unit_of_work,
@@ -76,11 +86,12 @@ def actions_command(
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
 ) -> None:
     """Read the verified immutable operator action chain."""
+    principal = _principal(None, role=Role.ADMIN)
     _emit_result(
         _run_database(
             database_url,
             lambda unit_of_work: read_operator_actions(
-                _PRINCIPAL,
+                principal,
                 after_sequence=after_sequence,
                 unit_of_work=unit_of_work,
             ),
@@ -98,6 +109,7 @@ def activate_command(
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
 ) -> None:
     """Activate a switch and terminalize cancellable pending orders."""
+    principal = _principal(_scope_target(scope, account_id))
     try:
         command = ActivateKillSwitchCommand(
             action_id=UUID(action_id),
@@ -112,9 +124,7 @@ def activate_command(
     _emit_result(
         _run_database(
             database_url,
-            lambda unit_of_work: activate_kill_switch(
-                _PRINCIPAL, command, unit_of_work
-            ),
+            lambda unit_of_work: activate_kill_switch(principal, command, unit_of_work),
         )
     )
 
@@ -126,6 +136,7 @@ def reconcile_command(
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
 ) -> None:
     """Replay and audit one paper account."""
+    principal = _principal(_account_target(account_id))
     try:
         command = ReconcilePaperCommand(
             action_id=UUID(action_id),
@@ -138,7 +149,7 @@ def reconcile_command(
         _run_database(
             database_url,
             lambda unit_of_work: reconcile_paper_state(
-                _PRINCIPAL, command, unit_of_work
+                principal, command, unit_of_work
             ),
         )
     )
@@ -154,6 +165,7 @@ def resume_command(
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
 ) -> None:
     """Disable a switch only after locked reconciliation passes."""
+    principal = _principal(_scope_target(scope, account_id))
     try:
         command = ResumePaperCommand(
             action_id=UUID(action_id),
@@ -168,7 +180,7 @@ def resume_command(
     _emit_result(
         _run_database(
             database_url,
-            lambda unit_of_work: resume_paper(_PRINCIPAL, command, unit_of_work),
+            lambda unit_of_work: resume_paper(principal, command, unit_of_work),
         )
     )
 
@@ -179,11 +191,12 @@ def portfolio_command(
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
 ) -> None:
     """Read the current settled/reserved/available portfolio projection."""
+    principal = _principal(_account_target(account_id))
     _emit_result(
         _run_projection_database(
             database_url,
             lambda unit_of_work: read_portfolio_projection(
-                _PRINCIPAL, account_id, unit_of_work
+                principal, account_id, unit_of_work
             ),
         )
     )
@@ -195,11 +208,12 @@ def nav_command(
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
 ) -> None:
     """Read the latest valuation only when it matches the current ledger."""
+    principal = _principal(_account_target(account_id))
     _emit_result(
         _run_projection_database(
             database_url,
             lambda unit_of_work: read_nav_projection(
-                _PRINCIPAL, account_id, unit_of_work
+                principal, account_id, unit_of_work
             ),
         )
     )
@@ -211,11 +225,12 @@ def risk_command(
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",
 ) -> None:
     """Read the latest risk decision as a non-authoritative projection."""
+    principal = _principal(_account_target(account_id))
     _emit_result(
         _run_projection_database(
             database_url,
             lambda unit_of_work: read_risk_projection(
-                _PRINCIPAL,
+                principal,
                 account_id,
                 as_of=datetime.now(UTC),
                 unit_of_work=unit_of_work,
@@ -239,6 +254,21 @@ def _run_database[T](
         return operation(factory)
     finally:
         engine.dispose()
+
+
+def _scope_target(
+    scope: KillSwitchScope,
+    account_id: str,
+) -> AccessTarget | None:
+    if scope is KillSwitchScope.GLOBAL and not account_id:
+        return AccessTarget(kind=ResourceKind.PAPER_GLOBAL, identifier="global")
+    if scope is KillSwitchScope.ACCOUNT and account_id:
+        return _account_target(account_id)
+    return None
+
+
+def _account_target(account_id: str) -> AccessTarget:
+    return AccessTarget(kind=ResourceKind.ACCOUNT, identifier=account_id)
 
 
 def _run_projection_database[T](

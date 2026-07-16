@@ -6,7 +6,7 @@ from application.operations.test_use_cases import ACTION_ID, NOW, Factory
 from fastapi.testclient import TestClient
 
 from stonks_agent.adapters.auth.local_token import LocalTokenAuthenticator
-from stonks_agent.domain.auth import Role
+from stonks_agent.domain.auth import AccessTarget, ResourceKind, Role
 from stonks_agent.entrypoints.api.routes.operations import (
     create_paper_operations_app,
 )
@@ -23,9 +23,22 @@ def app(
     return create_paper_operations_app(
         factory,
         LocalTokenAuthenticator(
+            environment="test",
             token=TOKEN,
             subject="operator:one",
             roles=roles,
+            targets=frozenset(
+                {
+                    AccessTarget(
+                        kind=ResourceKind.ACCOUNT,
+                        identifier="paper-ledger",
+                    ),
+                    AccessTarget(
+                        kind=ResourceKind.PAPER_GLOBAL,
+                        identifier="global",
+                    ),
+                }
+            ),
             allowed_hosts=frozenset({"testclient"}),
         ),
         clock=lambda: NOW + timedelta(seconds=1),
@@ -51,7 +64,7 @@ def test_operator_api_uses_authenticated_actor_and_uniform_envelope() -> None:
         json=activation_body(),
         headers=AUTHORIZATION,
     )
-    actions = client.get(
+    actions = TestClient(app(factory, roles=frozenset({Role.ADMIN}))).get(
         "/v1/paper/operator-actions",
         headers=AUTHORIZATION,
     )

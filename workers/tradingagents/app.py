@@ -9,6 +9,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from stonks_service_auth import (
+    ServiceAccessTarget,
+    ServiceAuthenticator,
+    ServicePermission,
+    ServiceReceiver,
+    ServiceResourceKind,
+    authorize_service_dispatch,
+    exactly_one_authorization_header,
+    invalid_or_oversized_content_length,
+    service_auth_source_hash,
+)
 from workers.tradingagents.adapter import (
     TradingAgentsRequest,
     TradingAgentsWorker,
@@ -19,6 +30,7 @@ from workers.tradingagents.adapter import (
 def create_app(
     *,
     worker: TradingAgentsWorker,
+    authenticator: ServiceAuthenticator,
     max_request_bytes: int = 1_048_576,
 ) -> FastAPI:
     if not 1 <= max_request_bytes <= 16_777_216:
@@ -38,15 +50,19 @@ def create_app(
                 "worker_version": worker.policy.worker_version,
                 "upstream_commit": worker.policy.upstream_commit,
                 "profile": worker.policy.profile.value,
+                "service_auth_source_hash": service_auth_source_hash(),
             },
         )
 
     @app.post("/v1/analyze")
     async def analyze(incoming: Request) -> JSONResponse:
+        principal = authenticator.authenticate(
+            exactly_one_authorization_header(incoming.scope["headers"])
+        )
+        if principal is None:
+            return _authentication_error()
         declared = incoming.headers.get("content-length")
-        if declared is not None and (
-            not declared.isdecimal() or int(declared) > max_request_bytes
-        ):
+        if invalid_or_oversized_content_length(declared, max_request_bytes):
             return _error(413, "request_too_large", "Worker request is too large")
         if (
             incoming.headers.get("content-type", "").split(";", 1)[0]
@@ -63,6 +79,20 @@ def create_app(
             request = TradingAgentsRequest.model_validate_json(body)
         except (ValidationError, json.JSONDecodeError):
             return _error(400, "invalid_request", "Worker request is invalid")
+        if not authorize_service_dispatch(
+            principal,
+            permission=ServicePermission.DISPATCH_ASSIGNED_RESEARCH,
+            target=ServiceAccessTarget(
+                kind=ServiceResourceKind.JOB,
+                identifier=str(request.job_id),
+            ),
+            receiver=ServiceReceiver.TRADINGAGENTS,
+            attempt_generation=request.attempt_generation,
+            attempt_nonce=request.attempt_nonce,
+            request_payload=request.model_dump(mode="json"),
+            deadline=request.deadline,
+        ):
+            return _error(403, "forbidden", "Service target access denied")
         result = worker.analyze(request)
         if isinstance(result, WorkerFailure):
             return _error(
@@ -93,6 +123,12 @@ def _status_for(code: str) -> int:
 
 def _error(status: int, code: str, message: str) -> JSONResponse:
     return _envelope(status, error={"code": code, "message": message})
+
+
+def _authentication_error() -> JSONResponse:
+    response = _error(401, "unauthorized", "Service authentication failed")
+    response.headers["WWW-Authenticate"] = "Bearer"
+    return response
 
 
 def _envelope(

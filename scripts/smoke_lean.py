@@ -210,9 +210,13 @@ def main() -> int:
     parser.add_argument("--runtime-hash", required=True)
     parser.add_argument("--image-digest", required=True)
     parser.add_argument("--service-token", required=True)
+    parser.add_argument("--requested-at", required=True)
     parser.add_argument("--timeout", type=float, default=30)
     args = parser.parse_args()
-    job = _job(args.runtime_hash, args.image_digest, datetime.now(UTC))
+    requested_at = datetime.fromisoformat(args.requested_at)
+    if requested_at.tzinfo is None:
+        raise ValueError("requested-at must include a timezone")
+    job = _job(args.runtime_hash, args.image_digest, requested_at.astimezone(UTC))
     first = _send(args.base_url, job, args.timeout, args.service_token)
     second = _send(args.base_url, job, args.timeout, args.service_token)
     if first.semantic_hash != second.semantic_hash or tuple(

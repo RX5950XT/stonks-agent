@@ -3,8 +3,8 @@ name: stonks-openbb
 services:
   openbb:
     build:
-      context: ../sidecars/openbb
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: sidecars/openbb/Dockerfile
     image: stonks-openbb-sidecar:local
     init: true
     restart: unless-stopped
@@ -16,6 +16,13 @@ services:
     environment:
       HOME: /tmp/openbb
       OPENBB_AUTO_BUILD: "false"
+      STONKS_SERVICE_OIDC_ISSUER: "${STONKS_SERVICE_OIDC_ISSUER:-}"
+      STONKS_SERVICE_OIDC_AUDIENCE: "${STONKS_SERVICE_OIDC_AUDIENCE:-}"
+      STONKS_SERVICE_OIDC_CORE_SUBJECT: "${STONKS_SERVICE_OIDC_CORE_SUBJECT:-}"
+      STONKS_SERVICE_OIDC_CORE_CLIENT_ID: "${STONKS_SERVICE_OIDC_CORE_CLIENT_ID:-}"
+      STONKS_SERVICE_OIDC_ALGORITHMS: "${STONKS_SERVICE_OIDC_ALGORITHMS:-RS256}"
+      STONKS_SERVICE_OIDC_RECEIVER: openbb
+      STONKS_SERVICE_OIDC_JWKS_FILE: /run/secrets/stonks-service-jwks.json
     labels:
       stonks.transport.canonical-origin: http://127.0.0.1:6900
       stonks.transport.sidecar-listen-origin: http://openbb:6900
@@ -24,6 +31,8 @@ services:
       stonks.transport.plaintext-scope: loopback-only
     ports:
       - "127.0.0.1:6900:6900"
+    volumes:
+      - "${STONKS_SERVICE_OIDC_JWKS_HOST_FILE:-../.data/auth/missing-service-jwks.json}:/run/secrets/stonks-service-jwks.json:ro"
     tmpfs:
       - /tmp:size=128m,mode=1777
     pids_limit: 256

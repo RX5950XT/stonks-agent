@@ -236,6 +236,7 @@ def _seed_run_and_job(engine: Engine, *, max_attempts: int = 3) -> None:
                 policy_id="paper-fund-cycle/1.0.0",
                 idempotency_key="paper-cycle:test",
                 input_hash=INPUT_HASH,
+                owner_subject="system:paper-cycle",
                 created_at=now,
             )
         )

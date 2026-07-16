@@ -34,6 +34,9 @@ REQUEST_ID = UUID("52000000-0000-4000-8000-000000000002")
 EVIDENCE_ID = UUID("52000000-0000-4000-8000-000000000003")
 CONTENT_HASH = "a" * 64
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "platform" / "ai_trader"
+_FORBIDDEN_AUTHORITY_KEYS = frozenset(
+    {"target_agent", "agent_id", "target", "order", "risk", "execution"}
+)
 
 
 def cassette(name: str) -> dict[str, object]:
@@ -116,6 +119,7 @@ def test_publish_thesis_uses_exact_safe_route_and_archives_tolerant_response() -
         "mission_key": "mission-1",
         "team_key": "team-1",
     }
+    _assert_no_authority_fields(json.loads(seen[0].content))
 
 
 def test_discussion_and_reply_use_only_redacted_public_content() -> None:
@@ -158,6 +162,8 @@ def test_discussion_and_reply_use_only_redacted_public_content() -> None:
         "signal_id": 41,
         "content": "Public reply.",
     }
+    for request in seen:
+        _assert_no_authority_fields(json.loads(request.content))
 
 
 def test_feedback_reader_is_pit_cursor_deduplicated_and_untrusted() -> None:
@@ -196,8 +202,10 @@ def test_feedback_reader_is_pit_cursor_deduplicated_and_untrusted() -> None:
 
 def test_heartbeat_uses_injected_inbox_to_deduplicate_replayed_events() -> None:
     inbox = MemoryPlatformEventInbox()
+    seen: list[httpx.Request] = []
 
-    def handler(_: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
         return httpx.Response(
             200,
             headers={"content-type": "application/json"},
@@ -226,13 +234,20 @@ def test_heartbeat_uses_injected_inbox_to_deduplicate_replayed_events() -> None:
     ]
     assert second.value.events == ()
     assert second.value.request_cursor == first.value.next_cursor
+    assert [request.url.path for request in seen] == [
+        "/api/claw/agents/heartbeat",
+        "/api/claw/agents/heartbeat",
+    ]
+    assert all(request.content == b"{}" for request in seen)
+    for outbound in seen:
+        _assert_no_authority_fields(json.loads(outbound.content))
 
 
 def test_challenge_join_and_experiment_enroll_never_touch_trade_routes() -> None:
-    seen: list[str] = []
+    seen: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request.url.path)
+        seen.append(request)
         name = (
             "challenge_join.json"
             if request.url.path.endswith("/join")
@@ -273,11 +288,17 @@ def test_challenge_join_and_experiment_enroll_never_touch_trade_routes() -> None
 
     assert isinstance(joined, Success)
     assert isinstance(enrolled, Success)
-    assert seen == [
+    assert [request.url.path for request in seen] == [
         "/api/challenges/challenge-1/join",
         "/api/experiments/experiment-1/assign",
     ]
-    assert all("trade" not in path and "copy" not in path for path in seen)
+    assert all(
+        "trade" not in request.url.path and "copy" not in request.url.path
+        for request in seen
+    )
+    assert all(request.content == b"{}" for request in seen)
+    for outbound in seen:
+        _assert_no_authority_fields(json.loads(outbound.content))
 
 
 def test_research_submission_vote_and_experiment_outputs_stay_external() -> None:
@@ -372,6 +393,8 @@ def test_research_submission_vote_and_experiment_outputs_stay_external() -> None
         "/api/signals/discussion",
         "/api/signals/strategy",
     ]
+    for request in seen:
+        _assert_no_authority_fields(json.loads(request.content))
     assert all(
         result.value.remote_authority == "evidence_only"
         for result in (submitted, voted, observed, researched)
@@ -551,3 +574,35 @@ def test_endpoint_allowlist_has_no_execution_copy_or_position_routes() -> None:
         for endpoint in AI_TRADER_ENDPOINT_TEMPLATES
         for token in ("/trade", "copy", "position", "realtime", "follow")
     )
+
+
+@pytest.mark.parametrize(
+    "authority_key",
+    [
+        "target_agent",
+        "agent_id",
+        "portfolio_target",
+        "order_intent_id",
+        "risk_decision_id",
+        "execution_command",
+    ],
+)
+def test_outbound_authority_guard_detects_nested_fields(authority_key: str) -> None:
+    with pytest.raises(AssertionError, match=authority_key):
+        _assert_no_authority_fields({"outer": [{authority_key: "forged"}]})
+
+
+def _assert_no_authority_fields(value: object, *, path: str = "$") -> None:
+    if isinstance(value, dict):
+        for raw_key, item in value.items():
+            assert isinstance(raw_key, str)
+            key = raw_key.lower()
+            segments = frozenset(key.split("_"))
+            assert not (
+                key in _FORBIDDEN_AUTHORITY_KEYS
+                or segments & {"target", "order", "risk", "execution"}
+            ), f"forbidden outbound authority field: {path}.{raw_key}"
+            _assert_no_authority_fields(item, path=f"{path}.{raw_key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _assert_no_authority_fields(item, path=f"{path}[{index}]")

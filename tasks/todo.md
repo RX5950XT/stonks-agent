@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate 已通過，P6.1 進行中）
+> 狀態：執行中（P0–P5 gate 與 P6.1 已通過，P6.2 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -494,9 +494,18 @@
 
 ### Tasks
 
-- [ ] **P6.1 Production OIDC/RBAC and service identities** — 將P0 local principal/permission port接到`adapters/auth/oidc.py`、`entrypoints/api/dependencies/auth.py`、`config/rbac.yaml`並擴充authn/authz tests。（Depends：P0.9、P4 gate；Complexity：XL；Risk：High）
+- [x] **P6.1 Production OIDC/RBAC and service identities** — 將P0 local principal/permission port接到`adapters/auth/oidc.py`、`entrypoints/api/dependencies/auth.py`、`config/rbac.yaml`並擴充authn/authz tests。（Depends：P0.9、P4 gate；Complexity：XL；Risk：High）
   - Roles：viewer/researcher/strategy_reviewer/paper_operator/admin；worker/executor service accounts最小權限。
   - Object/target ownership與route-level authz完整，不能重現AI-Trader任意target agent問題。
+  - [x] TDD：typed/frozen principal、human RBAC、service identity與target ownership policy；unknown role/claim/permission fail closed。
+  - [x] Pinned asymmetric OIDC/JWKS驗證issuer/audience/azp/alg/kid/signature/exp/iat/nbf/jti與bounded claims；rotation/outage不得沿用錯誤key或洩漏token。
+  - [x] `config/rbac.yaml`固定human/service最小權限與claim allowlist；local token仍只限loopback development，production default deny。
+  - [x] Production auth composition依runtime environment只接受完整OIDC設定；缺mode/claim policy/JWKS設定時startup fail closed。
+  - [x] Data/research/strategy/paper DB CLI只允許明確local/development/test環境，staging/production與未宣告環境皆不得建立DB連線或內建principal。
+    - Review（2026-07-16）：新增runtime auth factory，非local環境只接受完整asymmetric OIDC/JWKS + RBAC policy設定；local預設deny-all，local token仍須explicit mode。四組DB CLI改為environment gate後才建立exact-target principal/DB connection，operator audit明示local admin；29個boundary tests、89個auth/CLI focused regression、5個真實PostgreSQL CLI tests全綠，新模組branch coverage 89.57%，Ruff、strict mypy、secret/upstream policy與locked dependency audit全通過。
+  - [x] Central FastAPI dependency覆蓋所有routes，body/query/header不能偽造actor/role；401/403維持structured envelope。
+  - [x] Account、strategy、evaluation、research run/report/snapshot target做application-level ownership/IDOR checks，admin bypass明示且可稽核。
+  - [x] Worker/executor service identities不能取得operator/admin/reviewer或非assigned target authority；security matrix、full gate、文件同步全通過。
 
 - [ ] **P6.2 Secret provider and redaction** — 實作`ports/secret_provider.py`、`adapters/secrets/{env,cloud}.py`、structured log/event/report redaction tests。（Depends：P6.1；Complexity：L；Risk：High）
   - Local env只存named refs；正式deployment使用secret manager、rotation與scoped identities。
@@ -928,3 +937,10 @@
 - Supply chain / operations：catalog逐image綁定獨立lock、NOTICE、source identity/license、SBOM mode/ref與fail-on-High CVE policy；core lock掃描拒絕heavy runtimes。新增operator runbook與Linux CI，驗zero-default/所有profiles、typed boundary、future RFC及core dependency isolation；OpenBB AGPL corresponding source流程與AI-Trader no-copy boundary保持不變。
 - Verification：focused catalog/security為14 passed；zero-default與10 profiles Compose render全通過。完整non-PostgreSQL gate為1119 passed、239 deselected、coverage 87.64%；完整PostgreSQL P5 gate為1358 passed、coverage 87.43%，532 files format、ruff、mypy 286 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - 文件同步：`README.md`、`CONTEXT.md`、optional runbook與本review已更新；`AGENTS.md`/`CLAUDE.md`已review且現有規範已完整涵蓋，不需變更。P5 phase gate與success criteria全部通過，下一項為P6.1 production OIDC/RBAC and service identities。
+
+### P6 Progress Review — P6.1 — 2026-07-16
+
+- Scope completed：新增frozen human/service principal、`config/rbac.yaml`、asymmetric OIDC/JWKS verifier與runtime factory、central FastAPI dependency、owner-scoped migration 0015及application IDOR checks。Unknown role/claim/permission、forged actor/role、foreign account/strategy/evaluation/research run/report/snapshot、stale ownership與production local-token/CLI composition皆fail closed。
+- Service identity / isolation：core-only RS256 issuer以exact issuer/audience/azp/permission/target/generation/nonce/deadline簽發短效credential；Kronos、TradingAgents、Qlib、Nautilus、LEAN、OpenBB ingress在載入heavy runtime前驗證bounded body與完整fence。Remote service無DB credential、人類角色、operator/admin/reviewer或paper authority；public JWKS與private key分離，rotation/outage/runbook、source identity及OpenBB AGPL corresponding source流程已固定。
+- Verification：完整單程序PostgreSQL gate為1581 passed、3 skipped、coverage 87.45%；564 files format、Ruff、strict mypy 301 source files、106 schemas、Alembic無drift、upstream/license、secret scan與locked dependency audit全通過。Focused auth/service/ownership、ephemeral issuer/JWKS manifests、所有optional Compose profiles及OpenBB hardened live smoke皆通過。
+- 文件同步：`README.md`、`CONTEXT.md`、OIDC rotation runbook與本review已更新；`AGENTS.md`/`CLAUDE.md`同步production identity不變量。尚未宣稱真實外部IdP或跨host TLS/mTLS；P6全域gate仍未完成，下一項為P6.2 secret provider and redaction。

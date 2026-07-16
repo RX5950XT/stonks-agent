@@ -376,6 +376,7 @@ def seed_run(
                 policy_id="policy/1",
                 idempotency_key=key,
                 input_hash="7" * 64,
+                owner_subject="system:test",
                 created_at=now,
             )
         )

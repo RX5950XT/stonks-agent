@@ -22,6 +22,17 @@ rest_policy:
   methods: [GET]
   redirect_policy: deny
   arbitrary_url_policy: deny
+service_identity_policy:
+  verifier: stonks-service-auth==0.1.0
+  protected_routes: [/api/v1/equity/price/historical]
+  anonymous_routes: [/healthz, /source]
+  permission: dispatch_assigned_market_data
+  exact_target: MARKET:US/{symbol}
+  receiver: openbb
+  attempt_generation: 0
+  request_binding: canonical-method-path-query-sha256
+  attempt_nonce_hash_binding: request-hash
+  query_authentication_order: authenticate-before-parse
 packages:
   - name: openbb-core
     version: 1.6.13

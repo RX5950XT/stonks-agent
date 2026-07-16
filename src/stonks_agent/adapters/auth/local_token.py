@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import AccessTarget, LocalPrincipal, Role
 from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
@@ -16,33 +16,47 @@ from stonks_agent.domain.errors import (
 from stonks_agent.ports.authentication import AuthenticationRequest
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+_LOCAL_TOKEN_ENVIRONMENTS = frozenset({"local", "development", "test"})
+
+
+class LocalTokenConfigurationError(RuntimeError):
+    """Raised when local-token auth is selected outside a local environment."""
+
+    def __init__(self, error: StructuredError) -> None:
+        self.error = error
+        super().__init__("Local token authentication configuration is invalid")
 
 
 class LocalTokenAuthenticator:
     """Authenticate one configured local principal without storing raw tokens."""
 
-    __slots__ = ("_allowed_hosts", "_principal", "_token_digest")
+    __slots__ = ("_allowed_hosts", "_environment", "_principal", "_token_digest")
 
     def __init__(
         self,
         *,
+        environment: str,
         token: str,
         subject: str,
         roles: frozenset[Role],
+        targets: frozenset[AccessTarget] = frozenset(),
         allowed_hosts: frozenset[str] = _LOOPBACK_HOSTS,
     ) -> None:
+        _validate_environment(environment)
         _validate_token(token)
         if not allowed_hosts or any(
             not host or len(host) > 255 for host in allowed_hosts
         ):
             raise ValueError("allowed_hosts must contain bounded host names")
+        self._environment = environment
         self._token_digest = _digest(token)
-        self._principal = LocalPrincipal(subject=subject, roles=roles)
+        self._principal = LocalPrincipal(subject=subject, roles=roles, targets=targets)
         self._allowed_hosts = allowed_hosts
 
     def __repr__(self) -> str:
         return (
-            f"{type(self).__name__}(subject={self._principal.subject!r}, "
+            f"{type(self).__name__}(environment={self._environment!r}, "
+            f"subject={self._principal.subject!r}, "
             f"allowed_hosts={sorted(self._allowed_hosts)!r})"
         )
 
@@ -69,6 +83,17 @@ class DenyAllAuthenticator:
     ) -> Result[LocalPrincipal]:
         del request
         return _unauthorized()
+
+
+def _validate_environment(environment: str) -> None:
+    if not isinstance(environment, str) or environment not in _LOCAL_TOKEN_ENVIRONMENTS:
+        raise LocalTokenConfigurationError(
+            StructuredError(
+                code=ErrorCode.CONFIGURATION_INVALID,
+                message="Local token authentication is unavailable in this environment",
+                details={"authenticator": "local_token"},
+            )
+        )
 
 
 def _validate_token(token: str) -> None:

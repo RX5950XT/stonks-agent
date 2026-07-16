@@ -9,6 +9,7 @@ dependencies = [
     "httpx>=0.28.1,<1",
     "pydantic>=2.12.5,<3",
     "stonks-contracts",
+    "stonks-service-auth",
     "tradingagents @ https://github.com/TauricResearch/TradingAgents/archive/01477f9afb7a47b849ed4c9259d3a9a4738d9fda.tar.gz",
     "uvicorn>=0.40,<1",
 ]
@@ -27,3 +28,4 @@ package = false
 
 [tool.uv.sources]
 stonks-contracts = { path = "../../packages/contracts" }
+stonks-service-auth = { path = "../../packages/service-auth" }

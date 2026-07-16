@@ -45,7 +45,12 @@ integrations:
       - tradingagents-backtest
       - tradingagents-production
     config_paths: [config/workers/tradingagents.yaml]
-    required_environment: []
+    required_environment:
+      - STONKS_SERVICE_OIDC_ISSUER
+      - STONKS_SERVICE_OIDC_CORE_SUBJECT
+      - STONKS_SERVICE_OIDC_CORE_CLIENT_ID
+      - STONKS_SERVICE_OIDC_JWKS_HOST_FILE
+      - STONKS_TRADINGAGENTS_SERVICE_OIDC_AUDIENCE
     network_policy: internal
     output_scope: research_artifact
     affects_core_readiness: false
@@ -67,7 +72,13 @@ integrations:
     kind: worker
     compose_profiles: [kronos-cpu, kronos-cuda]
     config_paths: [config/workers/kronos_cpu.yaml, config/workers/kronos_cuda.yaml]
-    required_environment: [STONKS_KRONOS_MODEL_ROOT]
+    required_environment:
+      - STONKS_KRONOS_MODEL_ROOT
+      - STONKS_SERVICE_OIDC_ISSUER
+      - STONKS_SERVICE_OIDC_CORE_SUBJECT
+      - STONKS_SERVICE_OIDC_CORE_CLIENT_ID
+      - STONKS_SERVICE_OIDC_JWKS_HOST_FILE
+      - STONKS_KRONOS_SERVICE_OIDC_AUDIENCE
     network_policy: internal
     output_scope: forecast_only
     affects_core_readiness: false
@@ -89,7 +100,12 @@ integrations:
     kind: worker
     compose_profiles: [qlib]
     config_paths: []
-    required_environment: []
+    required_environment:
+      - STONKS_SERVICE_OIDC_ISSUER
+      - STONKS_SERVICE_OIDC_CORE_SUBJECT
+      - STONKS_SERVICE_OIDC_CORE_CLIENT_ID
+      - STONKS_SERVICE_OIDC_JWKS_HOST_FILE
+      - STONKS_QUANT_LAB_SERVICE_OIDC_AUDIENCE
     network_policy: internal
     output_scope: evaluation_only
     affects_core_readiness: false
@@ -114,7 +130,11 @@ integrations:
     required_environment:
       - STONKS_NAUTILUS_RUNTIME_HASH
       - STONKS_NAUTILUS_IMAGE_DIGEST
-      - STONKS_NAUTILUS_SERVICE_TOKEN
+      - STONKS_SERVICE_OIDC_ISSUER
+      - STONKS_SERVICE_OIDC_CORE_SUBJECT
+      - STONKS_SERVICE_OIDC_CORE_CLIENT_ID
+      - STONKS_SERVICE_OIDC_JWKS_HOST_FILE
+      - STONKS_NAUTILUS_SERVICE_OIDC_AUDIENCE
     network_policy: internal
     output_scope: evaluation_only
     affects_core_readiness: false
@@ -139,7 +159,11 @@ integrations:
     required_environment:
       - STONKS_LEAN_RUNTIME_HASH
       - STONKS_LEAN_IMAGE_DIGEST
-      - STONKS_LEAN_SERVICE_TOKEN
+      - STONKS_SERVICE_OIDC_ISSUER
+      - STONKS_SERVICE_OIDC_CORE_SUBJECT
+      - STONKS_SERVICE_OIDC_CORE_CLIENT_ID
+      - STONKS_SERVICE_OIDC_JWKS_HOST_FILE
+      - STONKS_LEAN_SERVICE_OIDC_AUDIENCE
     network_policy: internal
     output_scope: evaluation_only
     affects_core_readiness: false

@@ -3,13 +3,23 @@
 
 from __future__ import annotations
 
+import importlib
+import os
 from pathlib import Path
 
 from fastapi import Request
-from openbb_core.api.rest_api import app as openbb_app
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import FileResponse, JSONResponse, Response
 from surface import SurfaceAllowlist
+
+from stonks_service_auth import (
+    load_static_oidc_service_authenticator,
+    validate_isolated_runtime_environment,
+)
+
+validate_isolated_runtime_environment(os.environ)
+_authenticator = load_static_oidc_service_authenticator(os.environ)
+openbb_app = importlib.import_module("openbb_core.api.rest_api").app
 
 SOURCE_ARCHIVE = Path("/srv/stonks-openbb-sidecar-source.tar.gz")
 SOURCE_LINK = '</source>; rel="source"; type="application/gzip"'
@@ -64,4 +74,7 @@ async def healthz() -> JSONResponse:
     )
 
 
-app = SurfaceAllowlist(openbb_app)
+app = SurfaceAllowlist(
+    openbb_app,
+    authenticator=_authenticator,
+)

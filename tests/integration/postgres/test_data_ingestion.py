@@ -19,7 +19,11 @@ pytestmark = pytest.mark.postgres
 NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
 
 
-def request(*, query: dict[str, object]) -> CreateSnapshotRequest:
+def request(
+    *,
+    query: dict[str, object],
+    owner_subject: str = "test-owner",
+) -> CreateSnapshotRequest:
     return CreateSnapshotRequest(
         market="US",
         capability="prices",
@@ -27,6 +31,7 @@ def request(*, query: dict[str, object]) -> CreateSnapshotRequest:
         query=query,
         provider_policy_id="us-prices/1",
         idempotency_key="snapshot-idempotency",
+        owner_subject=owner_subject,
         requested_at=NOW,
     )
 
@@ -53,6 +58,34 @@ def test_snapshot_run_and_job_are_atomic_and_idempotent(clean_database: Engine) 
         payload = connection.scalar(text("select payload from job"))
     assert isinstance(payload, dict)
     assert "snapshot_id" not in payload
+
+
+def test_snapshot_idempotency_is_scoped_to_owner(clean_database: Engine) -> None:
+    store = PostgresSnapshotRequestStore(clean_database)
+
+    first = store.submit(
+        request(query={"symbol": "AAPL"}, owner_subject="researcher:alice")
+    )
+    second = store.submit(
+        request(query={"symbol": "AAPL"}, owner_subject="researcher:bob")
+    )
+
+    assert isinstance(first, Success)
+    assert isinstance(second, Success)
+    assert first.value.run_id != second.value.run_id
+    assert first.value.job_id != second.value.job_id
+    with clean_database.connect() as connection:
+        records = connection.execute(
+            text(
+                "select r.run_id, r.owner_subject, j.job_id "
+                "from run r join job j using (run_id) order by r.owner_subject"
+            )
+        ).all()
+    rows = [(row.run_id, row.owner_subject, row.job_id) for row in records]
+    assert rows == [
+        (first.value.run_id, "researcher:alice", first.value.job_id),
+        (second.value.run_id, "researcher:bob", second.value.job_id),
+    ]
 
 
 def test_snapshot_retry_rejects_request_timestamp_drift(
@@ -164,7 +197,10 @@ def test_data_cli_enqueues_and_returns_refs(
             "--idempotency-key",
             "cli-snapshot-1",
         ],
-        env={"STONKS_DATABASE_URL": postgres_url},
+        env={
+            "STONKS_DATABASE_URL": postgres_url,
+            "STONKS_ENVIRONMENT": "test",
+        },
     )
 
     assert result.exit_code == 0

@@ -13,7 +13,12 @@ from stonks_agent.domain.errors import Result
 class AuthenticationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    authorization: str | None = Field(default=None, max_length=4096)
+    authorization: str | None = Field(
+        default=None,
+        max_length=4096,
+        repr=False,
+        exclude=True,
+    )
     client_host: str | None = Field(default=None, max_length=255)
 
 

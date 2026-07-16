@@ -32,7 +32,7 @@ from stonks_agent.application.projections.queries import (
     read_risk_projection,
     record_nav_projection,
 )
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import AccessTarget, LocalPrincipal, ResourceKind, Role
 from stonks_agent.domain.errors import Success
 from stonks_agent.domain.monitoring import (
     BuildOutcomeCommand,
@@ -52,7 +52,11 @@ from stonks_contracts.report import (
 
 pytestmark = [pytest.mark.e2e, pytest.mark.postgres]
 pytest_plugins = ["integration.postgres.conftest"]
-VIEWER = LocalPrincipal(subject="viewer:p4-gate", roles=frozenset({Role.VIEWER}))
+VIEWER = LocalPrincipal(
+    subject="viewer:p4-gate",
+    roles=frozenset({Role.VIEWER}),
+    targets=frozenset({AccessTarget(kind=ResourceKind.ACCOUNT, identifier=ACCOUNT_ID)}),
+)
 BENCHMARK = UUID("77000000-0000-4000-8000-000000000001")
 
 
@@ -208,6 +212,8 @@ def _report(outcome, evidence_id):  # type: ignore[no-untyped-def]
     fill = outcome.fill_refs[0]
     return AnalysisReport(
         report_id=UUID(int=107),
+        run_id=UUID(int=108),
+        owner_subject="paper-report-owner",
         subject=ACCOUNT_ID,
         as_of=outcome.calculated_at,
         language="zh-TW",

@@ -165,6 +165,29 @@ def test_sqlalchemy_metadata_matches_migration(migrated_engine: Engine) -> None:
     assert set(inspect(migrated_engine).get_table_names()) >= EXPECTED_TABLES
 
 
+def test_auth_ownership_migration_backfills_and_survives_reupgrade(
+    migrated_engine: Engine,
+    alembic_config: Config,
+) -> None:
+    legacy_run_id = uuid4()
+    command.downgrade(alembic_config, "0014")
+    try:
+        assert "owner_subject" not in {
+            column["name"] for column in inspect(migrated_engine).get_columns("run")
+        }
+        with migrated_engine.begin() as connection:
+            _insert_legacy_run(connection, legacy_run_id)
+
+        command.upgrade(alembic_config, "0015")
+        _assert_auth_ownership_schema(migrated_engine, legacy_run_id)
+
+        command.downgrade(alembic_config, "0014")
+        command.upgrade(alembic_config, "0015")
+        _assert_auth_ownership_schema(migrated_engine, legacy_run_id)
+    finally:
+        command.upgrade(alembic_config, "head")
+
+
 def test_append_only_artifact_rejects_update_and_delete(
     migrated_engine: Engine,
 ) -> None:
@@ -728,10 +751,10 @@ def _insert_run(connection: Connection, run_id: UUID) -> None:
             """
             insert into run
                 (run_id, run_type, status, as_of, policy_id, idempotency_key,
-                 input_hash, created_at, updated_at)
+                 input_hash, owner_subject, created_at, updated_at)
             values
                 (:run_id, 'ingestion', 'queued', :now, 'policy/1',
-                 :idempotency_key, :input_hash, :now, :now)
+                 :idempotency_key, :input_hash, 'system:test', :now, :now)
             """
         ),
         {
@@ -741,6 +764,41 @@ def _insert_run(connection: Connection, run_id: UUID) -> None:
             "input_hash": "e" * 64,
         },
     )
+
+
+def _insert_legacy_run(connection: Connection, run_id: UUID) -> None:
+    connection.execute(
+        text(
+            """
+            insert into run
+                (run_id, run_type, status, as_of, policy_id, idempotency_key,
+                 input_hash, created_at, updated_at)
+            values
+                (:run_id, 'ingestion', 'queued', :now, 'policy/1',
+                 :idempotency_key, :input_hash, :now, :now)
+            """
+        ),
+        {
+            "run_id": run_id,
+            "now": NOW,
+            "idempotency_key": f"legacy-run-{run_id}",
+            "input_hash": "d" * 64,
+        },
+    )
+
+
+def _assert_auth_ownership_schema(engine: Engine, run_id: UUID) -> None:
+    columns = {column["name"]: column for column in inspect(engine).get_columns("run")}
+    assert columns["owner_subject"]["nullable"] is False
+    assert "ix_run_owner_subject" in {
+        index["name"] for index in inspect(engine).get_indexes("run")
+    }
+    with engine.connect() as connection:
+        owner = connection.scalar(
+            text("select owner_subject from run where run_id = :run_id"),
+            {"run_id": run_id},
+        )
+    assert owner == "system:legacy"
 
 
 def _insert_paper_account(connection: Connection, account_id: str) -> None:

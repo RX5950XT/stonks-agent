@@ -53,6 +53,12 @@ class GenerateReportRequest(BaseModel):
 
     request_id: UUID
     report_id: UUID
+    run_id: UUID
+    owner_subject: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:@/+=-]{0,254}$",
+    )
     context: AnalysisContext
     language: str = Field(min_length=2, max_length=32)
     report_type: str = Field(pattern=r"^[a-z][a-z0-9_.-]{0,63}$")
@@ -79,6 +85,8 @@ class GenerateReportRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_deadline(self) -> Self:
+        if self.run_id != self.context.run_id:
+            raise ValueError("report run identity changed")
         if self.deadline_at <= self.context.as_of:
             raise ValueError("report deadline must be later than context as_of")
         if len(self.signal_ids) != len(set(self.signal_ids)):

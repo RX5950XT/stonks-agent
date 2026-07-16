@@ -16,6 +16,7 @@ ENV HOME=/tmp/worker \
 WORKDIR /workspace/workers/tradingagents
 COPY workers/tradingagents/pyproject.toml workers/tradingagents/uv.lock ./
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY workers/__init__.py /workspace/workers/__init__.py

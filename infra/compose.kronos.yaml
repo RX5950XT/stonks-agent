@@ -7,8 +7,16 @@ services:
     environment:
       STONKS_KRONOS_MODEL_ROOT: /models
       STONKS_KRONOS_PROFILE: cpu
+      STONKS_SERVICE_OIDC_ISSUER: ${STONKS_SERVICE_OIDC_ISSUER:?required}
+      STONKS_SERVICE_OIDC_AUDIENCE: ${STONKS_KRONOS_SERVICE_OIDC_AUDIENCE:?required}
+      STONKS_SERVICE_OIDC_CORE_SUBJECT: ${STONKS_SERVICE_OIDC_CORE_SUBJECT:?required}
+      STONKS_SERVICE_OIDC_CORE_CLIENT_ID: ${STONKS_SERVICE_OIDC_CORE_CLIENT_ID:?required}
+      STONKS_SERVICE_OIDC_ALGORITHMS: RS256
+      STONKS_SERVICE_OIDC_RECEIVER: kronos
+      STONKS_SERVICE_OIDC_JWKS_FILE: /run/secrets/stonks-service-jwks.json
     volumes:
       - "${STONKS_KRONOS_MODEL_ROOT:-../.data/models/kronos}:/models:ro"
+      - "${STONKS_SERVICE_OIDC_JWKS_HOST_FILE:?required}:/run/secrets/stonks-service-jwks.json:ro"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -23,8 +31,16 @@ services:
     environment:
       STONKS_KRONOS_MODEL_ROOT: /models
       STONKS_KRONOS_PROFILE: cuda
+      STONKS_SERVICE_OIDC_ISSUER: ${STONKS_SERVICE_OIDC_ISSUER:?required}
+      STONKS_SERVICE_OIDC_AUDIENCE: ${STONKS_KRONOS_SERVICE_OIDC_AUDIENCE:?required}
+      STONKS_SERVICE_OIDC_CORE_SUBJECT: ${STONKS_SERVICE_OIDC_CORE_SUBJECT:?required}
+      STONKS_SERVICE_OIDC_CORE_CLIENT_ID: ${STONKS_SERVICE_OIDC_CORE_CLIENT_ID:?required}
+      STONKS_SERVICE_OIDC_ALGORITHMS: RS256
+      STONKS_SERVICE_OIDC_RECEIVER: kronos
+      STONKS_SERVICE_OIDC_JWKS_FILE: /run/secrets/stonks-service-jwks.json
     volumes:
       - "${STONKS_KRONOS_MODEL_ROOT:-../.data/models/kronos}:/models:ro"
+      - "${STONKS_SERVICE_OIDC_JWKS_HOST_FILE:?required}:/run/secrets/stonks-service-jwks.json:ro"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

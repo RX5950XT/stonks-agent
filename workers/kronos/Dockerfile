@@ -22,6 +22,7 @@ ENV PATH=/workspace/workers/kronos/.venv/bin:$PATH
 WORKDIR /workspace/workers/kronos
 COPY workers/kronos/pyproject.toml workers/kronos/uv.lock ./
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 RUN uv sync --frozen --no-dev --no-install-project
 
 FROM source AS cuda
@@ -29,6 +30,7 @@ ENV PATH=/workspace/workers/kronos/profiles/cuda/.venv/bin:$PATH
 WORKDIR /workspace/workers/kronos/profiles/cuda
 COPY workers/kronos/profiles/cuda/pyproject.toml workers/kronos/profiles/cuda/uv.lock ./
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 RUN uv sync --frozen --no-dev --no-install-project
 
 FROM cuda AS runtime-cuda

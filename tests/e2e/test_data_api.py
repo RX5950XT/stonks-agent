@@ -208,7 +208,8 @@ def test_data_api_wraps_oversized_authorization_validation_error() -> None:
         },
     )
 
-    _assert_error_envelope(response, status=400, code="invalid_input")
+    _assert_error_envelope(response, status=401, code="unauthorized")
+    assert response.headers["www-authenticate"] == "Bearer"
     assert secret not in response.text
 
 
@@ -242,6 +243,7 @@ def test_data_api_redacts_unexpected_exception_in_uniform_500_envelope() -> None
 
 def authenticator() -> LocalTokenAuthenticator:
     return LocalTokenAuthenticator(
+        environment="test",
         token=TOKEN,
         subject="local-researcher",
         roles=frozenset({Role.RESEARCHER}),

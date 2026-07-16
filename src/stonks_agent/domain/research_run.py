@@ -26,6 +26,11 @@ class ResearchRunRequest(BaseModel):
     model_policy_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$")
     language: str = Field(pattern=r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$")
     idempotency_key: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9:_.-]{0,127}$")
+    owner_subject: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:@/+=-]{0,254}$",
+    )
     requested_at: UTCDateTime
     execution_mode: Literal["paper"] = "paper"
 

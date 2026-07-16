@@ -12,7 +12,7 @@ from stonks_agent.application.operations.activate_kill_switch import (
 )
 from stonks_agent.application.operations.reconcile import reconcile_paper_state
 from stonks_agent.application.operations.resume import resume_paper
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import AccessTarget, LocalPrincipal, ResourceKind, Role
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.ledger import LedgerReconciliationReport
 from stonks_agent.domain.operations import (
@@ -32,8 +32,16 @@ from stonks_agent.ports.trading_unit_of_work import TradingCommitError
 HASH_A = "a" * 64
 ACTION_ID = UUID("89000000-0000-4000-8000-000000000001")
 OPERATOR = LocalPrincipal(
-    subject="operator:one", roles=frozenset({Role.PAPER_OPERATOR})
+    subject="operator:one",
+    roles=frozenset({Role.PAPER_OPERATOR}),
+    targets=frozenset(
+        {
+            AccessTarget(kind=ResourceKind.ACCOUNT, identifier=ACCOUNT_ID),
+            AccessTarget(kind=ResourceKind.PAPER_GLOBAL, identifier="global"),
+        }
+    ),
 )
+ADMIN = LocalPrincipal(subject="admin:one", roles=frozenset({Role.ADMIN}))
 RESEARCHER = LocalPrincipal(
     subject="researcher:one", roles=frozenset({Role.RESEARCHER})
 )
@@ -203,8 +211,10 @@ class Factory:
             drift=drift,
             fail_commit=fail_commit,
         )
+        self.calls = 0
 
     def __call__(self) -> FakeUnitOfWork:
+        self.calls += 1
         return self.uow
 
 
@@ -266,7 +276,7 @@ def test_reads_return_verified_state_and_action_chain() -> None:
 
     state_result = read_kill_switch(OPERATOR, KillSwitchScope.GLOBAL, None, factory)
     actions_result = read_operator_actions(
-        OPERATOR, after_sequence=0, unit_of_work=factory
+        ADMIN, after_sequence=0, unit_of_work=factory
     )
 
     assert state_result == Success(factory.operations.state)
@@ -323,6 +333,34 @@ def test_commit_failure_never_reports_success() -> None:
 
     assert isinstance(result, Failure)
     assert result.error.code is ErrorCode.INTERNAL_ERROR
+
+
+def test_cross_account_global_and_audit_access_are_denied_before_uow() -> None:
+    factory = Factory()
+    other_account = LocalPrincipal(
+        subject="operator:other",
+        roles=frozenset({Role.PAPER_OPERATOR}),
+        targets=frozenset(
+            {
+                AccessTarget(
+                    kind=ResourceKind.ACCOUNT,
+                    identifier="paper-other",
+                )
+            }
+        ),
+    )
+
+    results = (
+        activate_kill_switch(other_account, activate_command(), factory),
+        reconcile_paper_state(other_account, reconcile_command(), factory),
+        read_operator_actions(OPERATOR, after_sequence=0, unit_of_work=factory),
+    )
+
+    assert all(
+        isinstance(result, Failure) and result.error.code is ErrorCode.FORBIDDEN
+        for result in results
+    )
+    assert factory.calls == 0
 
 
 def _matched_report() -> LedgerReconciliationReport:

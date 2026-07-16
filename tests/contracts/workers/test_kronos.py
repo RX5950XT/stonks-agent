@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import pytest
 import yaml
@@ -19,10 +20,16 @@ from stonks_contracts.kronos import (
     KronosWorkerRequest,
     VolumeQuality,
 )
+from stonks_service_auth import ServiceReceiver
 
 ROOT = Path(__file__).parents[3]
 WORKER = ROOT / "workers" / "kronos"
 sys.path.insert(0, str(ROOT))
+
+from fixtures.service_auth import (  # noqa: E402
+    ExactServiceAuthenticator,
+    authorization_headers,
+)
 
 from workers.kronos.adapter import (  # noqa: E402
     KronosPreflightRequest,
@@ -561,28 +568,62 @@ def test_http_liveness_readiness_and_bounded_preflight(tmp_path: Path) -> None:
         factory=lambda _paths, _profile: object(),
     )
     worker = KronosWorker(policy=_policy(manifest), loader=loader)
-    client = TestClient(create_app(worker=worker, max_request_bytes=4_096))
+    preflight_request = _request(manifest)
+    client = TestClient(
+        create_app(
+            worker=worker,
+            authenticator=ExactServiceAuthenticator.for_request(
+                preflight_request,
+                receiver=ServiceReceiver.KRONOS,
+            ),
+            max_request_bytes=4_096,
+        )
+    )
 
     assert client.get("/healthz").status_code == 200
     assert client.get("/readyz").status_code == 503
     loader.warm()
     ready = client.get("/readyz")
     accepted = client.post(
-        "/v1/preflight", json=_request(manifest).model_dump(mode="json")
+        "/v1/preflight",
+        json=preflight_request.model_dump(mode="json"),
+        headers=authorization_headers(),
     )
     invalid = client.post(
-        "/v1/preflight", content=b"{}", headers={"content-type": "text/plain"}
+        "/v1/preflight",
+        content=b"{}",
+        headers={**authorization_headers(), "content-type": "text/plain"},
     )
     oversized = client.post(
         "/v1/preflight",
         content=b"x" * 4_097,
-        headers={"content-type": "application/json"},
+        headers={**authorization_headers(), "content-type": "application/json"},
     )
+    hostile_lengths = tuple(
+        client.post(
+            "/v1/preflight",
+            content=b"{}",
+            headers={
+                **authorization_headers(),
+                "content-length": declared,
+                "content-type": "application/json",
+            },
+        )
+        for declared in ("9" * 5_000, "not-a-number")
+    )
+    unauthenticated = client.post("/v1/preflight", json={})
 
     assert ready.status_code == 200 and ready.json()["data"]["ready"] is True
     assert accepted.status_code == 200 and accepted.json()["success"] is True
     assert invalid.status_code == 415
     assert oversized.status_code == 413
+    assert all(response.status_code == 413 for response in hostile_lengths)
+    assert all(
+        response.json()["error"]["code"] == "request_too_large"
+        for response in hostile_lengths
+    )
+    assert unauthenticated.status_code == 401
+    assert unauthenticated.headers["www-authenticate"] == "Bearer"
 
 
 def test_http_forecast_returns_lease_fenced_response(tmp_path: Path) -> None:
@@ -601,15 +642,61 @@ def test_http_forecast_returns_lease_fenced_response(tmp_path: Path) -> None:
         clock=lambda: datetime(2026, 1, 9, 21, 1, tzinfo=UTC),
     )
     loader.warm()
-    client = TestClient(create_app(worker=worker, max_request_bytes=65_536))
+    forecast_request = _forecast_request(policy)
+    bound_authenticator = ExactServiceAuthenticator.for_request(
+        forecast_request,
+        receiver=ServiceReceiver.KRONOS,
+    )
+    client = TestClient(
+        create_app(
+            worker=worker,
+            authenticator=bound_authenticator,
+            max_request_bytes=65_536,
+        )
+    )
 
     response = client.post(
-        "/v1/forecast", json=_forecast_request(policy).model_dump(mode="json")
+        "/v1/forecast",
+        json=forecast_request.model_dump(mode="json"),
+        headers=authorization_headers(),
+    )
+    denied = client.post(
+        "/v1/forecast",
+        json=forecast_request.model_dump(mode="json"),
+        headers={"authorization": "Bearer wrong-but-long-service-token"},
+    )
+    wrong_target = TestClient(
+        create_app(
+            worker=worker,
+            authenticator=ExactServiceAuthenticator.for_request(
+                forecast_request,
+                receiver=ServiceReceiver.KRONOS,
+                target_identifier=UUID(int=999),
+            ),
+        )
+    ).post(
+        "/v1/forecast",
+        json=forecast_request.model_dump(mode="json"),
+        headers=authorization_headers(),
+    )
+    wrong_fence = TestClient(
+        create_app(
+            worker=worker,
+            authenticator=bound_authenticator.altered(attempt_nonce_hash="f" * 64),
+        )
+    ).post(
+        "/v1/forecast",
+        json=forecast_request.model_dump(mode="json"),
+        headers=authorization_headers(),
     )
 
     assert response.status_code == 200
     assert response.json()["data"]["attempt_nonce"] == "nonce-2"
     assert len(response.json()["data"]["result"]["paths"]) == 3
+    assert denied.status_code == 401
+    assert wrong_target.status_code == 403
+    assert wrong_fence.status_code == 403
+    assert runtime.seeds == [17, 18, 19]
 
 
 @pytest.mark.parametrize(

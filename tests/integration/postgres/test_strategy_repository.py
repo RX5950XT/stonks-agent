@@ -20,7 +20,7 @@ from stonks_agent.adapters.postgres.strategy_repository import (
     PostgresStrategyRepository,
 )
 from stonks_agent.adapters.postgres.unit_of_work import PostgresUnitOfWork
-from stonks_agent.domain.auth import Role
+from stonks_agent.domain.auth import AccessTarget, ResourceKind, Role
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.evaluation import (
     MANDATORY_EVALUATION_CHECKS,
@@ -374,9 +374,18 @@ def test_strategy_api_and_cli_share_postgres_cas_and_verified_audit(
         create_strategy_app(
             lambda: PostgresUnitOfWork(strategy_database),
             LocalTokenAuthenticator(
+                environment="test",
                 token=TOKEN,
                 subject="reviewer:postgres",
                 roles=frozenset({Role.STRATEGY_REVIEWER}),
+                targets=frozenset(
+                    {
+                        AccessTarget(
+                            kind=ResourceKind.STRATEGY,
+                            identifier=f"{STRATEGY_ID}@{STRATEGY_VERSION}",
+                        )
+                    }
+                ),
                 allowed_hosts=frozenset({"testclient"}),
             ),
             clock=lambda: NOW + timedelta(minutes=1),
@@ -413,6 +422,7 @@ def test_strategy_api_and_cli_share_postgres_cas_and_verified_audit(
             "--database-url",
             str(strategy_database.url),
         ],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
 
     assert promoted.status_code == 200

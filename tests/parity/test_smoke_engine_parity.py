@@ -19,14 +19,14 @@ def test_real_sidecar_smoke_matrix_has_stable_cross_engine_inputs() -> None:
     nautilus = _endpoint(
         BacktestEngineKind.NAUTILUS,
         "http://nautilus:7400",
-        "test-token",
+        (),
         HASH_A,
         f"sha256:{HASH_A}",
     )
     lean = _endpoint(
         BacktestEngineKind.LEAN,
         "http://lean:7410",
-        "test-token",
+        (),
         HASH_B,
         f"sha256:{HASH_B}",
     )

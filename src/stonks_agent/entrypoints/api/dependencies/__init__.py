@@ -1,0 +1,1 @@
+"""Shared FastAPI dependency factories."""

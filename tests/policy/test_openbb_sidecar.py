@@ -9,6 +9,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any, ClassVar
 
+import jwt
 import pytest
 import yaml
 from pytest import MonkeyPatch
@@ -21,6 +22,17 @@ EXPECTED_ORIGIN = "http://127.0.0.1:6900"
 def _load_smoke_module() -> object:
     spec = spec_from_file_location(
         "smoke_openbb_under_test", ROOT / "scripts" / "smoke_openbb.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_smoke_auth_module() -> Any:
+    spec = spec_from_file_location(
+        "prepare_openbb_smoke_auth_under_test",
+        ROOT / "scripts" / "prepare_openbb_smoke_auth.py",
     )
     assert spec is not None and spec.loader is not None
     module = module_from_spec(spec)
@@ -59,6 +71,13 @@ def test_openbb_packages_are_exact_and_have_embedded_source() -> None:
         assert str(item["sdist_url"]) in dockerfile
     assert "uv sync --frozen" in dockerfile
     assert "uv run --frozen openbb-build" in dockerfile
+    project = tomllib.loads((SIDECAR / "pyproject.toml").read_text(encoding="utf-8"))
+    assert "stonks-service-auth" in project["project"]["dependencies"]
+    assert project["tool"]["uv"]["sources"]["stonks-service-auth"] == {
+        "path": "../../packages/service-auth"
+    }
+    assert "COPY packages/service-auth" in dockerfile
+    assert "/srv/source-tree/packages/service-auth" in dockerfile
 
 
 def test_lock_and_sbom_match_source_manifest() -> None:
@@ -143,6 +162,17 @@ def test_transport_is_consistent_and_runtime_is_immutable() -> None:
     assert service["user"] == "65532:65532"
     assert service["cap_drop"] == ["ALL"]
     assert service["environment"]["OPENBB_AUTO_BUILD"] == "false"
+    assert service["build"] == {
+        "context": "..",
+        "dockerfile": "sidecars/openbb/Dockerfile",
+    }
+    assert service["environment"]["STONKS_SERVICE_OIDC_JWKS_FILE"] == (
+        "/run/secrets/stonks-service-jwks.json"
+    )
+    assert any(
+        value.endswith(":/run/secrets/stonks-service-jwks.json:ro")
+        for value in service["volumes"]
+    )
     assert "healthz" in " ".join(service["healthcheck"]["test"])
     assert service["labels"]["stonks.transport.canonical-origin"] == EXPECTED_ORIGIN
     assert service["labels"]["stonks.transport.rest-endpoint"] == (
@@ -164,6 +194,7 @@ def test_source_offer_and_notice_are_packaged() -> None:
         "pyproject.toml",
         "sbom.cdx.json",
         "uv.lock",
+        "packages/service-auth",
     }
     for name in required:
         assert name in dockerfile
@@ -186,8 +217,13 @@ def test_sidecar_exports_only_the_allowlisted_asgi_surface() -> None:
     app_source = (SIDECAR / "app.py").read_text(encoding="utf-8")
     dockerfile = (SIDECAR / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "from openbb_core.api.rest_api import app as openbb_app" in app_source
-    assert "app = SurfaceAllowlist(openbb_app)" in app_source
+    isolation = "validate_isolated_runtime_environment(os.environ)"
+    authentication = "load_static_oidc_service_authenticator(os.environ)"
+    upstream = 'importlib.import_module("openbb_core.api.rest_api")'
+    assert app_source.index(isolation) < app_source.index(authentication)
+    assert app_source.index(authentication) < app_source.index(upstream)
+    assert "app = SurfaceAllowlist(" in app_source
+    assert "authenticator=" in app_source
     assert "surface.py" in dockerfile
 
 
@@ -195,11 +231,43 @@ def test_ci_audits_frozen_sidecar_lock_and_runs_live_smoke() -> None:
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
     assert "uv export --project sidecars/openbb" in workflow
+    assert "--no-emit-project --no-emit-local --format requirements.txt" in workflow
     assert "uv run pip-audit --strict --requirement" in workflow
     assert "uv run python scripts/smoke_openbb.py" in workflow
     assert workflow.index("Start healthy optional sidecar") < workflow.index(
         "uv run python scripts/smoke_openbb.py"
     )
+
+
+def test_ephemeral_smoke_identity_is_bound_to_the_exact_adapter_query() -> None:
+    module = _load_smoke_auth_module()
+    _jwks, token = module._material()
+    claims = jwt.decode(token, options={"verify_signature": False})
+    payload = {
+        "method": "GET",
+        "path": "/api/v1/equity/price/historical",
+        "query": {
+            "end_date": "2024-01-03",
+            "provider": "yfinance",
+            "start_date": "2024-01-02",
+            "symbol": "AAPL",
+        },
+    }
+    expected_hash = hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+    assert claims["stonks_permission"] == "dispatch_assigned_market_data"
+    assert claims["stonks_attempt_generation"] == 0
+    assert claims["stonks_attempt_nonce_hash"] == expected_hash
+    assert claims["stonks_request_hash"] == expected_hash
+    assert claims["stonks_targets"] == ["market:US/AAPL"]
 
 
 def _source_archive(

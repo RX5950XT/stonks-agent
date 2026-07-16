@@ -1,0 +1,35 @@
+schema_version: 1
+roles:
+  - role: viewer
+    permissions: [read]
+    claim_values: ["stonks:viewer"]
+  - role: researcher
+    permissions: [read, run_research]
+    claim_values: ["stonks:researcher"]
+  - role: strategy_reviewer
+    permissions: [read, run_research, review_strategy]
+    claim_values: ["stonks:strategy-reviewer"]
+  - role: paper_operator
+    permissions: [read, operate_paper]
+    claim_values: ["stonks:paper-operator"]
+  - role: admin
+    permissions: [read, run_research, review_strategy, operate_paper, administer]
+    claim_values: ["stonks:admin"]
+service_identities:
+  - identity: core_runner
+    permissions: [dispatch_assigned_research, dispatch_assigned_backtest, dispatch_assigned_market_data, preflight_assigned_research]
+    subjects: ["service:core-runner"]
+    client_ids: ["stonks-core-runner"]
+  - identity: research_worker
+    permissions: [read_assigned_artifact, complete_assigned_research]
+    subjects: ["service:research-worker"]
+    client_ids: ["stonks-research-worker"]
+  - identity: paper_executor
+    permissions: [execute_assigned_paper]
+    subjects: ["service:paper-executor"]
+    client_ids: ["stonks-paper-executor"]
+claims:
+  roles: stonks_roles
+  targets: stonks_targets
+  service_identity: stonks_service_identity
+admin_all_targets: true

@@ -120,7 +120,7 @@ def _create_manifest(
 ) -> Result[CanonicalDatasetSnapshotManifest]:
     try:
         manifest = CanonicalDatasetSnapshotManifest(
-            request_hash=request.input_hash,
+            request_hash=request.request_hash,
             market=request.market,
             capability=request.capability,
             as_of=request.as_of,

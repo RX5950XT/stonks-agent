@@ -18,6 +18,8 @@ RISK_ID = UUID("73000000-0000-4000-8000-000000000002")
 def _report(**overrides: object) -> AnalysisReport:
     values: dict[str, object] = {
         "report_id": UUID("73000000-0000-4000-8000-000000000003"),
+        "run_id": UUID("73000000-0000-4000-8000-000000000004"),
+        "owner_subject": "paper-report-owner",
         "subject": "paper-account",
         "as_of": datetime(2026, 7, 14, tzinfo=UTC),
         "language": "zh-TW",

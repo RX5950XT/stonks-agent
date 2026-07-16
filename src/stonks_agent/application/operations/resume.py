@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from stonks_agent.application.operations._authorization import authorize_paper_scope
 from stonks_agent.application.operations._common import (
     commit_or_failure,
     reconcile_locked_account,
 )
 from stonks_agent.domain._trading import failure
-from stonks_agent.domain.auth import LocalPrincipal, Permission, authorize
+from stonks_agent.domain.auth import LocalPrincipal
 from stonks_agent.domain.errors import ErrorCode, Failure, Result
 from stonks_agent.domain.ledger import LedgerReconciliationReport
 from stonks_agent.domain.operations import PaperOperationRecord, ResumePaperCommand
@@ -24,7 +25,7 @@ def resume_paper(
     command: ResumePaperCommand,
     unit_of_work: PaperOperationsUnitOfWorkFactory,
 ) -> Result[PaperOperationRecord]:
-    granted = authorize(principal, Permission.OPERATE_PAPER)
+    granted = authorize_paper_scope(principal, command.scope, command.account_id)
     if isinstance(granted, Failure):
         return granted
     with unit_of_work() as transaction:

@@ -68,6 +68,7 @@ def _request(
         idempotency_key="offline-replay-two"
         if reversed_query
         else "offline-replay-one",
+        owner_subject="test-owner",
         requested_at=(
             fixture.entry.observed_at + timedelta(days=1)
             if reversed_query

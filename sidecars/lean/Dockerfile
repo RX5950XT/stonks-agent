@@ -5,6 +5,7 @@ ENV UV_LINK_MODE=copy
 WORKDIR /workspace/sidecars/lean
 COPY sidecars/lean/pyproject.toml sidecars/lean/uv.lock ./
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 RUN uv export --frozen --no-dev --no-emit-project --no-emit-local \
       --format requirements.txt --output-file /tmp/requirements.txt \
     && uv pip install --python /usr/local/bin/python3 --target /opt/python-site \
@@ -63,7 +64,7 @@ RUN set -eu; \
 FROM mcr.microsoft.com/dotnet/runtime:10.0-noble@sha256:be255200babf94801c2ebad19dbfb69c87345bdeb481920d0f479c815e52f672 AS runtime
 
 ENV HOME=/tmp/sidecar \
-    PYTHONPATH=/opt/python-site:/workspace:/workspace/packages/contracts/src \
+    PYTHONPATH=/opt/python-site:/workspace:/workspace/packages/contracts/src:/workspace/packages/service-auth/src \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONHASHSEED=0 \
     PYTHONUNBUFFERED=1 \
@@ -77,6 +78,7 @@ RUN apt-get update \
 COPY --from=python-build /opt/python-site /opt/python-site
 COPY --from=lean-build /opt/lean /opt/lean
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 COPY sidecars/__init__.py /workspace/sidecars/__init__.py
 COPY sidecars/lean /workspace/sidecars/lean
 COPY scripts/smoke_lean.py /workspace/scripts/smoke_lean.py

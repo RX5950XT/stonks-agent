@@ -9,6 +9,15 @@ services:
       MKL_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
       PYTHONHASHSEED: "0"
+      STONKS_SERVICE_OIDC_ISSUER: ${STONKS_SERVICE_OIDC_ISSUER:?required}
+      STONKS_SERVICE_OIDC_AUDIENCE: ${STONKS_QUANT_LAB_SERVICE_OIDC_AUDIENCE:?required}
+      STONKS_SERVICE_OIDC_CORE_SUBJECT: ${STONKS_SERVICE_OIDC_CORE_SUBJECT:?required}
+      STONKS_SERVICE_OIDC_CORE_CLIENT_ID: ${STONKS_SERVICE_OIDC_CORE_CLIENT_ID:?required}
+      STONKS_SERVICE_OIDC_ALGORITHMS: RS256
+      STONKS_SERVICE_OIDC_RECEIVER: quant_lab
+      STONKS_SERVICE_OIDC_JWKS_FILE: /run/secrets/stonks-service-jwks.json
+    volumes:
+      - "${STONKS_SERVICE_OIDC_JWKS_HOST_FILE:?required}:/run/secrets/stonks-service-jwks.json:ro"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

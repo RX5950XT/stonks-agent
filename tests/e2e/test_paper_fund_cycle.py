@@ -258,6 +258,7 @@ def _seed_cycle_job(engine: Engine) -> RunPaperCycle:
                 policy_id="paper-fund-cycle/1.0.0",
                 idempotency_key="paper-cycle:e2e",
                 input_hash=INPUT_HASH,
+                owner_subject="system:paper-cycle",
                 created_at=now,
             )
         )

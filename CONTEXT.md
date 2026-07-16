@@ -1,16 +1,18 @@
 # Stonks Agent 開發交接
 
-更新日期：2026-07-15
+更新日期：2026-07-16
 
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0 Foundation、P1 Canonical Data Hub、P2 Research control plane、P3 strategy/forecast/evaluation、P4 PostgreSQL paper fund與P5 external ecosystem phase gates已完成；P4.1–P4.10形成可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環，P5.1–P5.9以authority-free adapters/workers/sidecars、typed default-off catalog與explicit Compose profiles整合external platform、community、forecast、quant lab與simulation engines。下一目標為P6.1 production OIDC/RBAC and service identities。
-- P1/P3/P4目前包含PostgreSQL 0001–0014、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、paper account/trading ledger、execution receipts、operator action chain與immutable portfolio valuations、provider policy、US/HK/TW replay、snapshot與paper projection API/CLI。
+- P0–P5 phase gates與P6.1 production OIDC/RBAC/service identities已完成；paper flow維持可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環。下一目標為P6.2 secret provider and redaction。
+- P1/P3/P4/P6.1目前包含PostgreSQL 0001–0015、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、paper account/trading ledger、execution receipts、operator action chain、immutable portfolio valuations與owner-scoped research/paper records。
+- Human API principal只由server-side asymmetric OIDC/JWKS與frozen RBAC policy建立；central FastAPI dependency及application ownership checks拒絕forged actor/role與IDOR，local token/DB CLI只限明確loopback local/development/test。
+- Remote worker/sidecar只接受exact issuer/audience/azp/permission/target/generation/nonce/deadline service credential；無DB credential、人類角色、operator/admin或paper authority，舊fence與錯誤target fail closed。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
 - Financial Datasets與OpenBB已驗證read-only observation contracts與共用daily query；canonical materialization目前只宣稱replay source。`stonks-worker`只提供claim-once，不宣稱常駐dispatcher。
-- Optional OpenBB sidecar已實測exact GET allowlist、frozen 64-package lock、SBOM/license policy、4個upstream sdists、AGPL source archive與non-root/read-only runtime。
+- Optional OpenBB sidecar已實測exact GET allowlist、exact service OIDC/source identity、frozen 64-package lock、SBOM/license policy、4個upstream sdists、AGPL source archive與non-root/read-only runtime。
 - P2.1新增frozen evidence-scoped research/LLM contracts、immutable usage accounting、runtime-checkable research/LLM/tool ports與deny-by-default tool authorization；principal/profile/policy、instrument/evidence scope、typed args、timeout/output cap、audit redaction及result identity/hash/bytes皆fail closed。
 - P2.2新增read-only PIT context builder、typed planning/final turn loop、pre-authorized parallel read tools與deterministic artifact builder；external content永遠維持untrusted，uncited claim降為hypothesis，budget/deadline/model/tool/scope錯誤皆hard-stop。
 - P2.3新增frozen model policy、offline fake、OpenAI-compatible Chat Completions與Anthropic Messages adapters；固定HTTPS origin/endpoint、exact raw response artifact-first、local JSON Schema validation、bounded transient retry/invalid-output repair、deadline與cache-aware token/cost accounting均fail closed。
@@ -135,11 +137,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P5.7 focused core/backtest/parity/security為33 passed、LEAN sidecar為22 passed；真實internal-network matrix涵蓋7組MARKET/LIMIT、BUY/SELL、DAY/GTC/IOC、partial/shared-volume/multi-session/halted fixtures，每個engine各重播2次，共28次HTTP執行且semantic exact match、native fill provenance各自stable。完整PostgreSQL gate為1313 passed、coverage 87.32%，511 files format、ruff、mypy 282 source files、91 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P5.8 focused root為31 passed、獨立worker為28 passed；actual image runtime/Compose、source/license hashes、593-component SBOM、OpenVEX Grype、escape/network/rootfs/socket/CPU/output/reproducibility smoke全通過。完整PostgreSQL gate為1344 passed、coverage 87.41%，529 files format、ruff、mypy 285 source files、106 schemas、Alembic無drift、upstream/license、secret、core與worker locked dependency audit全通過。
 - P5.9 focused catalog/security為14 passed；zero-default與10個explicit Compose profiles逐一render通過。完整non-PostgreSQL gate為1119 passed、239 deselected、coverage 87.64%；完整PostgreSQL P5 gate為1358 passed、coverage 87.43%，532 files format、ruff、mypy 286 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
+- P6.1完整單程序PostgreSQL gate為1581 passed、3 skipped、coverage 87.45%；564 files format、Ruff、strict mypy 301 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。所有optional manifests可用ephemeral asymmetric issuer/JWKS render；OpenBB hardened live smoke、service ingress matrix與key rotation runbook均已驗證。尚未宣稱連接真實外部IdP，跨host TLS/mTLS留待P6.7 deployment gate。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P6 與架構藍圖。
-2. 保持 TDD；從P6.1 production OIDC/RBAC and service identities開始，沿用P0 local permission port但不得信任client-supplied actor/role。
+2. 保持 TDD；從P6.2 secret provider and redaction開始，以named secret refs取代直接環境secret讀取，production cloud strategy與所有log/event/report/error邊界必須fail closed且可測。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

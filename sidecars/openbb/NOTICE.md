@@ -13,7 +13,9 @@ purpose.
 - Upstream source, exact hashes, patches and build recipe: `SOURCE_OFFER.md`
 
 The `/source` archive includes the four exact OpenBB source distributions used
-by this image under `upstream/`; it does not rely on an expiring written offer.
+by this image under `upstream/`, plus the linked `stonks-service-auth` source and
+Apache-2.0 license under `packages/service-auth/`; it does not rely on an
+expiring written offer. `/source` and `/healthz` remain anonymously accessible.
 
 OpenBB copyright belongs to its respective contributors. OpenBB and Yahoo are
 third-party names and do not imply endorsement of this project.

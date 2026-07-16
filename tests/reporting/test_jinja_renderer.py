@@ -28,6 +28,8 @@ GOLDEN = Path("tests/golden/reports")
 def report(**overrides: object) -> AnalysisReport:
     values: dict[str, object] = {
         "report_id": REPORT_ID,
+        "run_id": UUID("34000000-0000-4000-8000-000000000009"),
+        "owner_subject": "research-owner",
         "subject": "AAPL",
         "as_of": NOW,
         "language": "zh-TW",

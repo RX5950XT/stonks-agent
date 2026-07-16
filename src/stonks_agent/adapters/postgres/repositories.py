@@ -133,7 +133,10 @@ class PostgresWorkflowStore:
             )
         )
         if existing is not None:
-            if existing.input_hash != request.input_hash:
+            if (
+                existing.input_hash != request.input_hash
+                or existing.owner_subject != request.owner_subject
+            ):
                 return _failure(ErrorCode.CONFLICT, "Run idempotency payload mismatch")
             return Success(_workflow_record(existing))
         row = WorkflowRunRow(
@@ -144,6 +147,7 @@ class PostgresWorkflowStore:
             policy_id=request.policy_id,
             idempotency_key=request.idempotency_key,
             input_hash=request.input_hash,
+            owner_subject=request.owner_subject,
             version=1,
             created_at=request.created_at,
             updated_at=request.created_at,
@@ -234,6 +238,7 @@ def _workflow_record(row: WorkflowRunRow) -> WorkflowRunRecord:
         policy_id=row.policy_id,
         idempotency_key=row.idempotency_key,
         input_hash=row.input_hash,
+        owner_subject=row.owner_subject,
         created_at=row.created_at,
         status=WorkflowStatus(row.status),
         version=row.version,

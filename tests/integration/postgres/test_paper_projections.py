@@ -25,14 +25,18 @@ from stonks_agent.application.projections.queries import (
     read_risk_projection,
     record_nav_projection,
 )
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import AccessTarget, LocalPrincipal, ResourceKind, Role
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.monitoring import MarkToMarketCommand, PortfolioValuation
 from stonks_agent.entrypoints.cli import app as cli_app
 
 pytestmark = pytest.mark.postgres
 NOW = datetime(2026, 7, 14, 6, tzinfo=UTC)
-VIEWER = LocalPrincipal(subject="viewer:postgres", roles=frozenset({Role.VIEWER}))
+VIEWER = LocalPrincipal(
+    subject="viewer:postgres",
+    roles=frozenset({Role.VIEWER}),
+    targets=frozenset({AccessTarget(kind=ResourceKind.ACCOUNT, identifier=ACCOUNT_ID)}),
+)
 RUNNER = CliRunner()
 
 
@@ -154,14 +158,17 @@ def test_paper_cli_reads_portfolio_nav_and_risk_projections(
     portfolio = RUNNER.invoke(
         cli_app,
         ["paper", "portfolio", "--account-id", ACCOUNT_ID, "--database-url", database],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
     nav = RUNNER.invoke(
         cli_app,
         ["paper", "nav", "--account-id", ACCOUNT_ID, "--database-url", database],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
     risk = RUNNER.invoke(
         cli_app,
         ["paper", "risk", "--account-id", ACCOUNT_ID, "--database-url", database],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
 
     assert portfolio.exit_code == nav.exit_code == risk.exit_code == 0

@@ -27,6 +27,7 @@ from stonks_contracts.quant_lab import (
     QuantRuntimeIdentity,
     QuantWorkerResponse,
 )
+from stonks_service_auth import service_auth_source_hash
 
 LOGGER = logging.getLogger(__name__)
 RUNTIME_FILES = (
@@ -211,7 +212,12 @@ def compute_runtime_hash(worker_root: Path) -> str:
                 "sha256": hashlib.sha256(contents).hexdigest(),
             }
         )
-    return stable_payload_hash(identities)
+    return stable_payload_hash(
+        {
+            "files": identities,
+            "service_auth_source_hash": service_auth_source_hash(),
+        }
+    )
 
 
 def _split_rows(

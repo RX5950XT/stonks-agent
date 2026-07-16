@@ -7,6 +7,7 @@ license = "Apache-2.0"
 dependencies = [
     "fastapi>=0.128,<1",
     "stonks-contracts",
+    "stonks-service-auth",
     "tzdata>=2025.3,<2027",
     "uvicorn>=0.40,<1",
 ]
@@ -29,3 +30,4 @@ package = false
 
 [tool.uv.sources]
 stonks-contracts = { path = "../../packages/contracts" }
+stonks-service-auth = { path = "../../packages/service-auth" }

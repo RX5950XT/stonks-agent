@@ -15,6 +15,19 @@ from stonks_agent.config.features import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
+SERVICE_OIDC_TRUST = (
+    "STONKS_SERVICE_OIDC_ISSUER",
+    "STONKS_SERVICE_OIDC_CORE_SUBJECT",
+    "STONKS_SERVICE_OIDC_CORE_CLIENT_ID",
+    "STONKS_SERVICE_OIDC_JWKS_HOST_FILE",
+)
+SERVICE_AUDIENCES = {
+    IntegrationName.TRADINGAGENTS: "STONKS_TRADINGAGENTS_SERVICE_OIDC_AUDIENCE",
+    IntegrationName.KRONOS: "STONKS_KRONOS_SERVICE_OIDC_AUDIENCE",
+    IntegrationName.QLIB: "STONKS_QUANT_LAB_SERVICE_OIDC_AUDIENCE",
+    IntegrationName.NAUTILUS: "STONKS_NAUTILUS_SERVICE_OIDC_AUDIENCE",
+    IntegrationName.LEAN: "STONKS_LEAN_SERVICE_OIDC_AUDIENCE",
+}
 
 
 def test_missing_optional_catalog_keeps_every_core_feature_disabled(
@@ -66,6 +79,21 @@ def test_deployable_supply_chain_paths_exist_and_core_dependency_is_denied() -> 
         assert supply_chain.notice_paths
         for relative in supply_chain.lock_paths + supply_chain.notice_paths:
             assert (ROOT / relative).is_file(), relative
+
+
+def test_isolated_runtime_features_require_public_oidc_trust() -> None:
+    catalog = load_optional_feature_catalog(ROOT / "config" / "features.yaml")
+    integrations = {item.name: item for item in catalog.integrations}
+
+    for name, audience in SERVICE_AUDIENCES.items():
+        required = integrations[name].required_environment
+        assert set(SERVICE_OIDC_TRUST) < set(required)
+        assert audience in required
+        assert not any(
+            marker in value
+            for value in required
+            for marker in ("SERVICE_TOKEN", "SIGNING", "PRIVATE", "DATABASE")
+        )
 
 
 @pytest.mark.parametrize(

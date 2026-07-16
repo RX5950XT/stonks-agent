@@ -6,6 +6,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /workspace/sidecars/nautilus
 COPY sidecars/nautilus/pyproject.toml sidecars/nautilus/uv.lock ./
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 RUN uv sync --frozen --no-dev --no-install-project
 RUN python - <<'PY'
 import hashlib
@@ -33,6 +34,7 @@ ENV HOME=/tmp/sidecar \
 WORKDIR /workspace
 COPY --from=build /workspace/sidecars/nautilus/.venv /workspace/sidecars/nautilus/.venv
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 COPY sidecars/__init__.py /workspace/sidecars/__init__.py
 COPY sidecars/nautilus /workspace/sidecars/nautilus
 COPY scripts/smoke_nautilus.py /workspace/scripts/smoke_nautilus.py

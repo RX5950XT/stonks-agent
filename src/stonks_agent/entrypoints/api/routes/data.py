@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Annotated
 
-from fastapi import FastAPI, Header, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -15,13 +14,17 @@ from stonks_agent.adapters.auth.local_token import DenyAllAuthenticator
 from stonks_agent.application.data.create_snapshot import request_snapshot
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError
 from stonks_agent.domain.snapshot import CreateSnapshotRequest
+from stonks_agent.entrypoints.api.dependencies.auth import (
+    ResearchPrincipal,
+    install_authentication,
+)
 from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
     unexpected_error_envelope,
 )
 from stonks_agent.entrypoints.api.request_limits import RequestBodyLimitMiddleware
-from stonks_agent.ports.authentication import AuthenticationRequest, Authenticator
+from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.snapshot_request import SnapshotRequestStore
 from stonks_contracts.common import UTCDateTime
 
@@ -51,11 +54,12 @@ def create_data_app(
         max_bytes=MAX_SNAPSHOT_REQUEST_BYTES,
     )
     identity = authenticator or DenyAllAuthenticator()
+    install_authentication(app, identity)
     app.add_exception_handler(RequestValidationError, _validation_error)
     app.add_exception_handler(Exception, _unexpected_error)
     app.add_api_route(
         "/v1/data/snapshots",
-        _CreateSnapshotEndpoint(store, identity, clock or _utc_now),
+        _CreateSnapshotEndpoint(store, clock or _utc_now),
         methods=["POST"],
         status_code=202,
     )
@@ -93,35 +97,20 @@ class _CreateSnapshotEndpoint:
     def __init__(
         self,
         store: SnapshotRequestStore,
-        identity: Authenticator,
         clock: Callable[[], datetime],
     ) -> None:
         self._store = store
-        self._identity = identity
         self._clock = clock
 
     def __call__(
         self,
-        request_context: Request,
         body: CreateSnapshotBody,
-        authorization: Annotated[
-            str | None,
-            Header(alias="Authorization"),
-        ] = None,
+        principal: ResearchPrincipal,
     ) -> JSONResponse:
-        client = request_context.client
-        authentication = _authentication_request(
-            authorization,
-            client.host if client is not None else None,
-        )
-        if isinstance(authentication, Failure):
-            return _error_response(authentication)
-        principal = self._identity.authenticate(authentication)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
         try:
             request = CreateSnapshotRequest(
                 **body.model_dump(),
+                owner_subject=principal.subject,
                 requested_at=self._clock(),
             )
         except ValidationError:
@@ -133,31 +122,13 @@ class _CreateSnapshotEndpoint:
                     )
                 )
             )
-        result = request_snapshot(principal.value, request, self._store)
+        result = request_snapshot(principal, request, self._store)
         if isinstance(result, Failure):
             return _error_response(result)
         envelope = success_envelope(result.value, status=202)
         return JSONResponse(
             status_code=202,
             content=envelope.model_dump(mode="json"),
-        )
-
-
-def _authentication_request(
-    authorization: str | None,
-    client_host: str | None,
-) -> AuthenticationRequest | Failure:
-    try:
-        return AuthenticationRequest(
-            authorization=authorization,
-            client_host=client_host,
-        )
-    except ValidationError:
-        return Failure(
-            StructuredError(
-                code=ErrorCode.INVALID_INPUT,
-                message="Authentication request is invalid",
-            )
         )
 
 

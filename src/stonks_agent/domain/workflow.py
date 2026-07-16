@@ -28,6 +28,11 @@ class CreateWorkflowRun(BaseModel):
     policy_id: NonEmptyString
     idempotency_key: NonEmptyString
     input_hash: Sha256
+    owner_subject: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:@/+=-]{0,254}$",
+    )
     created_at: UTCDateTime
 
 

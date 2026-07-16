@@ -3,33 +3,66 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping
+import re
+from collections.abc import Mapping
+from datetime import date
 from typing import Final
+from urllib.parse import parse_qsl
 
-type ASGIMessage = dict[str, object]
-type ASGIScope = Mapping[str, object]
-type Receive = Callable[[], Awaitable[ASGIMessage]]
-type Send = Callable[[ASGIMessage], Awaitable[None]]
-type ASGIApp = Callable[[ASGIScope, Receive, Send], Awaitable[None]]
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+from stonks_service_auth import (
+    ServiceAccessTarget,
+    ServiceAuthenticator,
+    ServicePermission,
+    ServiceReceiver,
+    ServiceResourceKind,
+    authorize_service_dispatch,
+    exactly_one_authorization_header,
+)
+
+type MarketDispatch = tuple[ServiceAccessTarget, dict[str, object]]
 
 SOURCE_LINK: Final = '</source>; rel="source"; type="application/gzip"'
+HISTORICAL_PATH: Final = "/api/v1/equity/price/historical"
 ALLOWED_HTTP_SURFACE: Final = (
     ("GET", "/api/v1/equity/price/historical"),
     ("GET", "/healthz"),
     ("GET", "/source"),
 )
+ANONYMOUS_HTTP_SURFACE: Final = frozenset(
+    {
+        ("GET", "/healthz"),
+        ("GET", "/source"),
+    }
+)
+_PROTECTED_HTTP_SURFACE: Final = frozenset({("GET", HISTORICAL_PATH)})
+_ALLOWED_QUERY_FIELDS: Final = frozenset(
+    {"symbol", "start_date", "end_date", "provider"}
+)
+_SYMBOL: Final = re.compile(r"^[A-Z0-9][A-Z0-9.-]{0,31}$")
+_MAX_QUERY_BYTES: Final = 4096
 _NOT_FOUND_BODY: Final = b'{"detail":"Not Found"}'
+_BAD_REQUEST_BODY: Final = b'{"detail":"Invalid market request"}'
+_UNAUTHORIZED_BODY: Final = b'{"detail":"Service authentication failed"}'
+_FORBIDDEN_BODY: Final = b'{"detail":"Service target access denied"}'
 
 
 class SurfaceAllowlist:
     """Expose only the governed read-only routes before OpenBB routing."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        authenticator: ServiceAuthenticator,
+    ) -> None:
         self._app = app
+        self._authenticator = authenticator
 
     async def __call__(
         self,
-        scope: ASGIScope,
+        scope: Scope,
         receive: Receive,
         send: Send,
     ) -> None:
@@ -43,19 +76,135 @@ class SurfaceAllowlist:
         if scope_type != "http":
             return
         route = (scope.get("method"), scope.get("path"))
-        if route in ALLOWED_HTTP_SURFACE:
+        if route in ANONYMOUS_HTTP_SURFACE:
             await self._app(scope, receive, send)
+            return
+        if route in _PROTECTED_HTTP_SURFACE:
+            await self._protected(scope, receive, send)
             return
         await self._not_found(send)
 
+    async def _protected(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        authorization = _authorization_from_scope(scope)
+        principal = self._authenticator.authenticate(authorization)
+        if principal is None:
+            await _response(
+                send,
+                status=401,
+                body=_UNAUTHORIZED_BODY,
+                authenticate=True,
+            )
+            return
+        dispatch = _target_from_scope(scope)
+        if dispatch is None:
+            await _response(send, status=400, body=_BAD_REQUEST_BODY)
+            return
+        target, request_payload = dispatch
+        if not authorize_service_dispatch(
+            principal,
+            permission=ServicePermission.DISPATCH_ASSIGNED_MARKET_DATA,
+            target=target,
+            receiver=ServiceReceiver.OPENBB,
+            attempt_generation=0,
+            attempt_nonce="",
+            request_payload=request_payload,
+            deadline=None,
+        ):
+            await _response(send, status=403, body=_FORBIDDEN_BODY)
+            return
+        await self._app(scope, receive, send)
+
     @staticmethod
     async def _not_found(send: Send) -> None:
-        headers = [
-            (b"content-type", b"application/json"),
-            (b"content-length", str(len(_NOT_FOUND_BODY)).encode("ascii")),
-            (b"cache-control", b"no-store"),
-            (b"x-content-type-options", b"nosniff"),
-            (b"link", SOURCE_LINK.encode("ascii")),
-        ]
-        await send({"type": "http.response.start", "status": 404, "headers": headers})
-        await send({"type": "http.response.body", "body": _NOT_FOUND_BODY})
+        await _response(send, status=404, body=_NOT_FOUND_BODY)
+
+
+def _authorization_from_scope(scope: Scope) -> str | None:
+    raw_headers = scope.get("headers")
+    if not isinstance(raw_headers, (list, tuple)):
+        return None
+    headers: list[tuple[bytes, bytes]] = []
+    for item in raw_headers:
+        if not (
+            isinstance(item, (list, tuple))
+            and len(item) == 2
+            and isinstance(item[0], bytes)
+            and isinstance(item[1], bytes)
+        ):
+            return None
+        headers.append((item[0], item[1]))
+    return exactly_one_authorization_header(headers)
+
+
+def _target_from_scope(scope: Scope) -> MarketDispatch | None:
+    raw = scope.get("query_string")
+    if not isinstance(raw, bytes) or not 1 <= len(raw) <= _MAX_QUERY_BYTES:
+        return None
+    try:
+        pairs = parse_qsl(
+            raw.decode("ascii"),
+            keep_blank_values=True,
+            strict_parsing=True,
+            max_num_fields=8,
+        )
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if len(pairs) > len(_ALLOWED_QUERY_FIELDS):
+        return None
+    query = dict(pairs)
+    if (
+        len(query) != len(pairs)
+        or not set(query).issubset(_ALLOWED_QUERY_FIELDS)
+        or query.get("provider") != "yfinance"
+    ):
+        return None
+    symbol = query.get("symbol", "")
+    if _SYMBOL.fullmatch(symbol) is None or not _valid_dates(query):
+        return None
+    return (
+        ServiceAccessTarget(
+            kind=ServiceResourceKind.MARKET,
+            identifier=f"US/{symbol}",
+        ),
+        {
+            "method": "GET",
+            "path": HISTORICAL_PATH,
+            "query": query,
+        },
+    )
+
+
+def _valid_dates(query: Mapping[str, str]) -> bool:
+    try:
+        start = (
+            date.fromisoformat(query["start_date"]) if "start_date" in query else None
+        )
+        end = date.fromisoformat(query["end_date"]) if "end_date" in query else None
+    except ValueError:
+        return False
+    return start is None or end is None or start <= end
+
+
+async def _response(
+    send: Send,
+    *,
+    status: int,
+    body: bytes,
+    authenticate: bool = False,
+) -> None:
+    headers = [
+        (b"content-type", b"application/json"),
+        (b"content-length", str(len(body)).encode("ascii")),
+        (b"cache-control", b"no-store"),
+        (b"x-content-type-options", b"nosniff"),
+        (b"link", SOURCE_LINK.encode("ascii")),
+    ]
+    if authenticate:
+        headers.append((b"www-authenticate", b"Bearer"))
+    await send({"type": "http.response.start", "status": status, "headers": headers})
+    await send({"type": "http.response.body", "body": body})

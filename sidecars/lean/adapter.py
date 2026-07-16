@@ -34,6 +34,7 @@ from stonks_contracts.backtest_math import (
     canonical_outcome_status,
 )
 from stonks_contracts.common import stable_payload_hash
+from stonks_service_auth import service_auth_source_hash
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _ZERO = Decimal("0")
@@ -199,6 +200,8 @@ def compute_runtime_hash(root: Path) -> str:
         digest.update(b"\0")
         digest.update(path.read_bytes())
         digest.update(b"\0")
+    digest.update(b"service-auth\0")
+    digest.update(service_auth_source_hash().encode("ascii"))
     return digest.hexdigest()
 
 

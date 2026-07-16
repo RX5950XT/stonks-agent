@@ -35,6 +35,7 @@ def snapshot_request() -> CreateSnapshotRequest:
         query={"symbol": "AAPL"},
         provider_policy_id="us-prices/1",
         idempotency_key="snapshot-request-1",
+        owner_subject="researcher",
         requested_at=NOW,
     )
 

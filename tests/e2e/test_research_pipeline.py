@@ -238,6 +238,7 @@ def test_outages_become_degraded_or_failed_audit_not_fake_success() -> None:
 def command() -> ResearchPipelineCommand:
     return ResearchPipelineCommand(
         run_id=RUN_ID,
+        owner_subject="research-owner",
         context_request=AnalysisContextRequest(
             context_id=CONTEXT_ID,
             run_id=RUN_ID,

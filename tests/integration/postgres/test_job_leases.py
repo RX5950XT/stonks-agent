@@ -495,6 +495,7 @@ def seed_run(engine: Engine, now: datetime) -> None:
                 policy_id="policy/1",
                 idempotency_key="run-for-job",
                 input_hash="7" * 64,
+                owner_subject="system:test",
                 created_at=now,
             )
         )

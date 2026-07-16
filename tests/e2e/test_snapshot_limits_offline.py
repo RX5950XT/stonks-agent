@@ -70,6 +70,7 @@ def test_untrusted_replay_normalization_limit_fails_before_offline_archive() -> 
             query={"symbol": "AAPL", "interval": "1d", "scenario": "canonical"},
             provider_policy_id=policy.policy_id,
             idempotency_key="offline-limit-e2e",
+            owner_subject="test-owner",
             requested_at=AS_OF,
         ),
         untrusted,

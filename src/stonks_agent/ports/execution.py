@@ -11,24 +11,11 @@ from stonks_agent.domain.execution_model import (
 )
 from stonks_agent.domain.fills import ExecutionReceipt as DomainExecutionReceipt
 from stonks_agent.domain.orders import ExecutionCommand as DomainExecutionCommand
-from stonks_contracts.execution import (
-    ExecutionCommand as WireExecutionCommand,
-)
-from stonks_contracts.execution import (
-    ExecutionReceipt as WireExecutionReceipt,
-)
-
-
-@runtime_checkable
-class ExecutionPort(Protocol):
-    """P0 wire-compatible execution boundary."""
-
-    def submit(self, command: WireExecutionCommand) -> Result[WireExecutionReceipt]: ...
 
 
 @runtime_checkable
 class CanonicalExecutionPort(Protocol):
-    """Submit only a P4 reservation-backed canonical paper command."""
+    """Sole execution boundary for P4 reservation-backed paper commands."""
 
     def submit(
         self, command: DomainExecutionCommand

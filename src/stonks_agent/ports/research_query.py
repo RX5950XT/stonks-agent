@@ -18,9 +18,13 @@ from stonks_agent.domain.research_run import (
 class ResearchRequestStore(Protocol):
     def submit(self, request: ResearchRunRequest) -> Result[ResearchRunRefs]: ...
 
+    def snapshot_owner(self, snapshot_id: UUID) -> Result[str]: ...
+
 
 @runtime_checkable
 class RunEventReader(Protocol):
+    def owner_subject(self, run_id: UUID) -> Result[str]: ...
+
     def list_after(
         self, run_id: UUID, *, after_sequence: int, limit: int
     ) -> Result[tuple[CanonicalRunEvent, ...]]: ...
@@ -28,4 +32,6 @@ class RunEventReader(Protocol):
 
 @runtime_checkable
 class ReportReader(Protocol):
+    def owner_subject(self, content_hash: str) -> Result[str]: ...
+
     def read(self, content_hash: str) -> Result[ReportProjection]: ...

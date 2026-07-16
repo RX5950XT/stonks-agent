@@ -13,13 +13,17 @@ from stonks_agent.application.projections.queries import (
     read_risk_projection,
     record_nav_projection,
 )
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import AccessTarget, LocalPrincipal, ResourceKind, Role
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.monitoring import MarkToMarketCommand
 from stonks_agent.domain.projections import PortfolioProjection, RiskProjection
 
 NOW = datetime(2026, 7, 14, 5, tzinfo=UTC)
-VIEWER = LocalPrincipal(subject="viewer:one", roles=frozenset({Role.VIEWER}))
+VIEWER = LocalPrincipal(
+    subject="viewer:one",
+    roles=frozenset({Role.VIEWER}),
+    targets=frozenset({AccessTarget(kind=ResourceKind.ACCOUNT, identifier=ACCOUNT_ID)}),
+)
 
 
 def _valuation():  # type: ignore[no-untyped-def]
@@ -115,8 +119,10 @@ class UnitOfWork:
 class Factory:
     def __init__(self, ledger) -> None:  # type: ignore[no-untyped-def]
         self.uow = UnitOfWork(ledger)
+        self.calls = 0
 
     def __call__(self):  # type: ignore[no-untyped-def]
+        self.calls += 1
         return self.uow
 
 
@@ -132,6 +138,24 @@ def test_viewer_reads_portfolio_nav_and_risk_without_commit() -> None:
     assert isinstance(nav, Success)
     assert isinstance(risk, Success)
     assert factory.uow.commits == 0
+
+
+def test_cross_account_projection_is_denied_before_uow() -> None:
+    ledger, _ = _valuation()
+    factory = Factory(ledger)
+    stranger = LocalPrincipal(
+        subject="viewer:other",
+        roles=frozenset({Role.VIEWER}),
+        targets=frozenset(
+            {AccessTarget(kind=ResourceKind.ACCOUNT, identifier="paper-other")}
+        ),
+    )
+
+    result = read_portfolio_projection(stranger, ACCOUNT_ID, factory)
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.FORBIDDEN
+    assert factory.calls == 0
 
 
 def test_record_nav_requires_exact_current_ledger_binding_before_commit() -> None:

@@ -105,6 +105,8 @@ def command(**overrides: object) -> GenerateReportRequest:
     values: dict[str, object] = {
         "request_id": REQUEST_ID,
         "report_id": REPORT_ID,
+        "run_id": RUN_ID,
+        "owner_subject": "research-owner",
         "context": context(),
         "language": "zh-TW",
         "report_type": "equity_research",

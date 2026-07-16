@@ -25,6 +25,7 @@ dependencies = [
     "setuptools==80.9.0",
     "setuptools-scm==8.3.1",
     "stonks-contracts",
+    "stonks-service-auth",
     "uvicorn>=0.40,<1",
 ]
 
@@ -42,3 +43,4 @@ package = false
 
 [tool.uv.sources]
 stonks-contracts = { path = "../../packages/contracts" }
+stonks-service-auth = { path = "../../packages/service-auth" }

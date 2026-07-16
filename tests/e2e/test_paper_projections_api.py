@@ -4,7 +4,7 @@ from application.projections.test_queries import NOW, Factory, _valuation
 from fastapi.testclient import TestClient
 
 from stonks_agent.adapters.auth.local_token import LocalTokenAuthenticator
-from stonks_agent.domain.auth import Role
+from stonks_agent.domain.auth import AccessTarget, ResourceKind, Role
 from stonks_agent.entrypoints.api.routes.projections import (
     create_paper_projection_app,
 )
@@ -17,9 +17,18 @@ def _app(factory: Factory):  # type: ignore[no-untyped-def]
     return create_paper_projection_app(
         factory,
         LocalTokenAuthenticator(
+            environment="test",
             token=TOKEN,
             subject="viewer:one",
             roles=frozenset({Role.VIEWER}),
+            targets=frozenset(
+                {
+                    AccessTarget(
+                        kind=ResourceKind.ACCOUNT,
+                        identifier="paper-monitoring",
+                    )
+                }
+            ),
             allowed_hosts=frozenset({"testclient"}),
         ),
         clock=lambda: NOW,

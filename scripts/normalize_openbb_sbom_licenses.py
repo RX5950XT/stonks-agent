@@ -36,6 +36,7 @@ def normalized_sbom(root: Path) -> str:
     sidecar = root / "sidecars" / "openbb"
     sbom = dict(_load(sidecar / "sbom.cdx.json", yaml_format=False))
     policy = _load(sidecar / "license-policy.yaml", yaml_format=True)
+    manifest = _load(sidecar / "provider-manifest.yaml", yaml_format=True)
     inventory = _mapping(policy.get("components"), "license policy components")
     raw_components = sbom.get("components")
     if not isinstance(raw_components, list):
@@ -44,6 +45,14 @@ def normalized_sbom(root: Path) -> str:
     actual_names = {_normalize_name(str(item.get("name"))) for item in components}
     if actual_names != set(inventory):
         raise ValueError("license inventory must exactly cover SBOM components")
+    packages = manifest.get("packages")
+    if not isinstance(packages, list):
+        raise ValueError("provider manifest packages must be a list")
+    pinned_hashes = {
+        _normalize_name(str(item.get("name"))): item.get("sdist_sha256")
+        for item in packages
+        if isinstance(item, Mapping)
+    }
     for component in components:
         name = _normalize_name(str(component.get("name")))
         expected = _mapping(inventory[name], f"license policy component {name}")
@@ -55,6 +64,14 @@ def normalized_sbom(root: Path) -> str:
         component["licenses"] = [
             {"acknowledgement": "declared", "expression": expression}
         ]
+        if name in pinned_hashes:
+            value = pinned_hashes[name]
+            if (
+                not isinstance(value, str)
+                or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            ):
+                raise ValueError(f"invalid source hash for {name}")
+            component["hashes"] = [{"alg": "SHA-256", "content": value}]
     sbom["components"] = components
     return json.dumps(sbom, ensure_ascii=False, indent=2) + "\n"
 

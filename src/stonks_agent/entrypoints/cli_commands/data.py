@@ -14,10 +14,11 @@ from stonks_agent.adapters.postgres.snapshot_requests import (
     PostgresSnapshotRequestStore,
 )
 from stonks_agent.application.data.create_snapshot import request_snapshot
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import Role
 from stonks_agent.domain.errors import Failure
 from stonks_agent.domain.snapshot import CreateSnapshotRequest
 from stonks_agent.entrypoints.api.envelope import error_envelope, success_envelope
+from stonks_agent.entrypoints.cli_commands._local_auth import local_cli_principal
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 
@@ -37,6 +38,7 @@ def request_snapshot_command(
         ),
     ] = "",
 ) -> None:
+    principal = local_cli_principal(subject="local-cli", role=Role.RESEARCHER)
     if not database_url:
         raise typer.BadParameter("STONKS_DATABASE_URL is required")
     try:
@@ -51,14 +53,11 @@ def request_snapshot_command(
             query=parsed_query,
             provider_policy_id=provider_policy_id,
             idempotency_key=idempotency_key,
+            owner_subject=principal.subject,
             requested_at=datetime.now(UTC),
         )
     except (ValueError, ValidationError, json.JSONDecodeError) as error:
         raise typer.BadParameter("snapshot request input is invalid") from error
-    principal = LocalPrincipal(
-        subject="local-cli",
-        roles=frozenset({Role.RESEARCHER}),
-    )
     engine = create_engine(database_url, pool_pre_ping=True)
     try:
         result = request_snapshot(

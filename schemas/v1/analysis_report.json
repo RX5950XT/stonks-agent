@@ -257,6 +257,13 @@
       "title": "Outcome Refs",
       "type": "array"
     },
+    "owner_subject": {
+      "maxLength": 255,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:@/+=-]{0,254}$",
+      "title": "Owner Subject",
+      "type": "string"
+    },
     "policy_version": {
       "minLength": 1,
       "title": "Policy Version",
@@ -316,6 +323,11 @@
       "title": "Risks",
       "type": "array"
     },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
     "scenarios": {
       "default": [],
       "items": {
@@ -360,6 +372,8 @@
   },
   "required": [
     "report_id",
+    "run_id",
+    "owner_subject",
     "subject",
     "as_of",
     "language",

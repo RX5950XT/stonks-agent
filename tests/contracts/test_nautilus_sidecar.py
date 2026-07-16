@@ -8,9 +8,15 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from stonks_service_auth import ServiceReceiver, ServiceResourceKind
+
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-SERVICE_TOKEN = "test-service-token-32-bytes-long!"
+
+from fixtures.service_auth import (  # noqa: E402
+    ExactServiceAuthenticator,
+    authorization_headers,
+)
 
 from sidecars.nautilus.adapter import (  # noqa: E402
     AdapterPolicy,
@@ -189,8 +195,12 @@ def test_http_surface_is_bounded_typed_and_has_no_execution_route() -> None:
     client = TestClient(
         create_app(
             adapter=worker,
+            authenticator=ExactServiceAuthenticator.for_request(
+                request,
+                receiver=ServiceReceiver.NAUTILUS,
+                kind=ServiceResourceKind.BACKTEST_JOB,
+            ),
             max_request_bytes=2_000_000,
-            service_token=SERVICE_TOKEN,
         )
     )
 
@@ -199,7 +209,7 @@ def test_http_surface_is_bounded_typed_and_has_no_execution_route() -> None:
         "/v1/backtests",
         content=request.model_dump_json(),
         headers={
-            "authorization": f"Bearer {SERVICE_TOKEN}",
+            **authorization_headers(),
             "content-type": "application/json",
         },
     )
@@ -207,7 +217,7 @@ def test_http_surface_is_bounded_typed_and_has_no_execution_route() -> None:
         "/v1/backtests",
         content=b"{}",
         headers={
-            "authorization": f"Bearer {SERVICE_TOKEN}",
+            **authorization_headers(),
             "content-type": "text/plain",
         },
     )
@@ -216,7 +226,7 @@ def test_http_surface_is_bounded_typed_and_has_no_execution_route() -> None:
         "/v1/backtests",
         content=b"{}",
         headers={
-            "authorization": f"Bearer {SERVICE_TOKEN}",
+            **authorization_headers(),
             "content-length": "9" * 5_000,
             "content-type": "application/json",
         },
@@ -226,7 +236,23 @@ def test_http_surface_is_bounded_typed_and_has_no_execution_route() -> None:
     invalid_decimal = client.post(
         "/v1/backtests",
         json=hostile_decimal,
-        headers={"authorization": f"Bearer {SERVICE_TOKEN}"},
+        headers=authorization_headers(),
+    )
+    wrong_target = TestClient(
+        create_app(
+            adapter=adapter(trace()),
+            authenticator=ExactServiceAuthenticator.for_request(
+                request,
+                receiver=ServiceReceiver.NAUTILUS,
+                kind=ServiceResourceKind.BACKTEST_JOB,
+                target_identifier="other-job",
+            ),
+            max_request_bytes=2_000_000,
+        )
+    ).post(
+        "/v1/backtests",
+        content=request.model_dump_json(),
+        headers={**authorization_headers(), "content-type": "application/json"},
     )
 
     assert health.status_code == 200
@@ -237,6 +263,7 @@ def test_http_surface_is_bounded_typed_and_has_no_execution_route() -> None:
     assert unauthorized.status_code == 401
     assert hostile_length.status_code == 413
     assert invalid_decimal.status_code == 400
+    assert wrong_target.status_code == 403
     assert isinstance(worker.backend, FakeBackend)
     assert worker.backend.calls == 1
     assert client.post("/v1/orders", json={}).status_code == 404

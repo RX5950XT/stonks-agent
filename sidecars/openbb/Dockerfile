@@ -6,23 +6,31 @@ LABEL org.opencontainers.image.title="Stonks Agent OpenBB sidecar" \
       org.opencontainers.image.vendor="Stonks Agent contributors"
 
 ENV HOME=/tmp/openbb \
-    PATH=/app/.venv/bin:$PATH \
+    PATH=/workspace/sidecars/openbb/.venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
-WORKDIR /app
+WORKDIR /workspace/sidecars/openbb
 
-COPY pyproject.toml uv.lock ./
+COPY sidecars/openbb/pyproject.toml sidecars/openbb/uv.lock ./
+COPY packages/service-auth /workspace/packages/service-auth
 RUN uv sync --frozen --no-dev --no-install-project \
     && uv run --frozen openbb-build
 
-COPY app.py surface.py ./
-COPY Dockerfile README.md NOTICE.md SOURCE_OFFER.md provider-manifest.yaml \
-    license-policy.yaml sbom.cdx.json \
+COPY sidecars/openbb/app.py sidecars/openbb/surface.py ./
+COPY sidecars/openbb/Dockerfile sidecars/openbb/README.md \
+    sidecars/openbb/NOTICE.md sidecars/openbb/SOURCE_OFFER.md \
+    sidecars/openbb/provider-manifest.yaml \
+    sidecars/openbb/license-policy.yaml sidecars/openbb/sbom.cdx.json \
     /srv/source-tree/
-COPY pyproject.toml uv.lock app.py surface.py /srv/source-tree/
+COPY sidecars/openbb/pyproject.toml sidecars/openbb/uv.lock \
+    sidecars/openbb/app.py sidecars/openbb/surface.py /srv/source-tree/
+COPY packages/service-auth/pyproject.toml \
+    /srv/source-tree/packages/service-auth/pyproject.toml
+COPY packages/service-auth/src /srv/source-tree/packages/service-auth/src
+COPY LICENSE /srv/source-tree/packages/service-auth/LICENSE
 
 ADD --checksum=sha256:c26cfc2ae37c1700e01db9ca0fd2cd02118715cec2097ea870f47a70186402bb \
     https://files.pythonhosted.org/packages/42/9e/0cbc623a38f7c72cebce47c7c71968dd3276259422f9eb2eb49fca73a219/openbb_core-1.6.13.tar.gz \
@@ -45,7 +53,7 @@ RUN mkdir -p /usr/share/licenses/openbb \
     && cp /srv/source-tree/OPENBB_LICENSE.txt \
         /usr/share/licenses/openbb/AGPL-3.0.txt \
     && tar -czf /srv/stonks-openbb-sidecar-source.tar.gz -C /srv/source-tree . \
-    && chmod -R a-w /app /srv /usr/share/licenses/openbb \
+    && chmod -R a-w /workspace /srv /usr/share/licenses/openbb \
     && mkdir -p /tmp/openbb \
     && chown -R 65532:65532 /tmp/openbb
 

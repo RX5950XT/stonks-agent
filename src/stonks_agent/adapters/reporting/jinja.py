@@ -126,7 +126,9 @@ class JinjaReportRenderer:
                     source="stonks-agent-report-renderer",
                     attributes=(
                         ("format", format_name),
+                        ("owner_subject", report.owner_subject),
                         ("report_id", str(report.report_id)),
+                        ("run_id", str(report.run_id)),
                         ("template_version", TEMPLATE_VERSION),
                     ),
                 ),

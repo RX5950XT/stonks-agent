@@ -289,7 +289,7 @@ def _validate_completion_context(
         or queued.as_of != run.as_of
         or queued.provider_policy_id != run.policy_id
         or not snapshot_manifest_is_authorized(queued, manifest, policy)
-        or manifest.request_hash != run.input_hash
+        or manifest.request_hash != queued.request_hash
         or manifest.as_of != run.as_of
         or manifest.provider_policy_id != run.policy_id
         or manifest.provider_observed_at > now

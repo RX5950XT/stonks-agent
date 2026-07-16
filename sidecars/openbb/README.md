@@ -19,12 +19,21 @@ transitive resolution 與 artifact hashes 在 `uv.lock`，CycloneDX SBOM 在
 `license-policy.yaml`。SBOM 重新產生後，以
 `uv run python ../../scripts/normalize_openbb_sbom_licenses.py` deterministic 正規化，
 再用 `--check` 驗證無 drift。image build 會下載並以 SHA-256 驗證四個 pinned OpenBB source
-sdists，再連同本目錄的 wrapper/source/build inputs 封存。服務所有 response 都帶
+sdists，再連同 wrapper/build inputs 與實際使用的 `packages/service-auth` source 封存。
+服務所有 response 都帶
 `Link: </source>; rel="source"`，而 `/source` 直接提供該完整 archive。
 
-`surface.py` 在 OpenBB router 前 fail closed，只放行 `GET /healthz`、`GET /source`
-與 `GET /api/v1/equity/price/historical`；其餘 method、path 與 WebSocket 都不會抵達
-OpenBB app。
+`surface.py` 在 OpenBB router 前 fail closed。`GET /healthz` 與 `GET /source`
+維持匿名；`GET /api/v1/equity/price/historical` 必須先通過 pinned asymmetric
+service OIDC authn，才會解析 bounded query，且 token 必須精確指派
+`MARKET:US/{symbol}`、receiver=`openbb`，並綁定 canonical method/path/query hash。
+OpenBB market fetch 是 generation `0` 的短效、無 lease dispatch，token 的 nonce hash
+必須等於 request hash。固定 provider 只能是 `yfinance`；其餘 method、path、query
+與 WebSocket 都不會抵達 OpenBB app。
+
+runtime 必須提供 `STONKS_SERVICE_OIDC_ISSUER`、`AUDIENCE`、`CORE_SUBJECT`、
+`CORE_CLIENT_ID` 與 read-only mounted public JWKS；缺少或錯誤設定會在 startup
+fail closed。Bearer token 不得寫入 image、Compose 或 log。
 
 `GET /healthz` 只驗證 immutable app/build identity，不會觸發 provider request；
 `openbb-build` 僅在 image build 執行，runtime 明確設為 `OPENBB_AUTO_BUILD=false`。

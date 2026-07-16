@@ -24,10 +24,16 @@ from stonks_contracts.quant_lab import (
     QuantSplitSpec,
     QuantUniverseSpec,
 )
+from stonks_service_auth import ServiceReceiver
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKER_ROOT = ROOT / "workers" / "quant_lab"
 sys.path.insert(0, str(ROOT))
+
+from fixtures.service_auth import (  # noqa: E402
+    ExactServiceAuthenticator,
+    authorization_headers,
+)
 
 from workers.quant_lab.app import create_app  # noqa: E402
 from workers.quant_lab.qlib_adapter import (  # noqa: E402
@@ -283,30 +289,85 @@ def test_worker_converts_runtime_exception_to_generic_structured_failure() -> No
 
 
 def test_http_surface_is_bounded_closed_and_has_unified_envelope() -> None:
-    client = TestClient(create_app(worker=_worker(), max_request_bytes=1_000_000))
+    job = _job()
+    client = TestClient(
+        create_app(
+            worker=_worker(),
+            authenticator=ExactServiceAuthenticator.for_request(
+                job,
+                receiver=ServiceReceiver.QUANT_LAB,
+            ),
+            max_request_bytes=1_000_000,
+        )
+    )
 
     health = client.get("/healthz")
     success = client.post(
         "/v1/research",
-        content=_job().canonical_json(),
-        headers={"content-type": "application/json"},
+        content=job.canonical_json(),
+        headers={**authorization_headers(), "content-type": "application/json"},
     )
     encoded = client.post(
         "/v1/research",
-        content=_job().canonical_json(),
-        headers={"content-type": "application/json", "content-encoding": "gzip"},
+        content=job.canonical_json(),
+        headers={
+            **authorization_headers(),
+            "content-type": "application/json",
+            "content-encoding": "gzip",
+        },
+    )
+    hostile_lengths = tuple(
+        client.post(
+            "/v1/research",
+            content=b"{}",
+            headers={
+                **authorization_headers(),
+                "content-length": declared,
+                "content-type": "application/json",
+            },
+        )
+        for declared in ("9" * 5_000, "not-a-number")
     )
     invalid = client.post(
         "/v1/research",
         content=b'{"target_weight":"1"}',
-        headers={"content-type": "application/json"},
+        headers={**authorization_headers(), "content-type": "application/json"},
+    )
+    denied = client.post(
+        "/v1/research",
+        content=job.canonical_json(),
+        headers={
+            "authorization": "Bearer wrong-but-long-service-token",
+            "content-type": "application/json",
+        },
+    )
+    wrong_target = TestClient(
+        create_app(
+            worker=_worker(),
+            authenticator=ExactServiceAuthenticator.for_request(
+                job,
+                receiver=ServiceReceiver.QUANT_LAB,
+                target_identifier=UUID(int=999),
+            ),
+        )
+    ).post(
+        "/v1/research",
+        content=job.canonical_json(),
+        headers={**authorization_headers(), "content-type": "application/json"},
     )
 
     assert health.json()["data"]["qlib_commit"] == _runtime().qlib_commit
     assert success.status_code == 200
     assert success.json()["data"]["attempt_nonce"] == "nonce-3"
     assert encoded.status_code == 415
+    assert all(response.status_code == 413 for response in hostile_lengths)
+    assert all(
+        response.json()["error"]["code"] == "request_too_large"
+        for response in hostile_lengths
+    )
     assert invalid.status_code == 400
+    assert denied.status_code == 401
+    assert wrong_target.status_code == 403
     assert set(success.json()) == {"success", "status", "data", "error", "metadata"}
 
 

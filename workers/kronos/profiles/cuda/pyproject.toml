@@ -13,6 +13,7 @@ dependencies = [
     "pydantic>=2.12.5,<3",
     "safetensors==0.6.2",
     "stonks-contracts",
+    "stonks-service-auth",
     "torch==2.12.1",
     "tqdm==4.67.1",
     "uvicorn>=0.40,<1",
@@ -31,6 +32,7 @@ package = false
 
 [tool.uv.sources]
 stonks-contracts = { path = "../../../../packages/contracts" }
+stonks-service-auth = { path = "../../../../packages/service-auth" }
 torch = { index = "pytorch-cuda" }
 
 [[tool.uv.index]]

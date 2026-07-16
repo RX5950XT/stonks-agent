@@ -261,6 +261,7 @@ def submit_snapshot(engine: Engine, idempotency_key: str) -> dict[str, object]:
         create_data_app(
             PostgresSnapshotRequestStore(engine),
             LocalTokenAuthenticator(
+                environment="test",
                 token=TOKEN,
                 subject="e2e-researcher",
                 roles=frozenset({Role.RESEARCHER}),

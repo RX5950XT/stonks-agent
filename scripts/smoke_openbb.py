@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import sys
 import tarfile
 import time
@@ -18,6 +19,7 @@ from urllib.request import Request, urlopen
 
 import httpx
 import yaml
+from pydantic import SecretStr
 
 from stonks_agent.adapters.market_data.openbb_rest import (
     OPENBB_ORIGIN,
@@ -25,6 +27,11 @@ from stonks_agent.adapters.market_data.openbb_rest import (
 )
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
 from stonks_agent.domain.data_quality import ProviderDataState
+from stonks_agent.domain.errors import Success
+from stonks_agent.ports.service_credentials import (
+    ServiceBearerCredential,
+    ServiceCredentialRequest,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 SIDECAR = ROOT / "sidecars" / "openbb"
@@ -48,7 +55,46 @@ SOURCE_MEMBER_PATHS: Final = {
         "uv.lock",
     )
 }
+SOURCE_MEMBER_PATHS.update(
+    {
+        "packages/service-auth/LICENSE": ROOT / "LICENSE",
+        "packages/service-auth/pyproject.toml": (
+            ROOT / "packages" / "service-auth" / "pyproject.toml"
+        ),
+        **{
+            f"packages/service-auth/src/stonks_service_auth/{name}": (
+                ROOT
+                / "packages"
+                / "service-auth"
+                / "src"
+                / "stonks_service_auth"
+                / name
+            )
+            for name in (
+                "__init__.py",
+                "authorization.py",
+                "environment.py",
+                "headers.py",
+                "oidc.py",
+                "py.typed",
+                "source_identity.py",
+            )
+        },
+    }
+)
 REQUIRED_SOURCE_MEMBERS: Final = frozenset({"OPENBB_LICENSE.txt", *SOURCE_MEMBER_PATHS})
+
+
+class _SmokeCredentialProvider:
+    def __init__(self, token: str) -> None:
+        self._credential = ServiceBearerCredential(token=SecretStr(token))
+
+    def issue(
+        self,
+        request: ServiceCredentialRequest,
+    ) -> Success[ServiceBearerCredential]:
+        del request
+        return Success(self._credential)
 
 
 def _get(path: str, *, timeout: float) -> tuple[bytes, dict[str, str]]:
@@ -176,7 +222,7 @@ def _verify_source_archive(timeout: float) -> dict[str, str]:
     return verified
 
 
-def _verify_adapter(timeout: float) -> int:
+def _verify_adapter(timeout: float, token: str) -> int:
     observed_at = datetime.now(UTC)
     request = FetchDataRequest(
         market="US",
@@ -191,6 +237,7 @@ def _verify_adapter(timeout: float) -> int:
     with httpx.Client(timeout=timeout, trust_env=False) as client:
         result = OpenBBRestAdapter(
             client=client,
+            credentials=_SmokeCredentialProvider(token),
             timeout_seconds=timeout,
             clock=lambda: observed_at,
         ).fetch(request)
@@ -214,7 +261,8 @@ def main() -> int:
     try:
         health = _wait_for_health(args.health_timeout)
         sources = _verify_source_archive(args.request_timeout)
-        rows = _verify_adapter(args.request_timeout)
+        token = os.environ.get("STONKS_OPENBB_SMOKE_TOKEN", "")
+        rows = _verify_adapter(args.request_timeout, token)
     except Exception as error:  # external boundary; emit no exception details
         payload = {
             "success": False,

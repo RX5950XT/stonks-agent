@@ -88,6 +88,28 @@ def _check_compose_hardening(inputs: Inputs) -> list[Violation]:
             docker_user_index
         ].removeprefix("USER ")
     security_opt = service.get("security_opt")
+    oidc_keys = {
+        "STONKS_SERVICE_OIDC_ISSUER",
+        "STONKS_SERVICE_OIDC_AUDIENCE",
+        "STONKS_SERVICE_OIDC_CORE_SUBJECT",
+        "STONKS_SERVICE_OIDC_CORE_CLIENT_ID",
+        "STONKS_SERVICE_OIDC_ALGORITHMS",
+        "STONKS_SERVICE_OIDC_RECEIVER",
+        "STONKS_SERVICE_OIDC_JWKS_FILE",
+    }
+    volumes = service.get("volumes")
+    oidc_configured = (
+        oidc_keys <= set(environment)
+        and environment.get("STONKS_SERVICE_OIDC_JWKS_FILE")
+        == "/run/secrets/stonks-service-jwks.json"
+        and environment.get("STONKS_SERVICE_OIDC_RECEIVER") == "openbb"
+        and isinstance(volumes, Sequence)
+        and any(
+            isinstance(value, str)
+            and value.endswith(":/run/secrets/stonks-service-jwks.json:ro")
+            for value in volumes
+        )
+    )
     secure = (
         service.get("read_only") is True
         and str(service.get("user", "")) == docker_user
@@ -96,6 +118,7 @@ def _check_compose_hardening(inputs: Inputs) -> list[Violation]:
         and "no-new-privileges:true" in security_opt
         and service.get("privileged") is not True
         and environment.get("OPENBB_AUTO_BUILD") == "false"
+        and oidc_configured
     )
     violations: list[Violation] = []
     if not secure:
@@ -291,19 +314,34 @@ def _check_source_route(inputs: Inputs) -> list[Violation]:
     )
     surface_constants = literal_constants(inputs.surface, "sidecars/openbb/surface.py")
     wrapper_tokens = (
-        "from openbb_core.api.rest_api import app as openbb_app",
-        "app = SurfaceAllowlist(openbb_app)",
+        "validate_isolated_runtime_environment(os.environ)",
+        "_authenticator = load_static_oidc_service_authenticator(os.environ)",
+        'openbb_app = importlib.import_module("openbb_core.api.rest_api").app',
+        "app = SurfaceAllowlist(",
     )
     surface_tokens = (
         "class SurfaceAllowlist:",
-        "route in ALLOWED_HTTP_SURFACE",
+        "route in _PROTECTED_HTTP_SURFACE",
         'scope_type == "websocket"',
+        "authorize_service_dispatch(",
+        "ServicePermission.DISPATCH_ASSIGNED_MARKET_DATA",
+        "receiver=ServiceReceiver.OPENBB",
+        "attempt_generation=0",
+        'attempt_nonce=""',
+        "deadline=None",
+        "_authorization_from_scope(scope)",
+        "_target_from_scope(scope)",
+    )
+    wrapper_is_bounded = all(token in inputs.app for token in wrapper_tokens) and (
+        inputs.app.index(wrapper_tokens[0])
+        < inputs.app.index(wrapper_tokens[1])
+        < inputs.app.index(wrapper_tokens[2])
     )
     bounded = (
         surface_constants.get("ALLOWED_HTTP_SURFACE") == expected_surface
         and surface_constants.get("SOURCE_LINK")
         == '</source>; rel="source"; type="application/gzip"'
-        and all(token in inputs.app for token in wrapper_tokens)
+        and wrapper_is_bounded
         and all(token in inputs.surface for token in surface_tokens)
     )
     if not bounded:
@@ -325,6 +363,7 @@ def _check_source_route(inputs: Inputs) -> list[Violation]:
         "sbom.cdx.json",
         "surface.py",
         "uv.lock",
+        "packages/service-auth",
     }
     if any(name not in inputs.dockerfile for name in required):
         violations.append(Violation("INCOMPLETE_SOURCE_TREE", "build input omitted"))

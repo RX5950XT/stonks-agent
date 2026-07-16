@@ -73,6 +73,7 @@ def request(
         query=query or {"symbol": "AAPL", "interval": "1d"},
         provider_policy_id="us-prices/1",
         idempotency_key=idempotency_key,
+        owner_subject="test-owner",
         requested_at=requested_at,
     )
 

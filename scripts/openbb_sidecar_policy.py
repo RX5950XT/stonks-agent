@@ -42,6 +42,7 @@ EXPECTED_ALLOWED_LICENSE_EXPRESSIONS: Final = frozenset(
         "PSF-2.0",
     }
 )
+EXPECTED_SHARED_DEPENDENCY: Final = "stonks-service-auth"
 EXPECTED_REVIEWED_LICENSE_COMPONENTS: Final = frozenset(EXPECTED_PINS)
 EXPECTED_CHECKS: Final = (
     "exact-pins",
@@ -266,7 +267,24 @@ def _check_project_pins(inputs: Inputs) -> list[Violation]:
     dependencies = sequence(project.get("dependencies"), "sidecar dependencies")
     parsed = [_exact_requirement(item) for item in dependencies]
     direct = {item[0]: item[1] for item in parsed if item is not None}
-    if len(parsed) != 4 or None in parsed or direct != EXPECTED_PINS:
+    dependency_names = {
+        name for item in dependencies if (name := dependency_name(item)) is not None
+    }
+    sources = mapping(uv_config.get("sources"), "sidecar.tool.uv.sources")
+    auth_source = mapping(
+        sources.get(EXPECTED_SHARED_DEPENDENCY),
+        f"sidecar.tool.uv.sources.{EXPECTED_SHARED_DEPENDENCY}",
+    )
+    expected_names = {*EXPECTED_PINS, EXPECTED_SHARED_DEPENDENCY}
+    exact_openbb = {
+        name: version for name, version in direct.items() if name in EXPECTED_PINS
+    }
+    if (
+        len(dependencies) != len(expected_names)
+        or dependency_names != expected_names
+        or exact_openbb != EXPECTED_PINS
+        or auth_source != {"path": "../../packages/service-auth"}
+    ):
         violations.append(
             Violation("OPENBB_PIN_DRIFT", "exact approved pins are required")
         )

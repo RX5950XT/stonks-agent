@@ -10,11 +10,24 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from stonks_contracts.quant_lab import QuantResearchJob
+from stonks_service_auth import (
+    ServiceAccessTarget,
+    ServiceAuthenticator,
+    ServicePermission,
+    ServiceReceiver,
+    ServiceResourceKind,
+    authorize_service_dispatch,
+    exactly_one_authorization_header,
+    invalid_or_oversized_content_length,
+)
 from workers.quant_lab.qlib_adapter import QuantLabWorker, WorkerFailure
 
 
 def create_app(
-    *, worker: QuantLabWorker, max_request_bytes: int = 16_777_216
+    *,
+    worker: QuantLabWorker,
+    authenticator: ServiceAuthenticator,
+    max_request_bytes: int = 16_777_216,
 ) -> FastAPI:
     if not 1 <= max_request_bytes <= 16_777_216:
         raise ValueError("max_request_bytes is outside the supported range")
@@ -39,6 +52,11 @@ def create_app(
 
     @app.post("/v1/research")
     async def research(incoming: Request) -> JSONResponse:
+        principal = authenticator.authenticate(
+            exactly_one_authorization_header(incoming.scope["headers"])
+        )
+        if principal is None:
+            return _authentication_error()
         rejection = _validate_headers(incoming, max_request_bytes)
         if rejection is not None:
             return rejection
@@ -49,6 +67,20 @@ def create_app(
             job = QuantResearchJob.model_validate_json(body)
         except (ValidationError, json.JSONDecodeError):
             return _error(400, "invalid_request", "Worker request is invalid")
+        if not authorize_service_dispatch(
+            principal,
+            permission=ServicePermission.DISPATCH_ASSIGNED_RESEARCH,
+            target=ServiceAccessTarget(
+                kind=ServiceResourceKind.JOB,
+                identifier=str(job.job_id),
+            ),
+            receiver=ServiceReceiver.QUANT_LAB,
+            attempt_generation=job.attempt_generation,
+            attempt_nonce=job.attempt_nonce,
+            request_payload=job.model_dump(mode="json"),
+            deadline=job.deadline,
+        ):
+            return _error(403, "forbidden", "Service target access denied")
         outcome = worker.research(job)
         if isinstance(outcome, WorkerFailure):
             return _error(
@@ -63,7 +95,7 @@ def create_app(
 
 def _validate_headers(incoming: Request, maximum: int) -> JSONResponse | None:
     declared = incoming.headers.get("content-length")
-    if declared is not None and (not declared.isdecimal() or int(declared) > maximum):
+    if invalid_or_oversized_content_length(declared, maximum):
         return _error(413, "request_too_large", "Worker request is too large")
     media_type = incoming.headers.get("content-type", "").split(";", 1)[0]
     if media_type != "application/json":
@@ -94,6 +126,12 @@ def _status_for(code: str) -> int:
 
 def _error(status: int, code: str, message: str) -> JSONResponse:
     return _envelope(status, error={"code": code, "message": message})
+
+
+def _authentication_error() -> JSONResponse:
+    response = _error(401, "unauthorized", "Service authentication failed")
+    response.headers["WWW-Authenticate"] = "Bearer"
+    return response
 
 
 def _envelope(

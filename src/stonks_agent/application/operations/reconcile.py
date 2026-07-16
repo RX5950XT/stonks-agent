@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from stonks_agent.application.operations._authorization import authorize_paper_account
 from stonks_agent.application.operations._common import (
     commit_or_failure,
     reconcile_locked_account,
 )
 from stonks_agent.domain._trading import failure
-from stonks_agent.domain.auth import LocalPrincipal, Permission, authorize
+from stonks_agent.domain.auth import LocalPrincipal
 from stonks_agent.domain.errors import ErrorCode, Failure, Result
 from stonks_agent.domain.ledger import LedgerReconciliationReport
 from stonks_agent.domain.operations import (
@@ -22,7 +23,7 @@ def reconcile_paper_state(
     command: ReconcilePaperCommand,
     unit_of_work: PaperOperationsUnitOfWorkFactory,
 ) -> Result[PaperReconciliationResult]:
-    granted = authorize(principal, Permission.OPERATE_PAPER)
+    granted = authorize_paper_account(principal, command.account_id)
     if isinstance(granted, Failure):
         return granted
     with unit_of_work() as transaction:

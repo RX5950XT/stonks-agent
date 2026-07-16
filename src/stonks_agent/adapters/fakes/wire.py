@@ -398,6 +398,8 @@ def _report(
 ) -> AnalysisReport:
     return AnalysisReport(
         report_id=identifiers.report,
+        run_id=identifiers.run,
+        owner_subject=f"paper:{request.account_id}",
         subject=request.symbol,
         as_of=request.as_of,
         language="zh-TW",

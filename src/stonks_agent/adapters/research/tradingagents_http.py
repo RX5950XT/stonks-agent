@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from time import monotonic, sleep
@@ -18,6 +19,7 @@ from stonks_agent.adapters.market_data._http_response import (
     response_deadline,
 )
 from stonks_agent.domain.artifact import ArtifactMetadata
+from stonks_agent.domain.auth import AccessTarget, Permission, ResourceKind
 from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
@@ -26,6 +28,11 @@ from stonks_agent.domain.errors import (
     Success,
 )
 from stonks_agent.ports.artifact_store import ArtifactManifest, ArtifactStore
+from stonks_agent.ports.service_credentials import (
+    ServiceCredentialProvider,
+    ServiceCredentialRequest,
+    ServiceReceiver,
+)
 from stonks_contracts.evidence import Sensitivity
 from stonks_contracts.tradingagents import (
     TradingAgentsWorkerRequest,
@@ -33,6 +40,10 @@ from stonks_contracts.tradingagents import (
 )
 
 _TRANSIENT_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 class TradingAgentsWorkerPolicy(BaseModel):
@@ -92,7 +103,15 @@ def load_worker_policy(path: str) -> TradingAgentsWorkerPolicy:
 
 
 class TradingAgentsHttpAdapter:
-    __slots__ = ("_artifacts", "_client", "_clock", "_monotonic", "_policy", "_sleep")
+    __slots__ = (
+        "_artifacts",
+        "_client",
+        "_clock",
+        "_credentials",
+        "_monotonic",
+        "_policy",
+        "_sleep",
+    )
 
     def __init__(
         self,
@@ -100,6 +119,7 @@ class TradingAgentsHttpAdapter:
         client: httpx.Client,
         artifacts: ArtifactStore,
         policy: TradingAgentsWorkerPolicy,
+        credentials: ServiceCredentialProvider,
         clock: Callable[[], datetime],
         monotonic_clock: Callable[[], float] = monotonic,
         sleeper: Callable[[float], None] = sleep,
@@ -107,6 +127,7 @@ class TradingAgentsHttpAdapter:
         self._client = client
         self._artifacts = artifacts
         self._policy = policy
+        self._credentials = credentials
         self._clock = clock
         self._monotonic = monotonic_clock
         self._sleep = sleeper
@@ -161,6 +182,24 @@ class TradingAgentsHttpAdapter:
             remaining = (request.deadline - now).total_seconds()
             if now.tzinfo is None or remaining <= 0:
                 return _failure(ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded")
+            credential = self._credentials.issue(
+                ServiceCredentialRequest(
+                    receiver=ServiceReceiver.TRADINGAGENTS,
+                    permission=Permission.DISPATCH_ASSIGNED_RESEARCH,
+                    target=AccessTarget(
+                        kind=ResourceKind.JOB,
+                        identifier=str(request.job_id),
+                    ),
+                    request_id=request.request_id,
+                    run_id=request.run_id,
+                    attempt_generation=request.attempt_generation,
+                    attempt_nonce_hash=_sha256_text(request.attempt_nonce),
+                    request_hash=hashlib.sha256(content).hexdigest(),
+                    expires_no_later_than=request.deadline,
+                )
+            )
+            if isinstance(credential, Failure):
+                return credential
             timeout = min(self._policy.timeout_seconds, remaining)
             deadline = response_deadline(self._monotonic, timeout)
             try:
@@ -171,6 +210,7 @@ class TradingAgentsHttpAdapter:
                     headers={
                         "Accept": "application/json",
                         "Accept-Encoding": "identity",
+                        "Authorization": credential.value.authorization_header(),
                         "Content-Type": "application/json",
                     },
                     timeout=httpx.Timeout(timeout),

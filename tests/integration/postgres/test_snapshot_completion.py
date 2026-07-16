@@ -600,6 +600,7 @@ def snapshot_request(
         query=query or {"symbol": "AAPL"},
         provider_policy_id="us-prices/1",
         idempotency_key=idempotency_key,
+        owner_subject="test-owner",
         requested_at=requested_at,
     )
 

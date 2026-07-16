@@ -20,6 +20,7 @@ from stonks_contracts.kronos import (
     KronosForecastPoint,
     KronosWorkerRequest,
 )
+from stonks_service_auth import service_auth_source_hash
 
 type DeviceProfile = Literal["cpu", "cuda"]
 type RuntimeFactory = Callable[["ValidatedModelPaths", DeviceProfile], object]
@@ -121,7 +122,13 @@ def compute_runtime_hash(worker_root: Path, profile: DeviceProfile) -> str:
                 "sha256": hashlib.sha256(content).hexdigest(),
             }
         )
-    return stable_payload_hash({"profile": profile, "files": payload})
+    return stable_payload_hash(
+        {
+            "profile": profile,
+            "files": payload,
+            "service_auth_source_hash": service_auth_source_hash(),
+        }
+    )
 
 
 def validate_model_root(

@@ -20,20 +20,25 @@ from stonks_agent.application.strategies.manage import (
     read_strategy_events,
     transition_strategy,
 )
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import AccessTarget, LocalPrincipal, ResourceKind, Role
 from stonks_agent.domain.errors import Failure, Result
 from stonks_agent.domain.strategy import PromotionState, StrategyTransitionRequest
 from stonks_agent.entrypoints.api.envelope import error_envelope, success_envelope
+from stonks_agent.entrypoints.cli_commands._local_auth import local_cli_principal
 from stonks_agent.ports.strategy_registry import (
     StrategyUnitOfWork,
     StrategyUnitOfWorkFactory,
 )
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
-_PRINCIPAL = LocalPrincipal(
-    subject="local-strategy-reviewer",
-    roles=frozenset({Role.STRATEGY_REVIEWER}),
-)
+
+
+def _principal(target: AccessTarget) -> LocalPrincipal:
+    return local_cli_principal(
+        subject="local-reviewer",
+        role=Role.STRATEGY_REVIEWER,
+        targets=frozenset({target}),
+    )
 
 
 @app.command("show")
@@ -44,11 +49,12 @@ def show_command(
 ) -> None:
     """Read one exact strategy registry version."""
     strategy_id, strategy_version = _validated_identity(strategy_id, strategy_version)
+    principal = _strategy_principal(strategy_id, strategy_version)
     _emit_result(
         _run_database(
             database_url,
             lambda unit_of_work: read_strategy(
-                _PRINCIPAL,
+                principal,
                 strategy_id,
                 strategy_version,
                 unit_of_work,
@@ -65,11 +71,12 @@ def events_command(
 ) -> None:
     """Read the verified immutable strategy audit chain."""
     strategy_id, strategy_version = _validated_identity(strategy_id, strategy_version)
+    principal = _strategy_principal(strategy_id, strategy_version)
     _emit_result(
         _run_database(
             database_url,
             lambda unit_of_work: read_strategy_events(
-                _PRINCIPAL,
+                principal,
                 strategy_id,
                 strategy_version,
                 unit_of_work,
@@ -86,11 +93,14 @@ def evaluation_command(
     """Read one immutable evaluation report and its content hash."""
     try:
         identifier = UUID(report_id)
+        principal = _principal(
+            AccessTarget(kind=ResourceKind.EVALUATION, identifier=str(identifier))
+        )
     except ValueError as error:
         raise typer.BadParameter("report-id is invalid") from error
     result = _run_database(
         database_url,
-        lambda unit_of_work: read_evaluation(_PRINCIPAL, identifier, unit_of_work),
+        lambda unit_of_work: read_evaluation(principal, identifier, unit_of_work),
     )
     if isinstance(result, Failure):
         _emit_result(result)
@@ -115,9 +125,14 @@ def transition_command(
 ) -> None:
     """Apply one reviewer-authorized CAS transition in the paper-only graph."""
     try:
+        validated_id, validated_version = _validated_identity(
+            strategy_id,
+            strategy_version,
+        )
+        principal = _strategy_principal(validated_id, validated_version)
         command = StrategyTransitionRequest(
-            strategy_id=strategy_id,
-            strategy_version=strategy_version,
+            strategy_id=validated_id,
+            strategy_version=validated_version,
             expected_version=expected_version,
             current_state=current_state,
             target_state=target_state,
@@ -126,7 +141,7 @@ def transition_command(
             ),
             evaluation_hash=evaluation_hash or None,
             reason_code=reason_code,
-            actor=_PRINCIPAL.subject,
+            actor=principal.subject,
             requested_at=datetime.now(UTC),
         )
     except (ValueError, ValidationError) as error:
@@ -134,7 +149,7 @@ def transition_command(
     _emit_result(
         _run_database(
             database_url,
-            lambda unit_of_work: transition_strategy(_PRINCIPAL, command, unit_of_work),
+            lambda unit_of_work: transition_strategy(principal, command, unit_of_work),
         )
     )
 
@@ -162,6 +177,15 @@ def _validated_identity(strategy_id: str, strategy_version: str) -> tuple[str, s
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", strategy_version):
         raise typer.BadParameter("strategy-version is invalid")
     return strategy_id, strategy_version
+
+
+def _strategy_principal(strategy_id: str, strategy_version: str) -> LocalPrincipal:
+    return _principal(
+        AccessTarget(
+            kind=ResourceKind.STRATEGY,
+            identifier=f"{strategy_id}@{strategy_version}",
+        )
+    )
 
 
 def _emit_result[T](result: Result[T]) -> None:

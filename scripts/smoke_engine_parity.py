@@ -37,8 +37,14 @@ _LEAN_VERSION = "17917+c22774e49ee80ecef5ca84f57616f6b66fad8bc5"
 class Endpoint:
     engine: BacktestEngineKind
     base_url: str
-    token: str
+    tokens: tuple[tuple[str, str], ...]
     runtime: BacktestRuntimeIdentity
+
+    def token_for(self, case_name: str) -> str:
+        matches = tuple(token for name, token in self.tokens if name == case_name)
+        if len(matches) != 1:
+            raise RuntimeError(f"{self.engine.value} smoke token is not exact")
+        return matches[0]
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,12 +287,17 @@ def _engine_job(case: ParityCase, endpoint: Endpoint) -> BacktestJob:
     )
 
 
-def _send(endpoint: Endpoint, job: BacktestJob, timeout: float) -> BacktestResult:
+def _send(
+    endpoint: Endpoint,
+    job: BacktestJob,
+    timeout: float,
+    token: str,
+) -> BacktestResult:
     request = Request(
         f"{endpoint.base_url.rstrip('/')}/v1/backtests",
         data=job.model_dump_json().encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {endpoint.token}",
+            "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         },
         method="POST",
@@ -358,8 +369,9 @@ def _evaluate(
     evidence: dict[str, object] = {}
     for endpoint, job in zip(endpoints, jobs, strict=True):
         try:
-            first = _send(endpoint, job, timeout)
-            replay = _send(endpoint, job, timeout)
+            token = endpoint.token_for(case.name)
+            first = _send(endpoint, job, timeout, token)
+            replay = _send(endpoint, job, timeout, token)
         except RuntimeError as error:
             raise RuntimeError(f"{case.name}: {error}") from error
         _assert_expected(case, first)
@@ -389,7 +401,7 @@ def _evaluate(
 def _endpoint(
     engine: BacktestEngineKind,
     base_url: str,
-    token: str,
+    tokens: tuple[tuple[str, str], ...],
     runtime_hash: str,
     image_digest: str,
 ) -> Endpoint:
@@ -399,7 +411,7 @@ def _endpoint(
     return Endpoint(
         engine=engine,
         base_url=base_url,
-        token=token,
+        tokens=tokens,
         runtime=BacktestRuntimeIdentity(
             engine=engine,
             engine_version=version,
@@ -411,35 +423,51 @@ def _endpoint(
     )
 
 
+def _parse_tokens(value: str) -> tuple[tuple[str, str], ...]:
+    payload = json.loads(value)
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("smoke tokens must be a non-empty object")
+    tokens: list[tuple[str, str]] = []
+    for name, token in payload.items():
+        if not isinstance(name, str) or not isinstance(token, str) or not token:
+            raise ValueError("smoke token binding is invalid")
+        tokens.append((name, token))
+    return tuple(tokens)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--nautilus-url", default="http://127.0.0.1:7400")
     parser.add_argument("--nautilus-runtime-hash", required=True)
     parser.add_argument("--nautilus-image-digest", required=True)
-    parser.add_argument("--nautilus-token", required=True)
+    parser.add_argument("--nautilus-tokens-json", required=True)
     parser.add_argument("--lean-url", default="http://127.0.0.1:7410")
     parser.add_argument("--lean-runtime-hash", required=True)
     parser.add_argument("--lean-image-digest", required=True)
-    parser.add_argument("--lean-token", required=True)
+    parser.add_argument("--lean-tokens-json", required=True)
+    parser.add_argument("--requested-at", required=True)
     parser.add_argument("--timeout", type=float, default=180)
     args = parser.parse_args()
     endpoints = (
         _endpoint(
             BacktestEngineKind.NAUTILUS,
             args.nautilus_url,
-            args.nautilus_token,
+            _parse_tokens(args.nautilus_tokens_json),
             args.nautilus_runtime_hash,
             args.nautilus_image_digest,
         ),
         _endpoint(
             BacktestEngineKind.LEAN,
             args.lean_url,
-            args.lean_token,
+            _parse_tokens(args.lean_tokens_json),
             args.lean_runtime_hash,
             args.lean_image_digest,
         ),
     )
-    now = datetime.now(UTC)
+    now = datetime.fromisoformat(args.requested_at)
+    if now.tzinfo is None:
+        raise ValueError("requested-at must include a timezone")
+    now = now.astimezone(UTC)
     base = _job(
         args.nautilus_runtime_hash,
         args.nautilus_image_digest,

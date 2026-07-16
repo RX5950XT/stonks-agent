@@ -58,6 +58,22 @@ class ArtifactReportReader:
             return _failure(ErrorCode.INVALID_INPUT, "Report artifact is invalid")
         return Success(projection)
 
+    def owner_subject(self, content_hash: str) -> Result[str]:
+        manifest = self._artifacts.manifest(content_hash)
+        if isinstance(manifest, Failure):
+            return manifest
+        attributes = dict(manifest.value.metadata.attributes)
+        if not _is_report_manifest(
+            manifest.value.size_bytes,
+            manifest.value.metadata,
+            attributes,
+        ):
+            return _failure(
+                ErrorCode.CAPABILITY_DENIED,
+                "Artifact is not a readable report",
+            )
+        return Success(attributes["owner_subject"])
+
 
 def _is_report_manifest(
     size_bytes: int, metadata: object, attributes: dict[str, str]
@@ -73,9 +89,37 @@ def _is_report_manifest(
         and metadata.license_tag == "Apache-2.0"
         and metadata.sensitivity is Sensitivity.INTERNAL
         and expected_media == metadata.media_type
-        and set(attributes) == {"format", "report_id", "template_version"}
+        and set(attributes)
+        == {
+            "format",
+            "owner_subject",
+            "report_id",
+            "run_id",
+            "template_version",
+        }
+        and _valid_subject(attributes["owner_subject"])
+        and _valid_uuid(attributes["run_id"])
+        and _valid_uuid(attributes["report_id"])
         and attributes["template_version"] == "stonks-report-templates/1.0.0"
     )
+
+
+def _valid_subject(value: str) -> bool:
+    from stonks_agent.domain.auth import LocalPrincipal, Role
+
+    try:
+        LocalPrincipal(subject=value, roles=frozenset({Role.VIEWER}))
+    except ValidationError:
+        return False
+    return True
+
+
+def _valid_uuid(value: str) -> bool:
+    try:
+        UUID(value)
+    except ValueError:
+        return False
+    return True
 
 
 def _failure(code: ErrorCode, message: str) -> Failure:

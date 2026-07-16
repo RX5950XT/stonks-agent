@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import FastAPI, Header, Query, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -20,7 +20,6 @@ from stonks_agent.application.operations.activate_kill_switch import (
 )
 from stonks_agent.application.operations.reconcile import reconcile_paper_state
 from stonks_agent.application.operations.resume import resume_paper
-from stonks_agent.domain.auth import LocalPrincipal
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, StructuredError
 from stonks_agent.domain.operations import (
     ActivateKillSwitchCommand,
@@ -28,13 +27,17 @@ from stonks_agent.domain.operations import (
     ReconcilePaperCommand,
     ResumePaperCommand,
 )
+from stonks_agent.entrypoints.api.dependencies.auth import (
+    PaperOperatorPrincipal,
+    install_authentication,
+)
 from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
     unexpected_error_envelope,
 )
 from stonks_agent.entrypoints.api.request_limits import RequestBodyLimitMiddleware
-from stonks_agent.ports.authentication import AuthenticationRequest, Authenticator
+from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.paper_operations import PaperOperationsUnitOfWorkFactory
 
 MAX_OPERATIONS_REQUEST_BYTES = 65_536
@@ -77,33 +80,33 @@ def create_paper_operations_app(
     app.add_middleware(
         RequestBodyLimitMiddleware, max_bytes=MAX_OPERATIONS_REQUEST_BYTES
     )
-    authenticate = _Authenticator(authenticator or DenyAllAuthenticator())
+    install_authentication(app, authenticator or DenyAllAuthenticator())
     selected_clock = clock or _utc_now
     app.add_exception_handler(RequestValidationError, _validation_error)
     app.add_exception_handler(Exception, _unexpected_error)
     app.add_api_route(
         "/v1/paper/kill-switches/activate",
-        _ActivateEndpoint(unit_of_work, authenticate, selected_clock),
+        _ActivateEndpoint(unit_of_work, selected_clock),
         methods=["POST"],
     )
     app.add_api_route(
         "/v1/paper/reconciliation",
-        _ReconcileEndpoint(unit_of_work, authenticate, selected_clock),
+        _ReconcileEndpoint(unit_of_work, selected_clock),
         methods=["POST"],
     )
     app.add_api_route(
         "/v1/paper/kill-switches/resume",
-        _ResumeEndpoint(unit_of_work, authenticate, selected_clock),
+        _ResumeEndpoint(unit_of_work, selected_clock),
         methods=["POST"],
     )
     app.add_api_route(
         "/v1/paper/kill-switches/{scope}",
-        _StatusEndpoint(unit_of_work, authenticate),
+        _StatusEndpoint(unit_of_work),
         methods=["GET"],
     )
     app.add_api_route(
         "/v1/paper/operator-actions",
-        _ActionsEndpoint(unit_of_work, authenticate),
+        _ActionsEndpoint(unit_of_work),
         methods=["GET"],
     )
     return app
@@ -113,22 +116,16 @@ class _ActivateEndpoint:
     def __init__(
         self,
         unit_of_work: PaperOperationsUnitOfWorkFactory,
-        authenticate: _Authenticator,
         clock: Callable[[], datetime],
     ) -> None:
         self._unit_of_work = unit_of_work
-        self._authenticate = authenticate
         self._clock = clock
 
     def __call__(
         self,
-        request: Request,
         body: ActivateKillSwitchBody,
-        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        principal: PaperOperatorPrincipal,
     ) -> JSONResponse:
-        principal = self._authenticate(request, authorization)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
         try:
             command = ActivateKillSwitchCommand(
                 **body.model_dump(), requested_at=self._clock()
@@ -136,7 +133,7 @@ class _ActivateEndpoint:
         except ValidationError:
             return _error_response(_failure("Kill switch request is invalid"))
         return _result_response(
-            activate_kill_switch(principal.value, command, self._unit_of_work)
+            activate_kill_switch(principal, command, self._unit_of_work)
         )
 
 
@@ -144,25 +141,19 @@ class _ReconcileEndpoint:
     def __init__(
         self,
         unit_of_work: PaperOperationsUnitOfWorkFactory,
-        authenticate: _Authenticator,
         clock: Callable[[], datetime],
     ) -> None:
         self._unit_of_work = unit_of_work
-        self._authenticate = authenticate
         self._clock = clock
 
     def __call__(
         self,
-        request: Request,
         body: ReconcilePaperBody,
-        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        principal: PaperOperatorPrincipal,
     ) -> JSONResponse:
-        principal = self._authenticate(request, authorization)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
         command = ReconcilePaperCommand(**body.model_dump(), requested_at=self._clock())
         return _result_response(
-            reconcile_paper_state(principal.value, command, self._unit_of_work)
+            reconcile_paper_state(principal, command, self._unit_of_work)
         )
 
 
@@ -170,55 +161,41 @@ class _ResumeEndpoint:
     def __init__(
         self,
         unit_of_work: PaperOperationsUnitOfWorkFactory,
-        authenticate: _Authenticator,
         clock: Callable[[], datetime],
     ) -> None:
         self._unit_of_work = unit_of_work
-        self._authenticate = authenticate
         self._clock = clock
 
     def __call__(
         self,
-        request: Request,
         body: ResumePaperBody,
-        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        principal: PaperOperatorPrincipal,
     ) -> JSONResponse:
-        principal = self._authenticate(request, authorization)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
         try:
             command = ResumePaperCommand(
                 **body.model_dump(), requested_at=self._clock()
             )
         except ValidationError:
             return _error_response(_failure("Paper resume request is invalid"))
-        return _result_response(
-            resume_paper(principal.value, command, self._unit_of_work)
-        )
+        return _result_response(resume_paper(principal, command, self._unit_of_work))
 
 
 class _StatusEndpoint:
     def __init__(
         self,
         unit_of_work: PaperOperationsUnitOfWorkFactory,
-        authenticate: _Authenticator,
     ) -> None:
         self._unit_of_work = unit_of_work
-        self._authenticate = authenticate
 
     def __call__(
         self,
-        request: Request,
         scope: KillSwitchScope,
+        principal: PaperOperatorPrincipal,
         account_id: Annotated[str | None, Query(min_length=1, max_length=128)] = None,
-        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
     ) -> JSONResponse:
-        principal = self._authenticate(request, authorization)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
         return _result_response(
             read_kill_switch(
-                principal.value,
+                principal,
                 scope,
                 account_id,
                 self._unit_of_work,
@@ -230,44 +207,21 @@ class _ActionsEndpoint:
     def __init__(
         self,
         unit_of_work: PaperOperationsUnitOfWorkFactory,
-        authenticate: _Authenticator,
     ) -> None:
         self._unit_of_work = unit_of_work
-        self._authenticate = authenticate
 
     def __call__(
         self,
-        request: Request,
+        principal: PaperOperatorPrincipal,
         after_sequence: Annotated[int, Query(ge=0)] = 0,
-        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
     ) -> JSONResponse:
-        principal = self._authenticate(request, authorization)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
         return _result_response(
             read_operator_actions(
-                principal.value,
+                principal,
                 after_sequence=after_sequence,
                 unit_of_work=self._unit_of_work,
             )
         )
-
-
-class _Authenticator:
-    def __init__(self, authenticator: Authenticator) -> None:
-        self._authenticator = authenticator
-
-    def __call__(
-        self, request: Request, authorization: str | None
-    ) -> Result[LocalPrincipal]:
-        try:
-            incoming = AuthenticationRequest(
-                authorization=authorization,
-                client_host=request.client.host if request.client else None,
-            )
-        except ValidationError:
-            return _failure("Authentication request is invalid")
-        return self._authenticator.authenticate(incoming)
 
 
 def _result_response(result: Result[object]) -> JSONResponse:

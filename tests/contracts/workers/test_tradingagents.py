@@ -16,9 +16,16 @@ import yaml
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from stonks_service_auth import ServiceReceiver
+
 ROOT = Path(__file__).resolve().parents[3]
 WORKER = ROOT / "workers" / "tradingagents"
 sys.path.insert(0, str(ROOT))
+
+from fixtures.service_auth import (  # noqa: E402
+    ExactServiceAuthenticator,
+    authorization_headers,
+)
 
 from stonks_contracts.common import ModelUsage  # noqa: E402
 from stonks_contracts.tradingagents import SignedEvidenceArtifact  # noqa: E402
@@ -264,12 +271,17 @@ def test_runtime_source_refs_must_remain_inside_request_scope() -> None:
 
 def test_api_uses_standard_envelope_and_bounded_body() -> None:
     runtime = RecordingRuntime()
+    request = analysis_request()
     app = create_app(
         worker=TradingAgentsWorker(
             policy=policy(),
             runtime=runtime,
             artifacts=FakeArtifacts(),
             clock=lambda: NOW,
+        ),
+        authenticator=ExactServiceAuthenticator.for_request(
+            request,
+            receiver=ServiceReceiver.TRADINGAGENTS,
         ),
         max_request_bytes=8_192,
     )
@@ -278,28 +290,48 @@ def test_api_uses_standard_envelope_and_bounded_body() -> None:
         health = client.get("/healthz")
         success = client.post(
             "/v1/analyze",
-            content=analysis_request().model_dump_json(),
-            headers={"content-type": "application/json"},
+            content=request.model_dump_json(),
+            headers={**authorization_headers(), "content-type": "application/json"},
         )
         invalid = client.post(
             "/v1/analyze",
             content=b"not-json",
-            headers={"content-type": "application/json"},
+            headers={**authorization_headers(), "content-type": "application/json"},
         )
         oversized = client.post(
             "/v1/analyze",
             content=b"{" + b"x" * 8_192,
-            headers={"content-type": "application/json"},
+            headers={**authorization_headers(), "content-type": "application/json"},
+        )
+        hostile_lengths = tuple(
+            client.post(
+                "/v1/analyze",
+                content=b"{}",
+                headers={
+                    **authorization_headers(),
+                    "content-length": declared,
+                    "content-type": "application/json",
+                },
+            )
+            for declared in ("9" * 5_000, "not-a-number")
         )
         hidden = client.get("/docs")
 
     assert health.json()["data"]["upstream_commit"].startswith("01477f9a")
+    auth_source_hash = health.json()["data"]["service_auth_source_hash"]
+    assert len(auth_source_hash) == 64
+    assert all(character in "0123456789abcdef" for character in auth_source_hash)
     assert success.status_code == 200
     assert success.json()["success"] is True
     assert set(success.json()) == {"success", "status", "data", "error", "metadata"}
     assert invalid.status_code == 400
     assert invalid.json()["error"]["code"] == "invalid_request"
     assert oversized.status_code == 413
+    assert all(response.status_code == 413 for response in hostile_lengths)
+    assert all(
+        response.json()["error"]["code"] == "request_too_large"
+        for response in hostile_lengths
+    )
     assert hidden.status_code == 404
 
 
@@ -310,29 +342,61 @@ def test_api_maps_runtime_and_media_failures_without_leaking() -> None:
         artifacts=FakeArtifacts(),
         clock=lambda: NOW,
     )
-    app = create_app(worker=failing)
+    request = analysis_request()
+    authenticator = ExactServiceAuthenticator.for_request(
+        request,
+        receiver=ServiceReceiver.TRADINGAGENTS,
+    )
+    app = create_app(worker=failing, authenticator=authenticator)
     with pytest.raises(ValueError, match="max_request_bytes"):
-        create_app(worker=failing, max_request_bytes=0)
+        create_app(worker=failing, authenticator=authenticator, max_request_bytes=0)
     with TestClient(app) as client:
-        unsupported = client.post("/v1/analyze", content=b"{}")
+        unsupported = client.post(
+            "/v1/analyze", content=b"{}", headers=authorization_headers()
+        )
         encoded = client.post(
             "/v1/analyze",
             content=b"{}",
             headers={
+                **authorization_headers(),
                 "content-type": "application/json",
                 "content-encoding": "gzip",
             },
         )
         failed = client.post(
             "/v1/analyze",
-            content=analysis_request().model_dump_json(),
-            headers={"content-type": "application/json"},
+            content=request.model_dump_json(),
+            headers={**authorization_headers(), "content-type": "application/json"},
         )
+        denied = client.post(
+            "/v1/analyze",
+            content=request.model_dump_json(),
+            headers={
+                "authorization": "Bearer wrong-but-long-service-token",
+                "content-type": "application/json",
+            },
+        )
+    wrong_target = TestClient(
+        create_app(
+            worker=failing,
+            authenticator=ExactServiceAuthenticator.for_request(
+                request,
+                receiver=ServiceReceiver.TRADINGAGENTS,
+                target_identifier=UUID(int=999),
+            ),
+        )
+    ).post(
+        "/v1/analyze",
+        content=request.model_dump_json(),
+        headers={**authorization_headers(), "content-type": "application/json"},
+    )
 
     assert unsupported.status_code == 415
     assert encoded.status_code == 415
     assert encoded.json()["error"]["code"] == "unsupported_content_encoding"
     assert failed.status_code == 503
+    assert denied.status_code == 401
+    assert wrong_target.status_code == 403
     assert "hidden" not in failed.text
 
 
@@ -507,9 +571,19 @@ def test_canonical_facade_replaces_every_upstream_data_tool(
 def test_runtime_entrypoint_builds_one_profile_per_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import stonks_service_auth
+
     monkeypatch.setenv("STONKS_WORKER_PROFILE", "backtest")
     monkeypatch.delenv("STONKS_TEST_DATABASE_URL", raising=False)
     monkeypatch.delenv("STONKS_DATABASE_URL", raising=False)
+    monkeypatch.setattr(
+        stonks_service_auth,
+        "load_static_oidc_service_authenticator",
+        lambda _environment: ExactServiceAuthenticator.for_request(
+            analysis_request(),
+            receiver=ServiceReceiver.TRADINGAGENTS,
+        ),
+    )
     sys.modules.pop("workers.tradingagents.runtime_app", None)
 
     loaded = importlib.import_module("workers.tradingagents.runtime_app")
@@ -534,9 +608,30 @@ def test_profiles_are_separate_fail_closed_processes_with_internal_network() -> 
         "tradingagents-backtest",
         "tradingagents-production",
     }
+    service_trust = {
+        "STONKS_SERVICE_OIDC_ISSUER": "${STONKS_SERVICE_OIDC_ISSUER:?required}",
+        "STONKS_SERVICE_OIDC_AUDIENCE": (
+            "${STONKS_TRADINGAGENTS_SERVICE_OIDC_AUDIENCE:?required}"
+        ),
+        "STONKS_SERVICE_OIDC_CORE_SUBJECT": (
+            "${STONKS_SERVICE_OIDC_CORE_SUBJECT:?required}"
+        ),
+        "STONKS_SERVICE_OIDC_CORE_CLIENT_ID": (
+            "${STONKS_SERVICE_OIDC_CORE_CLIENT_ID:?required}"
+        ),
+        "STONKS_SERVICE_OIDC_ALGORITHMS": "RS256",
+        "STONKS_SERVICE_OIDC_RECEIVER": "tradingagents",
+        "STONKS_SERVICE_OIDC_JWKS_FILE": "/run/secrets/stonks-service-jwks.json",
+    }
     for profile in ("paper", "backtest", "production"):
         service = services[f"tradingagents-{profile}"]
-        assert service["environment"] == {"STONKS_WORKER_PROFILE": profile}
+        assert service["environment"] == service_trust | {
+            "STONKS_WORKER_PROFILE": profile
+        }
+        assert service["volumes"] == [
+            "${STONKS_SERVICE_OIDC_JWKS_HOST_FILE:?required}:"
+            "/run/secrets/stonks-service-jwks.json:ro"
+        ]
         assert service["read_only"] is True
         assert service["cap_drop"] == ["ALL"]
         assert service["security_opt"] == ["no-new-privileges:true"]

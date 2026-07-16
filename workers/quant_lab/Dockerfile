@@ -25,6 +25,7 @@ RUN apt-get update \
 WORKDIR /workspace/workers/quant_lab
 COPY workers/quant_lab/pyproject.toml workers/quant_lab/uv.lock ./
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 RUN uv sync --frozen --no-dev --no-install-project \
     && uv pip install --python .venv/bin/python --no-deps --no-build-isolation /opt/qlib
 
@@ -32,6 +33,7 @@ FROM source AS runtime
 WORKDIR /workspace
 COPY --from=build /workspace/workers/quant_lab/.venv /workspace/workers/quant_lab/.venv
 COPY packages/contracts /workspace/packages/contracts
+COPY packages/service-auth /workspace/packages/service-auth
 COPY workers/__init__.py /workspace/workers/__init__.py
 COPY workers/quant_lab /workspace/workers/quant_lab
 COPY config/workers/quant_lab.yaml /workspace/config/workers/quant_lab.yaml

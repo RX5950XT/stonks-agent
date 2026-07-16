@@ -19,13 +19,21 @@ from stonks_agent.application.research.request_run import (
     read_run_events,
     request_research_run,
 )
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import AccessTarget, LocalPrincipal, ResourceKind, Role
 from stonks_agent.domain.errors import Failure, Result
 from stonks_agent.domain.research_run import ResearchRunRequest
 from stonks_agent.entrypoints.api.envelope import error_envelope, success_envelope
+from stonks_agent.entrypoints.cli_commands._local_auth import local_cli_principal
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
-_PRINCIPAL = LocalPrincipal(subject="local-cli", roles=frozenset({Role.RESEARCHER}))
+
+
+def _principal(target: AccessTarget) -> LocalPrincipal:
+    return local_cli_principal(
+        subject="local-cli",
+        role=Role.RESEARCHER,
+        targets=frozenset({target}),
+    )
 
 
 @app.command("request")
@@ -43,15 +51,20 @@ def request_command(
     if not database_url:
         raise typer.BadParameter("STONKS_DATABASE_URL is required")
     try:
+        identifier = UUID(snapshot_id)
+        principal = _principal(
+            AccessTarget(kind=ResourceKind.SNAPSHOT, identifier=str(identifier))
+        )
         command = ResearchRunRequest(
             instrument_id=instrument_id,
             symbol=symbol,
             as_of=datetime.fromisoformat(as_of),
-            snapshot_id=UUID(snapshot_id),
+            snapshot_id=identifier,
             research_profile_id=research_profile_id,
             model_policy_id=model_policy_id,
             language=language,
             idempotency_key=idempotency_key,
+            owner_subject=principal.subject,
             requested_at=datetime.now(UTC),
         )
     except (ValueError, ValidationError) as error:
@@ -59,7 +72,7 @@ def request_command(
     engine = create_engine(database_url, pool_pre_ping=True)
     try:
         result = request_research_run(
-            _PRINCIPAL, command, PostgresResearchRequestStore(engine)
+            principal, command, PostgresResearchRequestStore(engine)
         )
     finally:
         engine.dispose()
@@ -77,12 +90,15 @@ def events_command(
         raise typer.BadParameter("STONKS_DATABASE_URL is required")
     try:
         identifier = UUID(run_id)
+        principal = _principal(
+            AccessTarget(kind=ResourceKind.RESEARCH_RUN, identifier=str(identifier))
+        )
     except ValueError as error:
         raise typer.BadParameter("run-id is invalid") from error
     engine = create_engine(database_url, pool_pre_ping=True)
     try:
         result = read_run_events(
-            _PRINCIPAL,
+            principal,
             identifier,
             after_sequence=after_sequence,
             limit=limit,

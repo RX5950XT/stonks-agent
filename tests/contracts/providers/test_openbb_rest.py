@@ -3,17 +3,62 @@ from __future__ import annotations
 import json
 from collections import deque
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
+from pydantic import SecretStr
 
 from stonks_agent.adapters.market_data.openbb_rest import OpenBBRestAdapter
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
+from stonks_agent.domain.auth import AccessTarget, Permission, ResourceKind
 from stonks_agent.domain.data_quality import ProviderDataState
+from stonks_agent.domain.errors import (
+    ErrorCode,
+    Failure,
+    Result,
+    StructuredError,
+    Success,
+)
+from stonks_agent.ports.service_credentials import (
+    ServiceBearerCredential,
+    ServiceCredentialRequest,
+    ServiceReceiver,
+)
+from stonks_service_auth import canonical_request_hash
 
 NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
 ENDPOINT = "/api/v1/equity/price/historical"
+TOKEN = "test-openbb-service-credential-32-bytes"
+
+
+class RecordingCredentialProvider:
+    def __init__(
+        self,
+        result: Result[ServiceBearerCredential] | None = None,
+    ) -> None:
+        self.result = result or Success(ServiceBearerCredential(token=SecretStr(TOKEN)))
+        self.calls: list[ServiceCredentialRequest] = []
+
+    def issue(
+        self,
+        request: ServiceCredentialRequest,
+    ) -> Result[ServiceBearerCredential]:
+        self.calls.append(request)
+        return self.result
+
+
+def _adapter(
+    *,
+    client: httpx.Client,
+    credentials: RecordingCredentialProvider | None = None,
+    **kwargs: object,
+) -> OpenBBRestAdapter:
+    return OpenBBRestAdapter(
+        client=client,
+        credentials=credentials or RecordingCredentialProvider(),
+        **kwargs,
+    )
 
 
 def request(**query: object) -> FetchDataRequest:
@@ -62,8 +107,13 @@ def test_fetch_uses_fixed_route_and_preserves_openbb_metadata() -> None:
         seen.append(incoming)
         return httpx.Response(200, json=response_payload(), request=incoming)
 
+    credentials = RecordingCredentialProvider()
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        adapter = OpenBBRestAdapter(client=client, clock=lambda: NOW)
+        adapter = _adapter(
+            client=client,
+            credentials=credentials,
+            clock=lambda: NOW,
+        )
         observation = adapter.fetch(
             request(start_date="2026-01-01", end_date="2026-01-02")
         )
@@ -89,6 +139,32 @@ def test_fetch_uses_fixed_route_and_preserves_openbb_metadata() -> None:
         "http://127.0.0.1:6900/api/v1/equity/price/historical"
         "?symbol=AAPL&start_date=2026-01-01&end_date=2026-01-02&provider=yfinance"
     )
+    assert seen[0].headers["Authorization"] == f"Bearer {TOKEN}"
+    request_hash = canonical_request_hash(
+        {
+            "method": "GET",
+            "path": ENDPOINT,
+            "query": {
+                "symbol": "AAPL",
+                "start_date": "2026-01-01",
+                "end_date": "2026-01-02",
+                "provider": "yfinance",
+            },
+        }
+    )
+    assert credentials.calls == [
+        ServiceCredentialRequest(
+            receiver=ServiceReceiver.OPENBB,
+            permission=Permission.DISPATCH_ASSIGNED_MARKET_DATA,
+            target=AccessTarget(kind=ResourceKind.MARKET, identifier="US/AAPL"),
+            request_id=None,
+            run_id=None,
+            attempt_generation=0,
+            attempt_nonce_hash=request_hash,
+            request_hash=request_hash,
+            expires_no_later_than=NOW + timedelta(seconds=10),
+        )
+    ]
 
 
 def test_common_daily_policy_query_ignores_non_openbb_routing_fields() -> None:
@@ -99,7 +175,7 @@ def test_common_daily_policy_query_ignores_non_openbb_routing_fields() -> None:
         return httpx.Response(200, json=response_payload(), request=incoming)
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(
             request(
                 interval="1d",
                 scenario="canonical",
@@ -133,9 +209,7 @@ def test_unsupported_capability_is_not_a_fetch_failure() -> None:
         query={"symbol": "0700"},
     )
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            unsupported
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(unsupported)
 
     assert observation.state is ProviderDataState.NOT_SUPPORTED
     assert observation.reasons == ("openbb_capability_not_supported",)
@@ -206,9 +280,7 @@ def test_future_duplicate_and_invalid_ohlc_are_conflicts(
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is ProviderDataState.CONFLICT
     assert observation.data == ()
@@ -227,9 +299,7 @@ def test_historical_as_of_cannot_use_a_later_live_observation() -> None:
         update={"as_of": datetime(2026, 1, 1, 21, tzinfo=UTC)}
     )
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            historical
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(historical)
 
     assert observation.state is ProviderDataState.CONFLICT
     assert observation.reasons == ("openbb_point_in_time_unproven",)
@@ -245,9 +315,7 @@ def test_empty_openbb_results_are_legitimate_empty_with_metadata() -> None:
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is ProviderDataState.LEGITIMATE_EMPTY
     assert observation.data == ()
@@ -262,9 +330,7 @@ def test_nullable_openbb_warnings_normalize_to_empty_tuple() -> None:
         return httpx.Response(200, json=payload, request=incoming)
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is ProviderDataState.AVAILABLE
     assert observation.metadata is not None
@@ -278,9 +344,7 @@ def test_nullable_openbb_extra_normalizes_to_empty_mapping() -> None:
         return httpx.Response(200, json=payload, request=incoming)
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is ProviderDataState.AVAILABLE
     assert observation.metadata is not None
@@ -315,9 +379,7 @@ def test_request_injection_fails_closed_without_network_call(
         return httpx.Response(200, json=response_payload(), request=incoming)
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request(**query)
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request(**query))
 
     assert observation.state is ProviderDataState.FETCH_FAILED
     assert observation.reasons == (f"openbb_invalid_request:{reason}",)
@@ -348,7 +410,7 @@ def test_adapter_configuration_is_allowlisted(
         ) as client,
         pytest.raises(ValueError, match=message),
     ):
-        OpenBBRestAdapter(client=client, **kwargs)
+        _adapter(client=client, **kwargs)
 
 
 def test_unavailable_sidecar_returns_typed_failure_without_leaking_error() -> None:
@@ -356,14 +418,40 @@ def test_unavailable_sidecar_returns_typed_failure_without_leaking_error() -> No
         raise httpx.ConnectError("credential=should-not-leak", request=incoming)
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is ProviderDataState.FETCH_FAILED
     assert observation.data == ()
     assert observation.reasons == ("openbb_unavailable",)
     assert "credential" not in repr(observation)
+
+
+def test_missing_service_credential_fails_before_network_without_leaking() -> None:
+    calls = 0
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=response_payload(), request=incoming)
+
+    unavailable = Failure(
+        StructuredError(
+            code=ErrorCode.UNAUTHORIZED,
+            message="token=must-not-leak",
+        )
+    )
+    credentials = RecordingCredentialProvider(unavailable)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        observation = _adapter(
+            client=client,
+            credentials=credentials,
+            clock=lambda: NOW,
+        ).fetch(request())
+
+    assert observation.state is ProviderDataState.FETCH_FAILED
+    assert observation.reasons == ("openbb_service_credential_unavailable",)
+    assert calls == 0
+    assert "must-not-leak" not in observation.model_dump_json()
 
 
 @pytest.mark.parametrize(
@@ -397,9 +485,7 @@ def test_redirects_and_http_errors_are_typed_failures(
     with httpx.Client(
         transport=httpx.MockTransport(handler), follow_redirects=True
     ) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is state
     assert observation.reasons == (f"openbb_http_status:{status_code}",)
@@ -429,9 +515,7 @@ def test_invalid_or_oversized_content_length_fails_before_streaming(
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is ProviderDataState.FETCH_FAILED
     assert observation.reasons == ("openbb_invalid_response",)
@@ -455,9 +539,7 @@ def test_non_identity_content_encoding_is_rejected_without_decompression() -> No
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is ProviderDataState.FETCH_FAILED
     assert observation.reasons == ("openbb_invalid_response",)
@@ -486,7 +568,7 @@ def test_total_response_deadline_stops_slow_chunk_stream() -> None:
         )
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        adapter = OpenBBRestAdapter(
+        adapter = _adapter(
             client=client,
             timeout_seconds=1.0,
             clock=lambda: NOW,
@@ -531,9 +613,7 @@ def test_schema_content_type_and_provider_drift_fail_closed(
     assert callable(make_response)
     transport = httpx.MockTransport(make_response)
     with httpx.Client(transport=transport) as client:
-        observation = OpenBBRestAdapter(client=client, clock=lambda: NOW).fetch(
-            request()
-        )
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
 
     assert observation.state is ProviderDataState.FETCH_FAILED
     assert observation.reasons == ("openbb_invalid_response",)

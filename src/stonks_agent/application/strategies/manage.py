@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from stonks_agent.domain.auth import LocalPrincipal, Permission, authorize
+from stonks_agent.domain.auth import (
+    AccessTarget,
+    LocalPrincipal,
+    Permission,
+    ResourceKind,
+    authorize,
+    authorize_owned_target,
+)
 from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
@@ -41,7 +48,15 @@ def read_strategy(
     if denied is not None:
         return denied
     with unit_of_work() as transaction:
-        return transaction.strategies.get(strategy_id, strategy_version)
+        entry = transaction.strategies.get(strategy_id, strategy_version)
+        if isinstance(entry, Failure):
+            return entry
+        scoped = _authorize_strategy(
+            principal,
+            Permission.READ,
+            entry.value,
+        )
+        return scoped if isinstance(scoped, Failure) else entry
 
 
 def read_strategy_events(
@@ -54,6 +69,12 @@ def read_strategy_events(
     if denied is not None:
         return denied
     with unit_of_work() as transaction:
+        entry = transaction.strategies.get(strategy_id, strategy_version)
+        if isinstance(entry, Failure):
+            return entry
+        scoped = _authorize_strategy(principal, Permission.READ, entry.value)
+        if isinstance(scoped, Failure):
+            return scoped
         return transaction.strategies.list_events(strategy_id, strategy_version)
 
 
@@ -66,7 +87,22 @@ def read_evaluation(
     if denied is not None:
         return denied
     with unit_of_work() as transaction:
-        return transaction.strategies.get_evaluation(report_id)
+        report = transaction.strategies.get_evaluation(report_id)
+        if isinstance(report, Failure):
+            return report
+        entry = transaction.strategies.get(
+            report.value.strategy_id,
+            report.value.strategy_version,
+        )
+        if isinstance(entry, Failure):
+            return entry
+        scoped = authorize_owned_target(
+            principal,
+            Permission.READ,
+            AccessTarget(kind=ResourceKind.EVALUATION, identifier=str(report_id)),
+            entry.value.manifest.owner,
+        )
+        return scoped if isinstance(scoped, Failure) else report
 
 
 def transition_strategy(
@@ -80,6 +116,19 @@ def transition_strategy(
     if request.actor != principal.subject:
         return Failure(_denied_actor())
     with unit_of_work() as transaction:
+        entry = transaction.strategies.get(
+            request.strategy_id,
+            request.strategy_version,
+        )
+        if isinstance(entry, Failure):
+            return entry
+        scoped = _authorize_strategy(
+            principal,
+            Permission.REVIEW_STRATEGY,
+            entry.value,
+        )
+        if isinstance(scoped, Failure):
+            return scoped
         result = transaction.strategies.transition(request)
         if isinstance(result, Success):
             transaction.commit()
@@ -108,9 +157,24 @@ def check_signal_eligibility(
                     )
                 )
             return registry
+        scoped = _authorize_strategy(principal, Permission.READ, registry.value)
+        if isinstance(scoped, Failure):
+            return scoped
         evaluation = _signal_evaluation(signal, transaction.strategies)
         if isinstance(evaluation, Failure):
             return evaluation
+        if evaluation.value is not None:
+            evaluation_scope = authorize_owned_target(
+                principal,
+                Permission.READ,
+                AccessTarget(
+                    kind=ResourceKind.EVALUATION,
+                    identifier=str(evaluation.value.report_id),
+                ),
+                registry.value.manifest.owner,
+            )
+            if isinstance(evaluation_scope, Failure):
+                return evaluation_scope
         return Success(
             evaluate_signal_eligibility(
                 signal,
@@ -135,6 +199,22 @@ def _signal_evaluation(
 def _authorize(principal: LocalPrincipal, permission: Permission) -> Failure | None:
     result = authorize(principal, permission)
     return result if isinstance(result, Failure) else None
+
+
+def _authorize_strategy(
+    principal: LocalPrincipal,
+    permission: Permission,
+    entry: StrategyRegistryEntry,
+) -> Result[object]:
+    return authorize_owned_target(
+        principal,
+        permission,
+        AccessTarget(
+            kind=ResourceKind.STRATEGY,
+            identifier=f"{entry.manifest.strategy_id}@{entry.manifest.strategy_version}",
+        ),
+        entry.manifest.owner,
+    )
 
 
 def _denied_actor() -> StructuredError:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hmac
 import json
 from typing import Any
 
@@ -14,19 +13,26 @@ from pydantic import ValidationError
 
 from sidecars.lean.adapter import LeanAdapter, WorkerFailure
 from stonks_contracts.backtest import BacktestJob
+from stonks_service_auth import (
+    ServiceAccessTarget,
+    ServiceAuthenticator,
+    ServicePermission,
+    ServiceReceiver,
+    ServiceResourceKind,
+    authorize_service_dispatch,
+    exactly_one_authorization_header,
+)
 
 
 def create_app(
     *,
     adapter: LeanAdapter,
+    authenticator: ServiceAuthenticator,
     max_request_bytes: int,
-    service_token: str,
     max_concurrency: int = 1,
 ) -> FastAPI:
     if not 1 <= max_request_bytes <= 16_777_216:
         raise ValueError("max_request_bytes is outside the supported range")
-    if not 32 <= len(service_token) <= 512:
-        raise ValueError("service_token is outside the supported range")
     if not 1 <= max_concurrency <= 16:
         raise ValueError("max_concurrency is outside the supported range")
     capacity = asyncio.Semaphore(max_concurrency)
@@ -53,8 +59,11 @@ def create_app(
 
     @app.post("/v1/backtests")
     async def backtest(incoming: Request) -> JSONResponse:
-        if not _authenticated(incoming, service_token):
-            return _error(401, "unauthorized", "Service authentication failed")
+        principal = authenticator.authenticate(
+            exactly_one_authorization_header(incoming.scope["headers"])
+        )
+        if principal is None:
+            return _authentication_error()
         rejection = _validate_headers(incoming, max_request_bytes)
         if rejection is not None:
             return rejection
@@ -65,6 +74,20 @@ def create_app(
             job = BacktestJob.model_validate_json(body)
         except (ValidationError, json.JSONDecodeError):
             return _error(400, "invalid_request", "Backtest request is invalid")
+        if not authorize_service_dispatch(
+            principal,
+            permission=ServicePermission.DISPATCH_ASSIGNED_BACKTEST,
+            target=ServiceAccessTarget(
+                kind=ServiceResourceKind.BACKTEST_JOB,
+                identifier=str(job.job_id),
+            ),
+            receiver=ServiceReceiver.LEAN,
+            attempt_generation=job.attempt_generation,
+            attempt_nonce=job.attempt_nonce,
+            request_payload=job.model_dump(mode="json"),
+            deadline=job.deadline,
+        ):
+            return _error(403, "forbidden", "Service target access denied")
         try:
             await asyncio.wait_for(capacity.acquire(), timeout=0.1)
         except TimeoutError:
@@ -82,11 +105,6 @@ def create_app(
         return _envelope(200, data=outcome.value.model_dump(mode="json"))
 
     return app
-
-
-def _authenticated(incoming: Request, service_token: str) -> bool:
-    supplied = incoming.headers.get("authorization", "")
-    return hmac.compare_digest(supplied, f"Bearer {service_token}")
 
 
 def _validate_headers(incoming: Request, maximum: int) -> JSONResponse | None:
@@ -129,6 +147,12 @@ def _status_for(code: str) -> int:
 
 def _error(status: int, code: str, message: str) -> JSONResponse:
     return _envelope(status, error={"code": code, "message": message})
+
+
+def _authentication_error() -> JSONResponse:
+    response = _error(401, "unauthorized", "Service authentication failed")
+    response.headers["WWW-Authenticate"] = "Bearer"
+    return response
 
 
 def _envelope(

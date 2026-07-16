@@ -69,7 +69,9 @@ def test_report_cli_reads_only_finalized_report_artifact(tmp_path: Path) -> None
             source="stonks-agent-report-renderer",
             attributes=(
                 ("format", "markdown_full"),
+                ("owner_subject", "local-cli"),
                 ("report_id", str(report_id)),
+                ("run_id", "39000000-0000-4000-8000-000000000002"),
                 ("template_version", "stonks-report-templates/1.0.0"),
             ),
         ),
@@ -105,7 +107,7 @@ def test_research_cli_requires_database_and_exposes_no_execution_command() -> No
             "--snapshot-id",
             "39000000-0000-4000-8000-000000000002",
         ],
-        env={"STONKS_DATABASE_URL": ""},
+        env={"STONKS_DATABASE_URL": "", "STONKS_ENVIRONMENT": "local"},
     )
 
     assert help_result.exit_code == 0
@@ -129,7 +131,7 @@ def test_strategy_cli_exposes_review_workflow_without_live_or_order_commands() -
             "--strategy-version",
             "1.0.0",
         ],
-        env={"STONKS_DATABASE_URL": ""},
+        env={"STONKS_DATABASE_URL": "", "STONKS_ENVIRONMENT": "local"},
     )
     live = runner.invoke(
         app,
@@ -151,6 +153,7 @@ def test_strategy_cli_exposes_review_workflow_without_live_or_order_commands() -
             "--database-url",
             "postgresql+psycopg://unused",
         ],
+        env={"STONKS_ENVIRONMENT": "local"},
     )
 
     assert help_result.exit_code == 0

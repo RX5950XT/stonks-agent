@@ -34,6 +34,12 @@ def _copy_policy_fixture(tmp_path: Path) -> Path:
         root / "sidecars" / "openbb",
         ignore=shutil.ignore_patterns(".venv", "__pycache__", ".pytest_cache"),
     )
+    shutil.copytree(
+        PROJECT_ROOT / "packages" / "service-auth",
+        root / "packages" / "service-auth",
+        ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+    )
+    shutil.copy2(PROJECT_ROOT / "LICENSE", root / "LICENSE")
     return root
 
 
@@ -296,7 +302,8 @@ def test_policy_rejects_missing_us_openbb_route(tmp_path: Path) -> None:
         (
             "sidecars/openbb/app.py",
             lambda value: value.replace(
-                "app = SurfaceAllowlist(openbb_app)", "app = openbb_app"
+                "load_static_oidc_service_authenticator(os.environ)",
+                "None",
             ),
             "UNBOUNDED_RUNTIME_SURFACE",
         ),

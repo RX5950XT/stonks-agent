@@ -66,6 +66,8 @@ def generate_report(
     return Success(
         AnalysisReport(
             report_id=request.report_id,
+            run_id=request.run_id,
+            owner_subject=request.owner_subject,
             subject=request.context.subject,
             as_of=request.context.as_of,
             language=request.language,

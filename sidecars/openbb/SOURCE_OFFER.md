@@ -3,6 +3,8 @@
 本 sidecar 與其 wrapper 以 `AGPL-3.0-only` 散布，沒有任何保固。依 GNU AGPL
 v3 §13，所有透過網路互動的使用者都可免費由 `/source` 下載此執行版本的
 wrapper source、exact lock、Dockerfile、package/source manifest 與重建說明。
+`packages/service-auth/` 下另包含此執行版本實際連結的 Apache-2.0 service-auth
+完整 source、project metadata 與 license；不依賴外部 repository 才能重建 wrapper。
 
 ## Exact upstream source
 
@@ -27,13 +29,16 @@ SHA-256 驗證後一併放進 archive。
 ## Patch state 與 build recipe
 
 OpenBB packages 未被 patch；新增程式為本目錄的 `app.py` 與 `surface.py`，用途是
-掛載原始 OpenBB FastAPI app、加入 `/source`、宣告 source link，並在 OpenBB router
-前限制成三個精確 read-only routes。
+掛載原始 OpenBB FastAPI app、加入匿名 `/source`、宣告 source link，並在 OpenBB
+router 前限制成三個精確 read-only routes。market-data route 在 query parse 前先做
+service OIDC authn，再以 `MARKET:US/{symbol}` exact target authz；`/source` 與
+`/healthz` 不需 credential。market token 另固定 receiver=`openbb`、generation=`0`
+並綁定 canonical method/path/query hash；query 變更後舊 token 不可重用。
 
 ```sh
-uv sync --frozen
-uv run openbb-build
-uv run uvicorn app:app --host 0.0.0.0 --port 6900 --no-access-log
+uv sync --frozen --project sidecars/openbb
+uv run --project sidecars/openbb openbb-build
+uv run --project sidecars/openbb uvicorn app:app --host 0.0.0.0 --port 6900 --no-access-log
 ```
 
 Docker 的 exact recipe 是 archive 內的 `Dockerfile`，base image 以 OCI digest

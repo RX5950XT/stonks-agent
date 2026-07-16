@@ -10,8 +10,19 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from stonks_agent.adapters.auth.local_token import LocalTokenAuthenticator
-from stonks_agent.application.strategies.manage import transition_strategy
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.application.strategies.manage import (
+    check_signal_eligibility,
+    read_evaluation,
+    read_strategy,
+    read_strategy_events,
+    transition_strategy,
+)
+from stonks_agent.domain.auth import (
+    AccessTarget,
+    LocalPrincipal,
+    ResourceKind,
+    Role,
+)
 from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
@@ -71,7 +82,7 @@ def manifest() -> StrategyManifest:
         cost_model_hash=HASH_A,
         split_policy_hash=HASH_B,
         parameters_hash=HASH_C,
-        owner="quant-research",
+        owner="local-reviewer",
         deterministic=False,
         created_at=NOW,
     )
@@ -151,6 +162,8 @@ class Repository:
         self.report = report
         self.events: tuple[StrategyAuditEvent, ...] = ()
         self.explode = False
+        self.event_reads = 0
+        self.transition_calls = 0
 
     def get(
         self, strategy_id: str, strategy_version: str
@@ -170,6 +183,7 @@ class Repository:
         self, strategy_id: str, strategy_version: str
     ) -> Result[tuple[StrategyAuditEvent, ...]]:
         self._maybe_explode()
+        self.event_reads += 1
         if (strategy_id, strategy_version) != (STRATEGY_ID, STRATEGY_VERSION):
             return _failure(ErrorCode.NOT_FOUND, "Strategy was not found")
         return Success(self.events)
@@ -178,6 +192,7 @@ class Repository:
         self, request: StrategyTransitionRequest
     ) -> Result[StrategyMutationResult]:
         self._maybe_explode()
+        self.transition_calls += 1
         current = self.entry
         if (
             request.expected_version != current.version
@@ -429,6 +444,72 @@ def test_application_rejects_forged_transition_actor_before_repository_call() ->
     assert state.commits == 0
 
 
+def test_cross_owner_strategy_graph_is_denied_before_sensitive_reads_or_mutation() -> (
+    None
+):
+    state = State()
+    stranger = LocalPrincipal(
+        subject="reviewer:other",
+        roles=frozenset({Role.STRATEGY_REVIEWER}),
+    )
+    transition = StrategyTransitionRequest(
+        strategy_id=STRATEGY_ID,
+        strategy_version=STRATEGY_VERSION,
+        expected_version=4,
+        current_state=PromotionState.PAPER_ELIGIBLE,
+        target_state=PromotionState.SUSPENDED,
+        reason_code="risk_drift",
+        actor=stranger.subject,
+        requested_at=NOW + timedelta(minutes=1),
+    )
+
+    results = (
+        read_strategy(stranger, STRATEGY_ID, STRATEGY_VERSION, state.factory),
+        read_strategy_events(
+            stranger,
+            STRATEGY_ID,
+            STRATEGY_VERSION,
+            state.factory,
+        ),
+        read_evaluation(stranger, REPORT_ID, state.factory),
+        check_signal_eligibility(
+            stranger,
+            signal(),
+            at=NOW + timedelta(minutes=1),
+            unit_of_work=state.factory,
+        ),
+        transition_strategy(stranger, transition, state.factory),
+    )
+
+    assert all(
+        isinstance(result, Failure) and result.error.code is ErrorCode.FORBIDDEN
+        for result in results
+    )
+    assert state.repository.event_reads == 0
+    assert state.repository.transition_calls == 0
+    assert state.commits == 0
+
+
+def test_exact_strategy_assignment_allows_non_owner_read() -> None:
+    state = State()
+    assigned = LocalPrincipal(
+        subject="viewer:assigned",
+        roles=frozenset({Role.VIEWER}),
+        targets=frozenset(
+            {
+                AccessTarget(
+                    kind=ResourceKind.STRATEGY,
+                    identifier=f"{STRATEGY_ID}@{STRATEGY_VERSION}",
+                )
+            }
+        ),
+    )
+
+    result = read_strategy(assigned, STRATEGY_ID, STRATEGY_VERSION, state.factory)
+
+    assert isinstance(result, Success)
+
+
 def test_strategy_cli_executes_reads_transition_and_conflict_via_same_use_cases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -449,7 +530,8 @@ def test_strategy_cli_executes_reads_transition_and_conflict_via_same_use_cases(
         "postgresql+psycopg://fixture",
     ]
 
-    shown = runner.invoke(cli_app, ["strategy", "show", *base])
+    environment = {"STONKS_ENVIRONMENT": "test"}
+    shown = runner.invoke(cli_app, ["strategy", "show", *base], env=environment)
     report = runner.invoke(
         cli_app,
         [
@@ -460,6 +542,7 @@ def test_strategy_cli_executes_reads_transition_and_conflict_via_same_use_cases(
             "--database-url",
             "postgresql+psycopg://fixture",
         ],
+        env=environment,
     )
     transitioned = runner.invoke(
         cli_app,
@@ -476,6 +559,7 @@ def test_strategy_cli_executes_reads_transition_and_conflict_via_same_use_cases(
             "--reason-code",
             "risk_drift",
         ],
+        env=environment,
     )
     stale = runner.invoke(
         cli_app,
@@ -492,8 +576,13 @@ def test_strategy_cli_executes_reads_transition_and_conflict_via_same_use_cases(
             "--reason-code",
             "risk_drift",
         ],
+        env=environment,
     )
-    events = runner.invoke(cli_app, ["strategy", "events", *base])
+    events = runner.invoke(
+        cli_app,
+        ["strategy", "events", *base],
+        env=environment,
+    )
 
     assert shown.exit_code == report.exit_code == transitioned.exit_code == 0
     assert shown.stdout and '"state": "paper_eligible"' in shown.stdout
@@ -512,6 +601,7 @@ def app(
     return create_strategy_app(
         state.factory,
         LocalTokenAuthenticator(
+            environment="test",
             token=TOKEN,
             subject="local-reviewer",
             roles=roles,

@@ -6,6 +6,10 @@ import os
 
 import httpx
 
+from stonks_service_auth import (
+    load_static_oidc_service_authenticator,
+    validate_isolated_runtime_environment,
+)
 from workers.tradingagents.adapter import (
     TradingAgentsWorker,
     WorkerPolicy,
@@ -15,6 +19,8 @@ from workers.tradingagents.app import create_app
 from workers.tradingagents.artifacts import FixedOriginArtifactResolver
 from workers.tradingagents.runtime import PinnedTradingAgentsRuntime
 
+validate_isolated_runtime_environment(os.environ)
+authenticator = load_static_oidc_service_authenticator(os.environ)
 environment = validate_worker_environment(os.environ)
 policy = WorkerPolicy(
     profile=environment.profile,
@@ -31,5 +37,6 @@ artifacts = FixedOriginArtifactResolver(
     timeout_seconds=5,
 )
 app = create_app(
-    worker=TradingAgentsWorker(policy=policy, runtime=runtime, artifacts=artifacts)
+    worker=TradingAgentsWorker(policy=policy, runtime=runtime, artifacts=artifacts),
+    authenticator=authenticator,
 )

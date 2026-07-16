@@ -1,10 +1,22 @@
+x-service-oidc-environment: &service-oidc-environment
+  STONKS_SERVICE_OIDC_ISSUER: ${STONKS_SERVICE_OIDC_ISSUER:?required}
+  STONKS_SERVICE_OIDC_AUDIENCE: ${STONKS_TRADINGAGENTS_SERVICE_OIDC_AUDIENCE:?required}
+  STONKS_SERVICE_OIDC_CORE_SUBJECT: ${STONKS_SERVICE_OIDC_CORE_SUBJECT:?required}
+  STONKS_SERVICE_OIDC_CORE_CLIENT_ID: ${STONKS_SERVICE_OIDC_CORE_CLIENT_ID:?required}
+  STONKS_SERVICE_OIDC_ALGORITHMS: RS256
+  STONKS_SERVICE_OIDC_RECEIVER: tradingagents
+  STONKS_SERVICE_OIDC_JWKS_FILE: /run/secrets/stonks-service-jwks.json
+
 services:
   tradingagents-paper: &worker
     build:
       context: ..
       dockerfile: workers/tradingagents/Dockerfile
     environment:
+      <<: *service-oidc-environment
       STONKS_WORKER_PROFILE: paper
+    volumes:
+      - "${STONKS_SERVICE_OIDC_JWKS_HOST_FILE:?required}:/run/secrets/stonks-service-jwks.json:ro"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -14,11 +26,13 @@ services:
   tradingagents-backtest:
     <<: *worker
     environment:
+      <<: *service-oidc-environment
       STONKS_WORKER_PROFILE: backtest
 
   tradingagents-production:
     <<: *worker
     environment:
+      <<: *service-oidc-environment
       STONKS_WORKER_PROFILE: production
 
 networks:

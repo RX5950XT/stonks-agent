@@ -190,6 +190,7 @@ def snapshot_request() -> CreateSnapshotRequest:
         query={"symbol": "AAPL"},
         provider_policy_id="us-prices/1",
         idempotency_key="completion-unit",
+        owner_subject="test-owner",
         requested_at=NOW,
     )
 

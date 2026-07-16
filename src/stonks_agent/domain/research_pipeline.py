@@ -39,6 +39,11 @@ class ResearchPipelineCommand(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     run_id: UUID
+    owner_subject: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:@/+=-]{0,254}$",
+    )
     context_request: AnalysisContextRequest
     report_request_id: UUID
     report_id: UUID

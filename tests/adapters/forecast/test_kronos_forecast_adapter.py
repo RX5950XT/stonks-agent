@@ -8,6 +8,10 @@ from uuid import UUID
 
 import httpx
 import pytest
+from fixtures.service_credentials import (
+    TEST_SERVICE_TOKEN,
+    RecordingServiceCredentialProvider,
+)
 from pydantic import ValidationError
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
@@ -19,9 +23,11 @@ from stonks_agent.adapters.forecast.kronos import (
     replay_kronos_forecast,
 )
 from stonks_agent.domain.artifact import ArtifactMetadata
+from stonks_agent.domain.auth import Permission, ResourceKind
 from stonks_agent.domain.calendar import ExchangeCalendar, SessionTemplate
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.signal import ForecastRequest
+from stonks_agent.ports.service_credentials import ServiceReceiver
 from stonks_contracts.evidence import Sensitivity
 from stonks_contracts.kronos import (
     KronosForecastPath,
@@ -299,6 +305,7 @@ def subject(
     store: RecordingStore | None = None,
     worker_policy: KronosHttpPolicy | None = None,
     clock: object = lambda: NOW + timedelta(minutes=2),
+    credentials: RecordingServiceCredentialProvider | None = None,
 ) -> tuple[KronosHttpAdapter, httpx.Client, RecordingStore]:
     artifacts = store or RecordingStore()
     client = httpx.Client(transport=httpx.MockTransport(handler))  # type: ignore[arg-type]
@@ -306,6 +313,7 @@ def subject(
         client=client,
         artifacts=artifacts,
         policy=worker_policy or policy(),
+        credentials=credentials or RecordingServiceCredentialProvider(),
         clock=clock,  # type: ignore[arg-type]
         monotonic_clock=lambda: 1.0,
     )
@@ -438,6 +446,7 @@ def test_http_archives_raw_then_paths_before_mapping_signal() -> None:
     def handler(sent: httpx.Request) -> httpx.Response:
         assert sent.url == "http://kronos-cpu:7200/v1/forecast"
         assert sent.headers["Accept-Encoding"] == "identity"
+        assert sent.headers["Authorization"] == f"Bearer {TEST_SERVICE_TOKEN}"
         return httpx.Response(
             200, json=envelope(worker_response(incoming)), request=sent
         )
@@ -461,6 +470,28 @@ def test_http_archives_raw_then_paths_before_mapping_signal() -> None:
     assert artifacts.is_finalized(
         output.value.sampled_paths_artifact_ref.removeprefix("sha256:")
     )
+
+
+def test_http_fails_before_network_when_target_credential_is_unavailable() -> None:
+    credentials = RecordingServiceCredentialProvider(available=False)
+    adapter, client, _ = subject(
+        lambda _request: pytest.fail("network must not be called"),
+        credentials=credentials,
+    )
+
+    with client:
+        result = adapter.forecast(worker_request(), request())
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.UNAUTHORIZED
+    assert len(credentials.requests) == 1
+    issued = credentials.requests[0]
+    assert issued.receiver is ServiceReceiver.KRONOS
+    assert issued.permission is Permission.DISPATCH_ASSIGNED_RESEARCH
+    assert issued.target.kind is ResourceKind.JOB
+    assert issued.target.identifier == str(JOB_ID)
+    assert issued.attempt_generation == worker_request().attempt_generation
+    assert issued.expires_no_later_than == worker_request().deadline
 
 
 @pytest.mark.parametrize(

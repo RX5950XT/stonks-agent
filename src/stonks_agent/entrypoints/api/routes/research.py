@@ -18,10 +18,14 @@ from stonks_agent.application.research.request_run import (
     read_run_events,
     request_research_run,
 )
-from stonks_agent.domain.auth import LocalPrincipal
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError, Success
 from stonks_agent.domain.redaction import redact
 from stonks_agent.domain.research_run import CanonicalRunEvent, ResearchRunRequest
+from stonks_agent.entrypoints.api.dependencies.auth import (
+    ReadPrincipal,
+    ResearchPrincipal,
+    install_authentication,
+)
 from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
@@ -29,7 +33,7 @@ from stonks_agent.entrypoints.api.envelope import (
 )
 from stonks_agent.entrypoints.api.request_limits import RequestBodyLimitMiddleware
 from stonks_agent.entrypoints.api.routes.reports import ReportEndpoint
-from stonks_agent.ports.authentication import AuthenticationRequest, Authenticator
+from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.research_query import (
     ReportReader,
     ResearchRequestStore,
@@ -64,24 +68,24 @@ def create_research_app(
     app = FastAPI(title="Stonks Agent Research API", version="0.1.0")
     app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_RESEARCH_REQUEST_BYTES)
     identity = authenticator or DenyAllAuthenticator()
-    authenticate = _Authenticator(identity)
+    install_authentication(app, identity)
     app.add_exception_handler(RequestValidationError, _validation_error)
     app.add_exception_handler(Exception, _unexpected_error)
     app.add_api_route(
         "/v1/research/runs",
-        _CreateResearchEndpoint(requests, authenticate, clock or _utc_now),
+        _CreateResearchEndpoint(requests, clock or _utc_now),
         methods=["POST"],
         status_code=202,
     )
     app.add_api_route(
         "/v1/research/runs/{run_id}/events",
-        _RunEventsEndpoint(events, authenticate),
+        _RunEventsEndpoint(events),
         methods=["GET"],
         response_model=None,
     )
     app.add_api_route(
         "/v1/reports/{content_hash}",
-        ReportEndpoint(reports, authenticate),
+        ReportEndpoint(reports),
         methods=["GET"],
     )
     return app
@@ -91,29 +95,26 @@ class _CreateResearchEndpoint:
     def __init__(
         self,
         store: ResearchRequestStore,
-        authenticate: _Authenticator,
         clock: Callable[[], datetime],
     ) -> None:
-        self._store, self._authenticate, self._clock = store, authenticate, clock
+        self._store, self._clock = store, clock
 
     def __call__(
         self,
-        request_context: Request,
         body: CreateResearchRunBody,
-        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
+        principal: ResearchPrincipal,
     ) -> JSONResponse:
-        principal = self._authenticate(request_context, authorization)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
         try:
             command = ResearchRunRequest(
-                **body.model_dump(), requested_at=self._clock()
+                **body.model_dump(),
+                owner_subject=principal.subject,
+                requested_at=self._clock(),
             )
         except ValidationError:
             return _error_response(
                 _failure(ErrorCode.INVALID_INPUT, "Research request is invalid")
             )
-        result = request_research_run(principal.value, command, self._store)
+        result = request_research_run(principal, command, self._store)
         if isinstance(result, Failure):
             return _error_response(result)
         envelope = success_envelope(result.value, status=202)
@@ -121,25 +122,21 @@ class _CreateResearchEndpoint:
 
 
 class _RunEventsEndpoint:
-    def __init__(self, reader: RunEventReader, authenticate: _Authenticator) -> None:
-        self._reader, self._authenticate = reader, authenticate
+    def __init__(self, reader: RunEventReader) -> None:
+        self._reader = reader
 
     def __call__(
         self,
-        request_context: Request,
         run_id: UUID,
+        principal: ReadPrincipal,
         limit: Annotated[int, Query(ge=1, le=500)] = 100,
         last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
-        authorization: Annotated[str | None, Header(alias="Authorization")] = None,
     ) -> JSONResponse | StreamingResponse:
-        principal = self._authenticate(request_context, authorization)
-        if isinstance(principal, Failure):
-            return _error_response(principal)
         cursor = _cursor(last_event_id)
         if isinstance(cursor, Failure):
             return _error_response(cursor)
         result = read_run_events(
-            principal.value,
+            principal,
             run_id,
             after_sequence=cursor.value,
             limit=limit,
@@ -152,25 +149,6 @@ class _RunEventsEndpoint:
             media_type="text/event-stream",
             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
         )
-
-
-class _Authenticator:
-    def __init__(self, authenticator: Authenticator) -> None:
-        self._authenticator = authenticator
-
-    def __call__(
-        self, request: Request, authorization: str | None
-    ) -> Success[LocalPrincipal] | Failure:
-        try:
-            incoming = AuthenticationRequest(
-                authorization=authorization,
-                client_host=request.client.host if request.client else None,
-            )
-        except ValidationError:
-            return _failure(
-                ErrorCode.INVALID_INPUT, "Authentication request is invalid"
-            )
-        return self._authenticator.authenticate(incoming)
 
 
 def _cursor(value: str | None) -> Success[int] | Failure:

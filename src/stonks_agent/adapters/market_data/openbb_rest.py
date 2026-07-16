@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from math import isfinite
 from time import monotonic
@@ -25,9 +25,17 @@ from stonks_agent.adapters.market_data._http_response import (
 )
 from stonks_agent.adapters.market_data.regional.base import RegionalProviderCapability
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
+from stonks_agent.domain.auth import AccessTarget, Permission, ResourceKind
 from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
+from stonks_agent.domain.errors import Failure
 from stonks_agent.domain.evidence import AvailabilityCertainty, EvidenceTimeline
 from stonks_agent.domain.market_data import OHLCBar
+from stonks_agent.ports.service_credentials import (
+    ServiceCredentialProvider,
+    ServiceCredentialRequest,
+    ServiceReceiver,
+)
+from stonks_service_auth import canonical_request_hash
 
 OPENBB_ORIGIN: Final = "http://127.0.0.1:6900"
 OPENBB_HISTORICAL_ENDPOINT: Final = "/api/v1/equity/price/historical"
@@ -152,6 +160,7 @@ class OpenBBRestAdapter:
     __slots__ = (
         "_client",
         "_clock",
+        "_credentials",
         "_max_response_bytes",
         "_monotonic_clock",
         "_timeout",
@@ -162,6 +171,7 @@ class OpenBBRestAdapter:
         self,
         *,
         client: httpx.Client,
+        credentials: ServiceCredentialProvider,
         origin: str = OPENBB_ORIGIN,
         endpoint: str = OPENBB_HISTORICAL_ENDPOINT,
         provider: str = OPENBB_PROVIDER,
@@ -173,6 +183,7 @@ class OpenBBRestAdapter:
         _validate_configuration(origin, endpoint, provider)
         _validate_limits(timeout_seconds, max_response_bytes)
         self._client = client
+        self._credentials = credentials
         self._timeout = httpx.Timeout(timeout_seconds)
         self._timeout_seconds = float(timeout_seconds)
         self._max_response_bytes = max_response_bytes
@@ -206,6 +217,9 @@ class OpenBBRestAdapter:
         query: _OpenBBQuery,
         observed_at: datetime,
     ) -> bytes | OpenBBObservation:
+        authorization = self._authorization_header(query, observed_at)
+        if authorization is None:
+            return _failure("openbb_service_credential_unavailable", observed_at)
         deadline = response_deadline(
             self._monotonic_clock,
             self._timeout_seconds,
@@ -220,6 +234,7 @@ class OpenBBRestAdapter:
                 headers={
                     "Accept": "application/json",
                     "Accept-Encoding": "identity",
+                    "Authorization": authorization,
                 },
                 timeout=self._timeout,
                 follow_redirects=False,
@@ -242,6 +257,33 @@ class OpenBBRestAdapter:
                 return body
         except httpx.HTTPError:
             return _failure("openbb_unavailable", observed_at)
+
+    def _authorization_header(
+        self,
+        query: _OpenBBQuery,
+        observed_at: datetime,
+    ) -> str | None:
+        request_hash = canonical_request_hash(_dispatch_payload(query))
+        credential = self._credentials.issue(
+            ServiceCredentialRequest(
+                receiver=ServiceReceiver.OPENBB,
+                permission=Permission.DISPATCH_ASSIGNED_MARKET_DATA,
+                target=AccessTarget(
+                    kind=ResourceKind.MARKET,
+                    identifier=f"US/{query.symbol}",
+                ),
+                request_id=None,
+                run_id=None,
+                attempt_generation=0,
+                attempt_nonce_hash=request_hash,
+                request_hash=request_hash,
+                expires_no_later_than=observed_at
+                + timedelta(seconds=self._timeout_seconds),
+            )
+        )
+        if isinstance(credential, Failure):
+            return None
+        return credential.value.authorization_header()
 
     def _observed_at(self) -> datetime:
         value = self._clock()
@@ -273,6 +315,14 @@ def _parse_query(request: FetchDataRequest) -> _OpenBBQuery | str:
     if query.end_date is not None and query.end_date > request.as_of.date():
         return "invalid_end_date"
     return query
+
+
+def _dispatch_payload(query: _OpenBBQuery) -> dict[str, object]:
+    return {
+        "method": "GET",
+        "path": OPENBB_HISTORICAL_ENDPOINT,
+        "query": query.http_params(),
+    }
 
 
 def _parse_response(

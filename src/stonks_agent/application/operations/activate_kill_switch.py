@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from stonks_agent.application.operations._authorization import authorize_paper_scope
 from stonks_agent.application.operations._common import commit_or_failure
 from stonks_agent.domain.auth import LocalPrincipal, Permission, authorize
 from stonks_agent.domain.errors import Failure, Result
@@ -20,7 +21,7 @@ def activate_kill_switch(
     command: ActivateKillSwitchCommand,
     unit_of_work: PaperOperationsUnitOfWorkFactory,
 ) -> Result[PaperOperationRecord]:
-    granted = authorize(principal, Permission.OPERATE_PAPER)
+    granted = authorize_paper_scope(principal, command.scope, command.account_id)
     if isinstance(granted, Failure):
         return granted
     with unit_of_work() as transaction:
@@ -39,7 +40,7 @@ def read_kill_switch(
     account_id: str | None,
     unit_of_work: PaperOperationsUnitOfWorkFactory,
 ) -> Result[PaperKillSwitchState]:
-    granted = authorize(principal, Permission.OPERATE_PAPER)
+    granted = authorize_paper_scope(principal, scope, account_id)
     if isinstance(granted, Failure):
         return granted
     with unit_of_work() as transaction:
@@ -52,7 +53,7 @@ def read_operator_actions(
     after_sequence: int,
     unit_of_work: PaperOperationsUnitOfWorkFactory,
 ) -> Result[tuple[PaperOperatorAction, ...]]:
-    granted = authorize(principal, Permission.OPERATE_PAPER)
+    granted = authorize(principal, Permission.ADMINISTER)
     if isinstance(granted, Failure):
         return granted
     with unit_of_work() as transaction:

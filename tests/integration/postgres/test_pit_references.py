@@ -444,10 +444,10 @@ def _insert_run(connection: Connection, *, as_of: datetime) -> None:
             """
             insert into run
                 (run_id, run_type, status, as_of, policy_id, idempotency_key,
-                 input_hash, version, created_at, updated_at)
+                 input_hash, owner_subject, version, created_at, updated_at)
             values
                 (:id, 'research', 'pending', :as_of, 'paper/1', 'pit-run',
-                 :input_hash, 1, :as_of, :as_of)
+                 :input_hash, 'test:pit', 1, :as_of, :as_of)
             """
         ),
         {"id": RUN_ID, "as_of": as_of, "input_hash": "e" * 64},

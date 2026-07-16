@@ -32,7 +32,12 @@ from stonks_agent.application.operations.activate_kill_switch import (
 )
 from stonks_agent.application.operations.reconcile import reconcile_paper_state
 from stonks_agent.application.operations.resume import resume_paper
-from stonks_agent.domain.auth import LocalPrincipal, Role
+from stonks_agent.domain.auth import (
+    AccessTarget,
+    LocalPrincipal,
+    ResourceKind,
+    Role,
+)
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 from stonks_agent.domain.operations import (
     ActivateKillSwitchCommand,
@@ -46,8 +51,16 @@ from stonks_agent.entrypoints.cli import app as cli_app
 pytestmark = pytest.mark.postgres
 
 OPERATOR = LocalPrincipal(
-    subject="operator:postgres", roles=frozenset({Role.PAPER_OPERATOR})
+    subject="operator:postgres",
+    roles=frozenset({Role.PAPER_OPERATOR}),
+    targets=frozenset(
+        {
+            AccessTarget(kind=ResourceKind.PAPER_GLOBAL, identifier="global"),
+            AccessTarget(kind=ResourceKind.ACCOUNT, identifier=ACCOUNT_ID),
+        }
+    ),
 )
+ADMIN = LocalPrincipal(subject="admin:postgres", roles=frozenset({Role.ADMIN}))
 RUNNER = CliRunner()
 
 
@@ -172,7 +185,7 @@ def test_resume_reconciles_locked_account_before_disabling_global_switch(
     assert isinstance(resumed, Success)
     assert not resumed.value.state.active
     actions = read_operator_actions(
-        OPERATOR,
+        ADMIN,
         after_sequence=0,
         unit_of_work=lambda: PostgresUnitOfWork(clean_database),
     )
@@ -419,6 +432,7 @@ def test_paper_cli_uses_database_authority_for_activate_resume_and_audit(
             "--database-url",
             database,
         ],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
     reconciled = RUNNER.invoke(
         cli_app,
@@ -432,6 +446,7 @@ def test_paper_cli_uses_database_authority_for_activate_resume_and_audit(
             "--database-url",
             database,
         ],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
     resumed = RUNNER.invoke(
         cli_app,
@@ -449,6 +464,7 @@ def test_paper_cli_uses_database_authority_for_activate_resume_and_audit(
             "--database-url",
             database,
         ],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
     status = RUNNER.invoke(
         cli_app,
@@ -460,10 +476,12 @@ def test_paper_cli_uses_database_authority_for_activate_resume_and_audit(
             "--database-url",
             database,
         ],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
     actions = RUNNER.invoke(
         cli_app,
         ["paper", "actions", "--database-url", database],
+        env={"STONKS_ENVIRONMENT": "test"},
     )
 
     assert (

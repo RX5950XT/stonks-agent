@@ -1,0 +1,251 @@
+groups:
+  - name: stonks-correctness-alerts
+    interval: 30s
+    rules:
+      - alert: StonksDuplicatePaperOrderDetected
+        expr: >-
+          increase(stonks_correctness_violations_total{
+            invariant="duplicate_paper_order"
+          }[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: correctness
+          invariant: duplicate_paper_order
+          route: critical_paper_operator
+        annotations:
+          summary: Duplicate paper order detected
+          description: A duplicate paper order invariant violation was observed.
+          window: 1m
+
+      - alert: StonksFutureEvidenceDetected
+        expr: >-
+          increase(stonks_correctness_violations_total{
+            invariant="future_evidence"
+          }[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: correctness
+          invariant: future_evidence
+          route: critical_paper_operator
+        annotations:
+          summary: Future evidence detected
+          description: Evidence newer than the canonical as-of boundary was observed.
+          window: 1m
+
+      - alert: StonksClaimProvenanceViolation
+        expr: >-
+          increase(stonks_correctness_violations_total{
+            invariant="claim_provenance"
+          }[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: correctness
+          invariant: claim_provenance
+          route: critical_paper_operator
+        annotations:
+          summary: Claim provenance invariant violated
+          description: A factual claim without complete canonical provenance was observed.
+          window: 1m
+
+      - alert: StonksRiskReplayabilityViolation
+        expr: >-
+          increase(stonks_correctness_violations_total{
+            invariant="risk_replayability"
+          }[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: correctness
+          invariant: risk_replayability
+          route: critical_paper_operator
+        annotations:
+          summary: Risk replayability invariant violated
+          description: A risk decision that could not be replayed from canonical inputs was observed.
+          window: 1m
+
+      - alert: StonksCorrectnessTelemetryMissing
+        expr: >-
+          absent_over_time(stonks_correctness_violations_total[5m])
+          or (
+            count by (environment) (stonks_correctness_violations_total)
+            unless on (environment)
+            count by (environment) (
+              stonks_correctness_violations_total{
+                invariant="duplicate_paper_order"
+              }
+            )
+          )
+          or (
+            count by (environment) (stonks_correctness_violations_total)
+            unless on (environment)
+            count by (environment) (
+              stonks_correctness_violations_total{
+                invariant="future_evidence"
+              }
+            )
+          )
+          or (
+            count by (environment) (stonks_correctness_violations_total)
+            unless on (environment)
+            count by (environment) (
+              stonks_correctness_violations_total{
+                invariant="claim_provenance"
+              }
+            )
+          )
+          or (
+            count by (environment) (stonks_correctness_violations_total)
+            unless on (environment)
+            count by (environment) (
+              stonks_correctness_violations_total{
+                invariant="risk_replayability"
+              }
+            )
+          )
+        for: 5m
+        labels:
+          severity: critical
+          category: correctness
+          route: critical_paper_operator
+        annotations:
+          summary: Correctness telemetry is incomplete
+          description: One or more mandatory initialized correctness series are absent.
+          window: 5m
+
+  - name: stonks-service-alerts
+    interval: 1m
+    rules:
+      - alert: StonksApiAvailabilityLow
+        expr: stonks:slo_api_availability:ratio_5m < 0.99
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+          service: api
+          route: warning_paper_operator
+        annotations:
+          summary: API availability SLO is burning
+          description: API successful-request ratio stayed below 99%.
+          window: 5m
+
+      - alert: StonksWorkerAvailabilityLow
+        expr: stonks:slo_worker_availability:ratio_5m < 0.99
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+          service: worker
+          route: warning_paper_operator
+        annotations:
+          summary: Worker availability SLO is burning
+          description: Worker successful-process ratio stayed below 99%.
+          window: 5m
+
+      - alert: StonksApiLatencyHigh
+        expr: stonks:slo_api_latency_seconds:p95_5m > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: latency
+          service: api
+          route: warning_paper_operator
+        annotations:
+          summary: API latency SLO is burning
+          description: API p95 request latency stayed above two seconds.
+          window: 5m
+
+      - alert: StonksWorkerLatencyHigh
+        expr: stonks:slo_worker_latency_seconds:p95_5m > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: latency
+          service: worker
+          route: warning_paper_operator
+        annotations:
+          summary: Worker latency SLO is burning
+          description: Worker p95 processing latency stayed above thirty seconds.
+          window: 5m
+
+  - name: stonks-budget-alerts
+    interval: 1m
+    rules:
+      - alert: StonksBudgetFastBurn
+        expr: stonks:budget_burn:rate_5m > 14.4
+        for: 2m
+        labels:
+          severity: critical
+          category: budget
+          route: critical_paper_operator
+        annotations:
+          summary: Budget error burn is fast
+          description: The five-minute normalized budget burn rate exceeded 14.4.
+          window: 5m
+
+      - alert: StonksBudgetSlowBurn
+        expr: stonks:budget_burn:rate_1h > 6
+        for: 15m
+        labels:
+          severity: warning
+          category: budget
+          route: warning_paper_operator
+        annotations:
+          summary: Budget error burn is sustained
+          description: The one-hour normalized budget burn rate exceeded 6.
+          window: 1h
+
+      - alert: StonksBudgetExhausted
+        expr: stonks:budget_burn:rate_30d > 1
+        for: 0m
+        labels:
+          severity: critical
+          category: budget
+          route: critical_paper_operator
+        annotations:
+          summary: Budget error allowance is exhausted
+          description: The thirty-day normalized budget burn rate exceeded 1.
+          window: 30d
+
+      - alert: StonksBudgetHardFailure
+        expr: >-
+          sum by (budget, scope, environment) (
+            increase(stonks_budget_outcomes_total{
+              outcome="failed"
+            }[5m])
+          ) > 0
+        for: 0m
+        labels:
+          severity: critical
+          category: budget
+          route: critical_paper_operator
+        annotations:
+          summary: A hard budget limit failed
+          description: A canonical budget evaluation produced a failed outcome.
+          window: 5m
+
+      - alert: StonksBudgetUsageHigh
+        expr: stonks:budget_usage:ratio_p95_15m > 0.80
+        for: 15m
+        labels:
+          severity: warning
+          category: budget
+          route: warning_paper_operator
+        annotations:
+          summary: Budget usage is elevated
+          description: P95 budget utilization stayed above 80%.
+          window: 15m
+
+      - alert: StonksBudgetSoftThresholdExceeded
+        expr: stonks:budget_usage:ratio_p95_15m > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: budget
+          route: warning_paper_operator
+        annotations:
+          summary: Budget usage exceeded its soft threshold
+          description: P95 budget utilization stayed above the degraded threshold.
+          window: 15m

@@ -4,7 +4,7 @@
 
 - `config/observability/default.toml` 預設 `enabled=false`，使用no-op runtime。
 - 啟用時只接受typed config中的exact OTLP/HTTP origin；禁止ambient `OTEL_*` credential/config、proxy、`.netrc`與redirect。
-- Metrics固定為四個canonical名稱，labels只允許`component/operation/status/environment`；span不接受raw account、symbol、user、URL、prompt或exception text。
+- Metrics固定為七個canonical名稱：四個operation metrics加上correctness violation、budget usage ratio與budget outcome；每個metric只接受自己的封閉低基數labels，span不接受raw account、symbol、user、URL、prompt或exception text。
 - `infra/compose.observability.yaml` 使用internal backend network；只有Collector OTLP/health與Grafana經獨立ingress bridge綁定host loopback，Prometheus不發布host port。
 - Grafana要求external file secrets，anonymous/signup、ambient plugin install/update、news、analytics與Live均停用。
 
@@ -18,7 +18,7 @@ Grafana的`preinstall_disabled`與`preinstall_auto_update`用來阻止預設sugg
 uv run pytest -q --no-cov tests/policy/test_observability_infra.py
 ```
 
-Runtime smoke會使用三個pinned images與臨時Grafana secrets，啟動完整stack、驗證host health，從core OTLP exporter送出trace/metrics，再由internal network讀回canonical metric與labels；測試結束會移除containers與network。
+Runtime smoke會使用三個pinned images與臨時Grafana secrets，啟動完整stack、驗證host health，從core OTLP exporter送出trace/metrics，再由internal network與Prometheus讀回七個canonical metrics及exact labels；`promtool`另驗證config、recording/alert rules與fixtures。SLO、budget與告警語意見[操作文件](../operations/slo.md)；測試結束會移除containers與network。
 
 ## 尚未宣稱
 

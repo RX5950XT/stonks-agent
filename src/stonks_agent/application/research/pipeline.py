@@ -19,6 +19,7 @@ from stonks_agent.domain.errors import (
     Result,
     Success,
 )
+from stonks_agent.domain.operational_budget import BudgetScope, BudgetStatus
 from stonks_agent.domain.report import GenerateReportRequest
 from stonks_agent.domain.research import AgentOpinion, ResearchArtifact
 from stonks_agent.domain.research_pipeline import (
@@ -32,6 +33,7 @@ from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.ports.artifact_store import ArtifactStore
 from stonks_agent.ports.evidence_repository import EvidenceRepository
 from stonks_agent.ports.llm import LLMPort
+from stonks_agent.ports.operational_budget import OperationalBudgetEvaluatorPort
 from stonks_agent.ports.telemetry import OperationRecorderPort
 from stonks_contracts.common import canonical_json
 from stonks_contracts.evidence import Sensitivity
@@ -59,6 +61,7 @@ def run_research_pipeline(
     llm: LLMPort,
     renderer: ReportRendererPort,
     artifacts: ArtifactStore,
+    budget: OperationalBudgetEvaluatorPort,
     clock: Callable[[], datetime],
     telemetry: OperationRecorderPort | None = None,
 ) -> Result[ResearchPipelineResult]:
@@ -73,6 +76,17 @@ def run_research_pipeline(
             artifacts,
             clock,
         )
+    budget_stop = _stop_for_budget(
+        command,
+        budget=budget,
+        research=None,
+        opinion=None,
+        issues=(),
+        artifacts=artifacts,
+        clock=clock,
+    )
+    if budget_stop is not None:
+        return budget_stop
     assembled = record_operation(
         telemetry,
         component=ComponentName.PROVIDER,
@@ -91,6 +105,17 @@ def run_research_pipeline(
             clock,
         )
     context = assembled.value
+    budget_stop = _stop_for_budget(
+        command,
+        budget=budget,
+        research=None,
+        opinion=None,
+        issues=(),
+        artifacts=artifacts,
+        clock=clock,
+    )
+    if budget_stop is not None:
+        return budget_stop
     researched = record_operation(
         telemetry,
         component=ComponentName.MODEL,
@@ -121,6 +146,17 @@ def run_research_pipeline(
             artifacts,
             clock,
         )
+    budget_stop = _stop_for_budget(
+        command,
+        budget=budget,
+        research=research_artifact,
+        opinion=None,
+        issues=(),
+        artifacts=artifacts,
+        clock=clock,
+    )
+    if budget_stop is not None:
+        return budget_stop
     issues: tuple[PipelineIssue, ...] = ()
     opinion: AgentOpinion | None = None
     analyzed = record_operation(
@@ -138,6 +174,17 @@ def run_research_pipeline(
             opinion = candidate
         else:
             issues = (invalid_opinion,)
+    budget_stop = _stop_for_budget(
+        command,
+        budget=budget,
+        research=research_artifact,
+        opinion=opinion,
+        issues=issues,
+        artifacts=artifacts,
+        clock=clock,
+    )
+    if budget_stop is not None:
+        return budget_stop
     signal_ids = tuple(
         sorted(
             (research_artifact.artifact_id,)
@@ -176,6 +223,17 @@ def run_research_pipeline(
             artifacts,
             clock,
         )
+    budget_stop = _stop_for_budget(
+        command,
+        budget=budget,
+        research=research_artifact,
+        opinion=opinion,
+        issues=issues,
+        artifacts=artifacts,
+        clock=clock,
+    )
+    if budget_stop is not None:
+        return budget_stop
     rendered = record_operation(
         telemetry,
         component=ComponentName.DELIVERY,
@@ -201,6 +259,39 @@ def run_research_pipeline(
         opinion,
         rendered.value,
         issues,
+        artifacts,
+        clock,
+    )
+
+
+def _stop_for_budget(
+    command: ResearchPipelineCommand,
+    *,
+    budget: OperationalBudgetEvaluatorPort,
+    research: ResearchArtifact | None,
+    opinion: AgentOpinion | None,
+    issues: tuple[PipelineIssue, ...],
+    artifacts: ArtifactStore,
+    clock: Callable[[], datetime],
+) -> Result[ResearchPipelineResult] | None:
+    try:
+        decision = budget.evaluate(BudgetScope.RESEARCH)
+    except Exception:
+        decision = None
+    if decision is not None and decision.status is BudgetStatus.WITHIN:
+        return None
+    status = (
+        PipelineStatus.DEGRADED
+        if decision is not None and decision.status is BudgetStatus.DEGRADED
+        else PipelineStatus.FAILED
+    )
+    return _finish(
+        command,
+        status,
+        research,
+        opinion,
+        None,
+        (*issues, _issue(PipelineStage.BUDGET, ErrorCode.BUDGET_EXHAUSTED)),
         artifacts,
         clock,
     )

@@ -13,6 +13,7 @@ from integration.postgres.test_paper_execution import (
 )
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
+from support.budgets import FixedBudgetEvaluator
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
 from stonks_agent.adapters.postgres.job_queue import PostgresJobQueue
@@ -168,6 +169,7 @@ def test_postgres_cycle_execution_crash_reuses_receipt_and_completes_graph(
             handler=handler,
             store=store,
             artifacts=artifacts,
+            budget=FixedBudgetEvaluator(),
             clock=lambda: execution_request().as_of,
         )
     with clean_database.begin() as connection:
@@ -190,6 +192,7 @@ def test_postgres_cycle_execution_crash_reuses_receipt_and_completes_graph(
         handler=handler,
         store=store,
         artifacts=artifacts,
+        budget=FixedBudgetEvaluator(),
         clock=lambda: execution_request().as_of,
     )
 
@@ -203,6 +206,7 @@ def test_postgres_cycle_execution_crash_reuses_receipt_and_completes_graph(
         handler=handler,
         store=store,
         artifacts=artifacts,
+        budget=FixedBudgetEvaluator(),
         clock=lambda: execution_request().as_of,
     )
     assert exact_replay == completed

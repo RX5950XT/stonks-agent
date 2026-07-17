@@ -57,6 +57,7 @@ services:
     security_opt: [no-new-privileges:true]
     volumes:
       - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./observability/rules:/etc/prometheus/rules:ro
     tmpfs:
       - /prometheus:rw,noexec,nosuid,nodev,size=256m,uid=65534,gid=65534,mode=0750
       - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=65534,gid=65534,mode=1770

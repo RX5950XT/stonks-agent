@@ -20,6 +20,7 @@ class PipelineStatus(StrEnum):
 
 
 class PipelineStage(StrEnum):
+    BUDGET = "budget"
     CONTEXT = "context"
     DETERMINISTIC = "deterministic"
     TRADINGAGENTS = "tradingagents"

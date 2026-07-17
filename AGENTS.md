@@ -29,6 +29,7 @@
 - Production human principal 必須由server-side asymmetric OIDC/JWKS驗證並做exact ownership；不得信任client actor/role。Service identity須exact綁issuer/audience/azp/permission/target/fence且不得取得human/operator/admin authority；local token只限loopback local/development/test。
 - 所有FastAPI app必須使用中央API security composition；rate limit先做direct-peer/credential admission再做verified principal，forwarded identity預設拒絕。Dynamic outbound URL必須exact allowlist並連線到已驗證public pinned address；未接distributed store/trusted proxy不得宣稱multi-replica enforcement。
 - Telemetry只允許frozen低基數catalog；trace/correlation欄位與canonical payload/hash分離，observer無權跳過、替換、吞掉或重播canonical結果。OTLP runtime不得隱式吃`OTEL_*`、proxy、`.netrc`或redirect；log/span/metric不得含secret、prompt或raw identity。
+- Production cost/latency usage必須由同一monotonic clock與Decimal cost形成versioned budget decision；狀態只能`within -> degraded -> failed`。Missing/invalid usage fail closed，`degraded/failed`後不得建立新target/reservation/order，`budget_exhausted`不得retry追單。
 - 高風險邊界 fail closed：stale/conflict/unknown data、invalid model output、risk/ledger mismatch、duplicate execution、license drift。
 
 ## 上游與授權

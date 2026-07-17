@@ -29,7 +29,10 @@ processors:
           name != "stonks_api_requests_total" and
           name != "stonks_operation_calls_total" and
           name != "stonks_operation_errors_total" and
-          name != "stonks_operation_duration_seconds"
+          name != "stonks_operation_duration_seconds" and
+          name != "stonks_correctness_violations_total" and
+          name != "stonks_budget_usage_ratio" and
+          name != "stonks_budget_outcomes_total"
   transform/allowlists:
     error_mode: propagate
     metric_statements:
@@ -40,7 +43,9 @@ processors:
             "service.version", "deployment.environment.name"])
       - context: datapoint
         statements:
-          - keep_keys(attributes, ["component", "operation", "status", "environment"])
+          - >-
+            keep_keys(attributes, ["budget", "component", "environment",
+            "invariant", "operation", "outcome", "scope", "status"])
       - context: scope
         statements:
           - keep_keys(attributes, [])

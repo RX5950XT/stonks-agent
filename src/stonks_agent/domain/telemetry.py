@@ -243,11 +243,37 @@ class MetricKind(StrEnum):
     HISTOGRAM = "histogram"
 
 
+class CorrectnessInvariant(StrEnum):
+    DUPLICATE_PAPER_ORDER = "duplicate_paper_order"
+    FUTURE_EVIDENCE = "future_evidence"
+    CLAIM_PROVENANCE = "claim_provenance"
+    RISK_REPLAYABILITY = "risk_replayability"
+
+
+class BudgetDimension(StrEnum):
+    COST = "cost"
+    LATENCY = "latency"
+
+
+class BudgetScope(StrEnum):
+    RESEARCH = "research"
+    PAPER_CYCLE = "paper_cycle"
+
+
+class BudgetOutcome(StrEnum):
+    WITHIN = "within"
+    DEGRADED = "degraded"
+    FAILED = "failed"
+
+
 class MetricName(StrEnum):
     API_REQUESTS = "stonks_api_requests_total"
     OPERATION_CALLS = "stonks_operation_calls_total"
     OPERATION_ERRORS = "stonks_operation_errors_total"
     OPERATION_DURATION = "stonks_operation_duration_seconds"
+    CORRECTNESS_VIOLATIONS = "stonks_correctness_violations_total"
+    BUDGET_USAGE_RATIO = "stonks_budget_usage_ratio"
+    BUDGET_OUTCOMES = "stonks_budget_outcomes_total"
 
 
 class MetricSpec(BaseModel):
@@ -280,6 +306,21 @@ METRIC_CATALOG: Mapping[MetricName, MetricSpec] = MappingProxyType(
             kind=MetricKind.HISTOGRAM,
             unit="s",
         ),
+        MetricName.CORRECTNESS_VIOLATIONS: MetricSpec(
+            name=MetricName.CORRECTNESS_VIOLATIONS,
+            kind=MetricKind.COUNTER,
+            unit="{violation}",
+        ),
+        MetricName.BUDGET_USAGE_RATIO: MetricSpec(
+            name=MetricName.BUDGET_USAGE_RATIO,
+            kind=MetricKind.HISTOGRAM,
+            unit="1",
+        ),
+        MetricName.BUDGET_OUTCOMES: MetricSpec(
+            name=MetricName.BUDGET_OUTCOMES,
+            kind=MetricKind.COUNTER,
+            unit="{evaluation}",
+        ),
     }
 )
 
@@ -296,6 +337,38 @@ _SPAN_VALUES: Mapping[str, frozenset[str]] = MappingProxyType(
         **_LABEL_VALUES,
         "error_code": frozenset(ErrorCode),
     }
+)
+_CORRECTNESS_LABEL_VALUES: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "invariant": frozenset(CorrectnessInvariant),
+        "environment": _ENVIRONMENTS,
+    }
+)
+_BUDGET_USAGE_LABEL_VALUES: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "budget": frozenset(BudgetDimension),
+        "scope": frozenset(BudgetScope),
+        "environment": _ENVIRONMENTS,
+    }
+)
+_BUDGET_OUTCOME_LABEL_VALUES: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        **_BUDGET_USAGE_LABEL_VALUES,
+        "outcome": frozenset(BudgetOutcome),
+    }
+)
+_METRIC_LABEL_VALUES: Mapping[MetricName, Mapping[str, frozenset[str]]] = (
+    MappingProxyType(
+        {
+            MetricName.API_REQUESTS: _LABEL_VALUES,
+            MetricName.OPERATION_CALLS: _LABEL_VALUES,
+            MetricName.OPERATION_ERRORS: _LABEL_VALUES,
+            MetricName.OPERATION_DURATION: _LABEL_VALUES,
+            MetricName.CORRECTNESS_VIOLATIONS: _CORRECTNESS_LABEL_VALUES,
+            MetricName.BUDGET_USAGE_RATIO: _BUDGET_USAGE_LABEL_VALUES,
+            MetricName.BUDGET_OUTCOMES: _BUDGET_OUTCOME_LABEL_VALUES,
+        }
+    )
 )
 
 
@@ -318,11 +391,13 @@ def validate_metric_measurement(
         raise ValueError("metric value must be finite and non-negative")
     if value > 1_000_000:
         raise ValueError("metric value exceeds the bounded catalog")
-    if kind is MetricKind.COUNTER and (not isinstance(value, int) or value < 1):
-        raise ValueError("counter value must be a positive integer")
+    if kind is MetricKind.COUNTER:
+        minimum = 0 if selected_name is MetricName.CORRECTNESS_VIOLATIONS else 1
+        if not isinstance(value, int) or value < minimum:
+            raise ValueError("counter value is outside its catalogued bound")
     validated = _validate_attributes(
         attributes,
-        allowed=_LABEL_VALUES,
+        allowed=_METRIC_LABEL_VALUES[selected_name],
         require_all=True,
     )
     if selected_name is MetricName.API_REQUESTS and (
@@ -350,7 +425,7 @@ def _validate_attributes(
     require_all: bool,
 ) -> Mapping[str, str]:
     keys = set(attributes)
-    expected = set(_LABEL_VALUES)
+    expected = set(allowed)
     if (require_all and keys != expected) or not keys <= set(allowed):
         raise ValueError("telemetry attributes are not allowlisted")
     normalized: dict[str, str] = {}

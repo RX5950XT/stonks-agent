@@ -1,0 +1,269 @@
+rule_files:
+  - /workspace/infra/observability/rules/recording.yaml
+  - /workspace/infra/observability/rules/alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - name: correctness violations page immediately
+    interval: 30s
+    input_series:
+      - series: stonks_correctness_violations_total{invariant="duplicate_paper_order",environment="test"}
+        values: "0 0 0 1 2"
+      - series: stonks_correctness_violations_total{invariant="future_evidence",environment="test"}
+        values: "0 0 0 1 2"
+      - series: stonks_correctness_violations_total{invariant="claim_provenance",environment="test"}
+        values: "0 0 0 1 2"
+      - series: stonks_correctness_violations_total{invariant="risk_replayability",environment="test"}
+        values: "0 0 0 1 2"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: StonksDuplicatePaperOrderDetected
+        exp_alerts:
+          - exp_labels:
+              category: correctness
+              environment: test
+              invariant: duplicate_paper_order
+              route: critical_paper_operator
+              severity: critical
+            exp_annotations:
+              description: A duplicate paper order invariant violation was observed.
+              summary: Duplicate paper order detected
+              window: 1m
+      - eval_time: 2m
+        alertname: StonksFutureEvidenceDetected
+        exp_alerts:
+          - exp_labels:
+              category: correctness
+              environment: test
+              invariant: future_evidence
+              route: critical_paper_operator
+              severity: critical
+            exp_annotations:
+              description: Evidence newer than the canonical as-of boundary was observed.
+              summary: Future evidence detected
+              window: 1m
+      - eval_time: 2m
+        alertname: StonksClaimProvenanceViolation
+        exp_alerts:
+          - exp_labels:
+              category: correctness
+              environment: test
+              invariant: claim_provenance
+              route: critical_paper_operator
+              severity: critical
+            exp_annotations:
+              description: A factual claim without complete canonical provenance was observed.
+              summary: Claim provenance invariant violated
+              window: 1m
+      - eval_time: 2m
+        alertname: StonksRiskReplayabilityViolation
+        exp_alerts:
+          - exp_labels:
+              category: correctness
+              environment: test
+              invariant: risk_replayability
+              route: critical_paper_operator
+              severity: critical
+            exp_annotations:
+              description: A risk decision that could not be replayed from canonical inputs was observed.
+              summary: Risk replayability invariant violated
+              window: 1m
+
+  - name: initialized healthy correctness series do not alert
+    interval: 1m
+    input_series:
+      - series: stonks_correctness_violations_total{invariant="duplicate_paper_order",environment="test"}
+        values: "0+0x10"
+      - series: stonks_correctness_violations_total{invariant="future_evidence",environment="test"}
+        values: "0+0x10"
+      - series: stonks_correctness_violations_total{invariant="claim_provenance",environment="test"}
+        values: "0+0x10"
+      - series: stonks_correctness_violations_total{invariant="risk_replayability",environment="test"}
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StonksCorrectnessTelemetryMissing
+        exp_alerts: []
+
+  - name: one missing initialized correctness series fails closed
+    interval: 1m
+    input_series:
+      - series: stonks_correctness_violations_total{invariant="duplicate_paper_order",environment="test"}
+        values: "0+0x10"
+      - series: stonks_correctness_violations_total{invariant="future_evidence",environment="test"}
+        values: "0+0x10"
+      - series: stonks_correctness_violations_total{invariant="claim_provenance",environment="test"}
+        values: "0+0x10"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: StonksCorrectnessTelemetryMissing
+        exp_alerts:
+          - exp_labels:
+              category: correctness
+              environment: test
+              route: critical_paper_operator
+              severity: critical
+            exp_annotations:
+              description: One or more mandatory initialized correctness series are absent.
+              summary: Correctness telemetry is incomplete
+              window: 5m
+
+  - name: sustained api availability burn alerts
+    interval: 1m
+    input_series:
+      - series: stonks_api_requests_total{component="api",operation="http_request",status="success",environment="test"}
+        values: "0+90x20"
+      - series: stonks_api_requests_total{component="api",operation="http_request",status="error",environment="test"}
+        values: "0+10x20"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: StonksApiAvailabilityLow
+        exp_alerts:
+          - exp_labels:
+              category: availability
+              environment: test
+              route: warning_paper_operator
+              service: api
+              severity: warning
+            exp_annotations:
+              description: API successful-request ratio stayed below 99%.
+              summary: API availability SLO is burning
+              window: 5m
+
+  - name: sustained worker availability burn alerts
+    interval: 1m
+    input_series:
+      - series: stonks_operation_calls_total{component="worker",operation="process",status="success",environment="test"}
+        values: "0+90x20"
+      - series: stonks_operation_calls_total{component="worker",operation="process",status="error",environment="test"}
+        values: "0+10x20"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: StonksWorkerAvailabilityLow
+        exp_alerts:
+          - exp_labels:
+              category: availability
+              environment: test
+              route: warning_paper_operator
+              service: worker
+              severity: warning
+            exp_annotations:
+              description: Worker successful-process ratio stayed below 99%.
+              summary: Worker availability SLO is burning
+              window: 5m
+
+  - name: sustained api and worker p95 latency alerts
+    interval: 1m
+    input_series:
+      - series: stonks_operation_duration_seconds_bucket{component="api",operation="http_request",status="success",environment="test",le="1"}
+        values: "0+0x15"
+      - series: stonks_operation_duration_seconds_bucket{component="api",operation="http_request",status="success",environment="test",le="3"}
+        values: "0+100x15"
+      - series: stonks_operation_duration_seconds_bucket{component="api",operation="http_request",status="success",environment="test",le="+Inf"}
+        values: "0+100x15"
+      - series: stonks_operation_duration_seconds_bucket{component="worker",operation="process",status="success",environment="test",le="20"}
+        values: "0+0x15"
+      - series: stonks_operation_duration_seconds_bucket{component="worker",operation="process",status="success",environment="test",le="40"}
+        values: "0+100x15"
+      - series: stonks_operation_duration_seconds_bucket{component="worker",operation="process",status="success",environment="test",le="+Inf"}
+        values: "0+100x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: StonksApiLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              category: latency
+              environment: test
+              route: warning_paper_operator
+              service: api
+              severity: warning
+            exp_annotations:
+              description: API p95 request latency stayed above two seconds.
+              summary: API latency SLO is burning
+              window: 5m
+      - eval_time: 12m
+        alertname: StonksWorkerLatencyHigh
+        exp_alerts:
+          - exp_labels:
+              category: latency
+              environment: test
+              route: warning_paper_operator
+              service: worker
+              severity: warning
+            exp_annotations:
+              description: Worker p95 processing latency stayed above thirty seconds.
+              summary: Worker latency SLO is burning
+              window: 5m
+
+  - name: sustained budget burn alerts
+    interval: 1m
+    input_series:
+      - series: stonks_budget_outcomes_total{budget="cost",scope="research",outcome="within",environment="test"}
+        values: "0+20x25"
+      - series: stonks_budget_outcomes_total{budget="cost",scope="research",outcome="degraded",environment="test"}
+        values: "0+80x25"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: StonksBudgetFastBurn
+        exp_alerts:
+          - exp_labels:
+              budget: cost
+              category: budget
+              environment: test
+              route: critical_paper_operator
+              scope: research
+              severity: critical
+            exp_annotations:
+              description: The five-minute normalized budget burn rate exceeded 14.4.
+              summary: Budget error burn is fast
+              window: 5m
+      - eval_time: 21m
+        alertname: StonksBudgetSlowBurn
+        exp_alerts:
+          - exp_labels:
+              budget: cost
+              category: budget
+              environment: test
+              route: warning_paper_operator
+              scope: research
+              severity: warning
+            exp_annotations:
+              description: The one-hour normalized budget burn rate exceeded 6.
+              summary: Budget error burn is sustained
+              window: 1h
+      - eval_time: 2m
+        alertname: StonksBudgetExhausted
+        exp_alerts:
+          - exp_labels:
+              budget: cost
+              category: budget
+              environment: test
+              route: critical_paper_operator
+              scope: research
+              severity: critical
+            exp_annotations:
+              description: The thirty-day normalized budget burn rate exceeded 1.
+              summary: Budget error allowance is exhausted
+              window: 30d
+
+  - name: hard budget failure pages immediately
+    interval: 30s
+    input_series:
+      - series: stonks_budget_outcomes_total{budget="latency",scope="paper_cycle",outcome="failed",environment="test"}
+        values: "0 0 0 1 2"
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: StonksBudgetHardFailure
+        exp_alerts:
+          - exp_labels:
+              budget: latency
+              category: budget
+              environment: test
+              route: critical_paper_operator
+              scope: paper_cycle
+              severity: critical
+            exp_annotations:
+              description: A canonical budget evaluation produced a failed outcome.
+              summary: A hard budget limit failed
+              window: 5m

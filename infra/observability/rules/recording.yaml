@@ -1,0 +1,112 @@
+groups:
+  - name: stonks-slo-recording
+    interval: 1m
+    rules:
+      - record: stonks:slo_api_availability:ratio_5m
+        expr: >-
+          sum by (environment) (
+            rate(stonks_api_requests_total{
+              component="api",
+              operation="http_request",
+              status="success"
+            }[5m])
+          )
+          /
+          sum by (environment) (
+            rate(stonks_api_requests_total{
+              component="api",
+              operation="http_request"
+            }[5m])
+          )
+
+      - record: stonks:slo_worker_availability:ratio_5m
+        expr: >-
+          sum by (environment) (
+            rate(stonks_operation_calls_total{
+              component="worker",
+              operation="process",
+              status="success"
+            }[5m])
+          )
+          /
+          sum by (environment) (
+            rate(stonks_operation_calls_total{
+              component="worker",
+              operation="process"
+            }[5m])
+          )
+
+      - record: stonks:slo_api_latency_seconds:p95_5m
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (le, environment) (
+              rate(stonks_operation_duration_seconds_bucket{
+                component="api",
+                operation="http_request"
+              }[5m])
+            )
+          )
+
+      - record: stonks:slo_worker_latency_seconds:p95_5m
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (le, environment) (
+              rate(stonks_operation_duration_seconds_bucket{
+                component="worker",
+                operation="process"
+              }[5m])
+            )
+          )
+
+      - record: stonks:budget_burn:rate_5m
+        expr: >-
+          (
+            sum by (budget, scope, environment) (
+              rate(stonks_budget_outcomes_total{
+                outcome=~"degraded|failed"
+              }[5m])
+            )
+            /
+            sum by (budget, scope, environment) (
+              rate(stonks_budget_outcomes_total[5m])
+            )
+          ) / 0.05
+
+      - record: stonks:budget_burn:rate_1h
+        expr: >-
+          (
+            sum by (budget, scope, environment) (
+              rate(stonks_budget_outcomes_total{
+                outcome=~"degraded|failed"
+              }[1h])
+            )
+            /
+            sum by (budget, scope, environment) (
+              rate(stonks_budget_outcomes_total[1h])
+            )
+          ) / 0.05
+
+      - record: stonks:budget_burn:rate_30d
+        expr: >-
+          (
+            sum by (budget, scope, environment) (
+              rate(stonks_budget_outcomes_total{
+                outcome=~"degraded|failed"
+              }[30d])
+            )
+            /
+            sum by (budget, scope, environment) (
+              rate(stonks_budget_outcomes_total[30d])
+            )
+          ) / 0.05
+
+      - record: stonks:budget_usage:ratio_p95_15m
+        expr: >-
+          histogram_quantile(
+            0.95,
+            sum by (le, budget, scope, environment) (
+              rate(stonks_budget_usage_ratio_bucket[15m])
+            )
+          )

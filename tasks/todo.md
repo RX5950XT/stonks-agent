@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.4 已通過，P6.5 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.5 已通過，P6.6 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -536,9 +536,16 @@
   - [x] 建立hardened OTEL Collector、Prometheus、Grafana設定與provisioned dashboard；預設只bind loopback/internal network，無anonymous admin、無host metrics/raw logs，resource limits與health/readiness明示。
   - [x] 完成contract/API/PostgreSQL/E2E/collector smoke、cardinality/redaction/failure tests及full gates；未做real remote backend與multi-host TLS時不得宣稱production telemetry transport完成。
 
-- [ ] **P6.5 Alerts, budgets and SLOs** — 建立`config/{budgets,slo}.yaml`、`docs/operations/slo.md`、alert rules。（Depends：P6.4；Complexity：M；Risk：Medium）
+- [x] **P6.5 Alerts, budgets and SLOs** — 建立`config/{budgets,slo}.yaml`、`docs/operations/slo.md`、alert rules。（Depends：P6.4；Complexity：M；Risk：Medium）
   - Correctness SLO：zero duplicate paper order、zero future evidence、100% claim provenance、100% replayable risk decision。
   - Cost/latency budget超限轉degraded/failed，不追單。
+  - [x] 先以schema/tests固定versioned SLO與budget設定；拒絕unknown field、重複metric、無界限值、未知action，以及未宣告correctness invariant。
+  - [x] 建立immutable budget evaluation contract；使用monotonic elapsed time與Decimal cost，`within/degraded/failed`只可等級上升，缺失或無效usage fail closed。
+  - [x] 將research/paper cycle的cost/latency hard-stop接到canonical flow；超限不得建立新target、reservation、order或補追訂單，既有commit結果不可被observer改寫。
+  - [x] 為duplicate paper order、future evidence、claim provenance、risk replayability與availability/latency/cost建立低基數metrics及Prometheus recording/alert rules。
+  - [x] 告警規則需通過`promtool`真實驗證與fixture tests；correctness違規立即page，budget burn/availability/latency採明確for/window/severity且無raw ID label。
+  - [x] 完成SLO定義、error-budget policy、告警路由與runbook；明列目前單機/非持久Prometheus限制，不宣稱production paging backend已完成。
+  - [x] 完成focused、full non-PostgreSQL/PostgreSQL、security/license/dependency gates與文件同步。
 
 - [ ] **P6.6 S3-compatible artifact adapter and retention** — 實作`adapters/artifacts/s3.py`、retention/encryption/GC use cases與integration tests。（Depends：P1.5、P6.2；Complexity：L；Risk：High）
   - Object finalize/hash、signed scoped URLs、orphan GC、legal/data retention與restore測試。
@@ -984,3 +991,10 @@
 - Propagation / authority：五個FastAPI app在validation/error/rate-limit paths回傳bounded trace/request metadata；0016為job/outbox/inbox新增獨立nullable trace欄位並跨API→queue→worker→completion/delivery延續，不進payload hash且不改generation/nonce/lease。Queue/worker與provider、LLM/model、signal、risk、execution、reconciliation、delivery均manual instrument；recorder即使skip、replace、swallow、duplicate或前後失敗，也只能取得同一canonical result/exception。
 - Infra / smoke：官方digest-pinned Collector、Prometheus、Grafana以internal backend＋loopback ingress、non-root、read-only、cap-drop/NNP、external secrets、resource limits與provisioned dashboard啟動。真實三容器smoke由core OTLP exporter送出trace/metrics，驗證host health、Grafana health及collector exact metric/label catalog；Grafana ambient plugin/update/news/live均關閉。
 - Verification / boundary：完整non-PostgreSQL gate為1620 passed、3 skipped、258 deselected、coverage 87.75%；完整PostgreSQL gate為1878 passed、3 skipped、coverage 87.48%。617 files format、Ruff、strict mypy 323 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過，三容器OTLP runtime smoke包含在final gates。Trace目前送到nop sink且狀態為tmpfs，未接真實remote backend或multi-host TLS/network policy；response/durable synthetic span尚未回綁SDK child span ID。下一項為P6.5 alerts、budgets與SLOs。
+
+### P6 Progress Review — P6.5 — 2026-07-17
+
+- Scope completed：新增strict versioned `config/{budgets,slo}.yaml`、frozen operational budget contracts與low-cardinality SLO metrics。Cost只接受Decimal字串、latency只接受同一monotonic clock讀值，`within→degraded→failed`只能等級上升；缺失、rollback、非有限或無效usage均fail closed。
+- Fail-closed / no chase：research與paper cycle在外部及durable canonical stage前重驗budget；soft/hard超限後不再建立target、reservation或order。PostgreSQL將`budget_exhausted`記為非重試terminal，既有canonical commit不受observer改寫且不補追訂單。
+- Alerts / honest boundary：新增correctness、API/worker availability、p95 latency、normalized 5m/1h/30d burn、hard outcome與soft usage rules，通過pinned `promtool`與真實Collector→Prometheus smoke。Correctness series以0初始化以偵測缺失，但counter為0不能單獨證明完整coverage；目前只有policy routing、tmpfs狀態且無Alertmanager/paging送達。
+- Verification / boundary：focused budget/SLO/canonical/rules matrix與真實三容器smoke全通過；完整non-PostgreSQL gate為1679 passed、3 skipped、259 deselected、coverage 87.85%，完整PostgreSQL gate為1938 passed、3 skipped、coverage 87.57%。630 files format、Ruff、strict mypy 329 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過。文件已同步；下一項為P6.6 S3-compatible artifact adapter與retention。

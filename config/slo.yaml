@@ -1,0 +1,301 @@
+schema_version: 1
+policy_id: stonks-slo/1
+execution_mode: paper
+
+metrics:
+  - metric_id: correctness_violations
+    name: stonks_correctness_violations_total
+    labels: [invariant, environment]
+  - metric_id: api_requests
+    name: stonks_api_requests_total
+    labels: [component, operation, status, environment]
+  - metric_id: operation_calls
+    name: stonks_operation_calls_total
+    labels: [component, operation, status, environment]
+  - metric_id: operation_duration
+    name: stonks_operation_duration_seconds
+    labels: [component, operation, status, environment]
+  - metric_id: budget_usage
+    name: stonks_budget_usage_ratio
+    labels: [budget, scope, environment]
+  - metric_id: budget_outcomes
+    name: stonks_budget_outcomes_total
+    labels: [budget, scope, outcome, environment]
+
+objectives:
+  - objective_id: duplicate_paper_order
+    category: correctness
+    indicator:
+      metric_id: correctness_violations
+      kind: violation_count
+      filters:
+        - {name: invariant, value: duplicate_paper_order}
+    target: {comparison: equal, value: "0", unit: events, window_seconds: 2592000}
+    error_budget: {kind: events, value: "0"}
+    missing_data: breach
+    breach:
+      severity: critical
+      action: failed
+      hold_seconds: 0
+      route_id: critical_paper_operator
+      runbook_anchor: duplicate-paper-order
+  - objective_id: future_evidence
+    category: correctness
+    indicator:
+      metric_id: correctness_violations
+      kind: violation_count
+      filters:
+        - {name: invariant, value: future_evidence}
+    target: {comparison: equal, value: "0", unit: events, window_seconds: 2592000}
+    error_budget: {kind: events, value: "0"}
+    missing_data: breach
+    breach:
+      severity: critical
+      action: failed
+      hold_seconds: 0
+      route_id: critical_paper_operator
+      runbook_anchor: future-evidence
+  - objective_id: claim_provenance
+    category: correctness
+    indicator:
+      metric_id: correctness_violations
+      kind: violation_count
+      filters:
+        - {name: invariant, value: claim_provenance}
+    target: {comparison: equal, value: "0", unit: events, window_seconds: 2592000}
+    error_budget: {kind: events, value: "0"}
+    missing_data: breach
+    breach:
+      severity: critical
+      action: failed
+      hold_seconds: 0
+      route_id: critical_paper_operator
+      runbook_anchor: claim-provenance
+  - objective_id: risk_replayability
+    category: correctness
+    indicator:
+      metric_id: correctness_violations
+      kind: violation_count
+      filters:
+        - {name: invariant, value: risk_replayability}
+    target: {comparison: equal, value: "0", unit: events, window_seconds: 2592000}
+    error_budget: {kind: events, value: "0"}
+    missing_data: breach
+    breach:
+      severity: critical
+      action: failed
+      hold_seconds: 0
+      route_id: critical_paper_operator
+      runbook_anchor: risk-replayability
+  - objective_id: api_availability
+    category: availability
+    indicator:
+      metric_id: api_requests
+      kind: success_ratio
+      filters:
+        - {name: component, value: api}
+        - {name: operation, value: http_request}
+      good_label: status
+      good_values: [success]
+    target: {comparison: at_least, value: "0.99", unit: ratio, window_seconds: 2592000}
+    error_budget: {kind: fraction, value: "0.01"}
+    missing_data: breach
+    breach:
+      severity: warning
+      action: degraded
+      hold_seconds: 300
+      route_id: warning_paper_operator
+      runbook_anchor: api-availability
+  - objective_id: paper_cycle_availability
+    category: availability
+    indicator:
+      metric_id: operation_calls
+      kind: success_ratio
+      filters:
+        - {name: component, value: worker}
+        - {name: operation, value: process}
+      good_label: status
+      good_values: [success]
+    target: {comparison: at_least, value: "0.99", unit: ratio, window_seconds: 2592000}
+    error_budget: {kind: fraction, value: "0.01"}
+    missing_data: breach
+    breach:
+      severity: warning
+      action: degraded
+      hold_seconds: 300
+      route_id: warning_paper_operator
+      runbook_anchor: paper-cycle-availability
+  - objective_id: api_request_latency
+    category: latency
+    indicator:
+      metric_id: operation_duration
+      kind: histogram_quantile
+      filters:
+        - {name: component, value: api}
+        - {name: operation, value: http_request}
+      quantile: "0.95"
+    target: {comparison: at_most, value: "2", unit: seconds, window_seconds: 2592000}
+    error_budget: {kind: fraction, value: "0.05"}
+    missing_data: breach
+    breach:
+      severity: warning
+      action: degraded
+      hold_seconds: 300
+      route_id: warning_paper_operator
+      runbook_anchor: api-request-latency
+  - objective_id: worker_process_latency
+    category: latency
+    indicator:
+      metric_id: operation_duration
+      kind: histogram_quantile
+      filters:
+        - {name: component, value: worker}
+        - {name: operation, value: process}
+      quantile: "0.95"
+    target: {comparison: at_most, value: "30", unit: seconds, window_seconds: 2592000}
+    error_budget: {kind: fraction, value: "0.05"}
+    missing_data: breach
+    breach:
+      severity: warning
+      action: degraded
+      hold_seconds: 300
+      route_id: warning_paper_operator
+      runbook_anchor: worker-process-latency
+  - objective_id: research_latency_budget
+    category: latency
+    indicator:
+      metric_id: budget_usage
+      kind: histogram_quantile
+      filters:
+        - {name: budget, value: latency}
+        - {name: scope, value: research}
+      quantile: "0.95"
+    target: {comparison: at_most, value: "1", unit: ratio, window_seconds: 2592000}
+    error_budget: {kind: fraction, value: "0.05"}
+    missing_data: breach
+    breach:
+      severity: warning
+      action: degraded
+      hold_seconds: 300
+      route_id: warning_paper_operator
+      runbook_anchor: research-latency-budget
+  - objective_id: paper_cycle_latency_budget
+    category: latency
+    indicator:
+      metric_id: budget_usage
+      kind: histogram_quantile
+      filters:
+        - {name: budget, value: latency}
+        - {name: scope, value: paper_cycle}
+      quantile: "0.95"
+    target: {comparison: at_most, value: "1", unit: ratio, window_seconds: 2592000}
+    error_budget: {kind: fraction, value: "0.05"}
+    missing_data: breach
+    breach:
+      severity: warning
+      action: degraded
+      hold_seconds: 300
+      route_id: warning_paper_operator
+      runbook_anchor: paper-cycle-latency-budget
+  - objective_id: research_cost_budget
+    category: cost
+    indicator:
+      metric_id: budget_usage
+      kind: histogram_quantile
+      filters:
+        - {name: budget, value: cost}
+        - {name: scope, value: research}
+      quantile: "0.95"
+    target: {comparison: at_most, value: "1", unit: ratio, window_seconds: 2592000}
+    error_budget: {kind: fraction, value: "0.05"}
+    missing_data: breach
+    breach:
+      severity: warning
+      action: degraded
+      hold_seconds: 300
+      route_id: warning_paper_operator
+      runbook_anchor: research-cost-budget
+  - objective_id: paper_cycle_cost_budget
+    category: cost
+    indicator:
+      metric_id: budget_usage
+      kind: histogram_quantile
+      filters:
+        - {name: budget, value: cost}
+        - {name: scope, value: paper_cycle}
+      quantile: "0.95"
+    target: {comparison: at_most, value: "1", unit: ratio, window_seconds: 2592000}
+    error_budget: {kind: fraction, value: "0.05"}
+    missing_data: breach
+    breach:
+      severity: warning
+      action: degraded
+      hold_seconds: 300
+      route_id: warning_paper_operator
+      runbook_anchor: paper-cycle-cost-budget
+
+burn_policies:
+  - policy_id: fast
+    objective_ids: [research_latency_budget, paper_cycle_latency_budget, research_cost_budget, paper_cycle_cost_budget]
+    window_seconds: 300
+    burn_rate: "14.4"
+    hold_seconds: 120
+    severity: critical
+    action: failed
+    route_id: critical_paper_operator
+  - policy_id: slow
+    objective_ids: [research_latency_budget, paper_cycle_latency_budget, research_cost_budget, paper_cycle_cost_budget]
+    window_seconds: 3600
+    burn_rate: "6"
+    hold_seconds: 900
+    severity: warning
+    action: degraded
+    route_id: warning_paper_operator
+  - policy_id: exhausted
+    objective_ids: [research_latency_budget, paper_cycle_latency_budget, research_cost_budget, paper_cycle_cost_budget]
+    window_seconds: 2592000
+    burn_rate: "1"
+    hold_seconds: 0
+    severity: critical
+    action: failed
+    route_id: critical_paper_operator
+
+budget_breach_behavior:
+  execution_mode: paper
+  preserve_observed_commit: true
+  degraded:
+    allow_new_target: false
+    allow_new_reservation: false
+    allow_new_order: false
+    stop_mode: after_current_boundary
+  failed:
+    allow_new_target: false
+    allow_new_reservation: false
+    allow_new_order: false
+    stop_mode: immediate
+  allow_order_chasing: false
+  allow_compensating_quantity: false
+
+operator_routing:
+  state: policy_only
+  paging_backend: none
+  delivery_guarantee: none
+  routes:
+    - route_id: critical_paper_operator
+      severity: critical
+      receiver: paper_operator
+      delivery: page_required
+      configured: false
+      runbook: docs/operations/slo.md
+    - route_id: warning_paper_operator
+      severity: warning
+      receiver: paper_operator
+      delivery: page_required
+      configured: false
+      runbook: docs/operations/slo.md
+
+monitoring_limitations:
+  topology: single_host
+  prometheus_storage: ephemeral
+  paging_backend: none
+  trace_storage: none

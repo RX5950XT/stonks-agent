@@ -1,0 +1,20 @@
+schema_version: 1
+budgets:
+  - scope: research
+    degraded:
+      action: degraded
+      max_cost_usd: "2"
+      max_elapsed_seconds: "300"
+    failed:
+      action: failed
+      max_cost_usd: "5"
+      max_elapsed_seconds: "600"
+  - scope: paper_cycle
+    degraded:
+      action: degraded
+      max_cost_usd: "1"
+      max_elapsed_seconds: "30"
+    failed:
+      action: failed
+      max_cost_usd: "2"
+      max_elapsed_seconds: "60"

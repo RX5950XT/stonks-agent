@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
+from support.budgets import FixedBudgetEvaluator
 from support.telemetry import RecordingOperationRecorder
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
@@ -19,6 +20,7 @@ from stonks_agent.domain.errors import (
     Success,
 )
 from stonks_agent.domain.job import JobLease
+from stonks_agent.domain.operational_budget import BudgetStatus
 from stonks_agent.domain.paper_cycle import (
     CancelPaperCycle,
     CanonicalCycleReference,
@@ -201,6 +203,7 @@ def test_runner_checkpoints_exact_canonical_flow_and_final_artifact() -> None:
         handler=handler,
         store=store,
         artifacts=artifacts,
+        budget=FixedBudgetEvaluator(),
         clock=lambda: NOW,
         telemetry=telemetry,
     )
@@ -233,6 +236,7 @@ def test_runner_schedules_retry_without_advancing_failed_stage() -> None:
         handler=handler,
         store=store,
         artifacts=MemoryArtifactStore(),
+        budget=FixedBudgetEvaluator(),
         clock=lambda: NOW,
     )
 
@@ -256,6 +260,7 @@ def test_execution_crash_retries_from_checkpoint_and_reuses_receipt() -> None:
             handler=handler,
             store=store,
             artifacts=artifacts,
+            budget=FixedBudgetEvaluator(),
             clock=lambda: NOW,
         )
 
@@ -265,12 +270,67 @@ def test_execution_crash_retries_from_checkpoint_and_reuses_receipt() -> None:
         handler=handler,
         store=store,
         artifacts=artifacts,
+        budget=FixedBudgetEvaluator(),
         clock=lambda: NOW + timedelta(minutes=1),
     )
 
     assert isinstance(replay, Success)
     assert replay.value.status is PaperCycleRunStatus.SUCCEEDED
     assert handler.execution_side_effects == 1
+
+
+def test_budget_degradation_stops_before_target_and_order_creation() -> None:
+    store = FakeCycleStore()
+    handler = FakeHandler()
+    budget = FixedBudgetEvaluator(
+        (
+            BudgetStatus.WITHIN,
+            BudgetStatus.WITHIN,
+            BudgetStatus.WITHIN,
+            BudgetStatus.DEGRADED,
+        )
+    )
+
+    result = run_paper_fund_cycle(
+        request(),
+        handler=handler,
+        store=store,
+        artifacts=MemoryArtifactStore(),
+        budget=budget,
+        clock=lambda: NOW,
+    )
+
+    assert isinstance(result, Success)
+    assert result.value.error_code == ErrorCode.BUDGET_EXHAUSTED
+    assert handler.calls == [
+        PaperCycleStage.EVIDENCE,
+        PaperCycleStage.RESEARCH_OPINION,
+        PaperCycleStage.SIGNAL,
+    ]
+    assert PaperCycleStage.PORTFOLIO_TARGET not in store.state.completed_stages
+    assert PaperCycleStage.ORDER_INTENT not in store.state.completed_stages
+
+
+def test_budget_evaluator_failure_stops_before_any_stage() -> None:
+    class ExplodingBudget:
+        def evaluate(self, scope: object, **kwargs: object) -> object:
+            del scope, kwargs
+            raise RuntimeError("usage backend failed")
+
+    store = FakeCycleStore()
+    handler = FakeHandler()
+    result = run_paper_fund_cycle(
+        request(),
+        handler=handler,
+        store=store,
+        artifacts=MemoryArtifactStore(),
+        budget=ExplodingBudget(),  # type: ignore[arg-type]
+        clock=lambda: NOW,
+    )
+
+    assert isinstance(result, Success)
+    assert result.value.error_code == ErrorCode.BUDGET_EXHAUSTED
+    assert handler.calls == []
 
 
 def test_cancel_use_case_delegates_to_audited_store() -> None:

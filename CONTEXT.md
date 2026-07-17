@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0–P5 phase gates與P6.1–P6.4 production identity/secrets/API security/observability已完成；paper flow維持可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環。下一目標為P6.5 alerts、budgets與SLOs。
+- P0–P5 phase gates與P6.1–P6.5 production identity/secrets/API security/observability/alerts/budgets/SLOs已完成；paper flow維持可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環。下一目標為P6.6 S3-compatible artifact adapter與retention。
 - P1/P3/P4/P6目前包含PostgreSQL 0001–0016、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox與trace propagation、strategy registry、paper account/trading ledger、execution receipts、operator action chain、immutable portfolio valuations與owner-scoped research/paper records。
 - Human API principal只由server-side asymmetric OIDC/JWKS與frozen RBAC policy建立；central FastAPI dependency及application ownership checks拒絕forged actor/role與IDOR，local token/DB CLI只限明確loopback local/development/test。
 - Remote worker/sidecar只接受exact issuer/audience/azp/permission/target/generation/nonce/deadline service credential；無DB credential、人類角色、operator/admin或paper authority，舊fence與錯誤target fail closed。
@@ -14,6 +14,8 @@
 - 所有FastAPI app共用typed security composition：body byte/frame cap、body前edge/credential admission、body後verified-principal limiter、exact CORS、security headers、forwarded identity拒絕與structured errors。Cookie模式顯式opt-in並強制same-origin/double-submit CSRF；webhook以exact URL/public DNS/TCP pin防SSRF與redirect pivot。
 - P6.4新增frozen W3C trace/correlation、低基數metric/span catalog、redacting log correlation與exact OTel SDK/OTLP runtime。五個API、job/outbox/inbox、queue/worker與provider/model/signal/risk/execution/reconciliation/delivery可延續trace；observer failure、skip、偽造、吞錯或duplicate callback都不能改變canonical outcome。
 - Pinned Collector/Prometheus/Grafana使用internal backend與loopback ingress、non-root/read-only/cap-drop/resource limits、external Grafana secrets及provisioned dashboard；真實runtime smoke已從core送出OTLP trace/metrics並在collector canonical endpoint驗證。Trace sink目前nop、狀態tmpfs，未接remote backend/multi-host TLS；synthetic carrier span尚未回綁SDK child span ID。
+- P6.5新增strict `config/{budgets,slo}.yaml` loaders、immutable operational budget decision與low-cardinality SLO metrics。Cost只接受Decimal、latency只接受同一monotonic clock讀值，狀態維持`within→degraded→failed`單調；missing/invalid usage fail closed。Research與paper cycle在外部／canonical stage前重驗，soft/hard超限後不再建立target/reservation/order，PostgreSQL將`budget_exhausted`視為非重試terminal，不能追單。
+- Prometheus新增correctness、API/worker availability、p95 latency、normalized 5m/1h/30d budget burn、hard outcome與soft usage alerts；pinned `promtool` config/rules/fixtures及三容器Collector→Prometheus exact-label smoke已通過。Correctness series會以0初始化以偵測缺失，但counter為0仍不能單獨證明100% coverage；目前只有policy routing、tmpfs狀態且無Alertmanager/paging送達。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
 - Financial Datasets與OpenBB已驗證read-only observation contracts與共用daily query；canonical materialization目前只宣稱replay source。`stonks-worker`只提供claim-once，不宣稱常駐dispatcher。
@@ -146,11 +148,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P6.2 focused為187 passed；完整non-PostgreSQL gate為1404 passed、3 skipped、244 deselected、coverage 87.66%。完整PostgreSQL gate為1648 passed、3 skipped、coverage 87.46%；582 files format、Ruff、strict mypy 309 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint與locked dependency audit全通過。Cloud strategy以injected fake workload client驗證rotation/outage，尚未連接真實cloud secret manager，不宣稱live integration。
 - P6.3 focused為199 passed；完整non-PostgreSQL gate為1497 passed、3 skipped、244 deselected、coverage 87.42%。完整PostgreSQL gate為1741 passed、3 skipped、coverage 87.26%；593 files format、Ruff、strict mypy 316 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint與locked dependency audit全通過。Rate limit仍為單process store，trusted proxy/distributed enforcement、DNS resolver lifetime/timeout pin與HSTS留待後續deployment gate。
 - P6.4 focused telemetry/API/durable/infra matrix與真實三容器OTLP smoke全通過；完整non-PostgreSQL gate為1620 passed、3 skipped、258 deselected、coverage 87.75%，完整PostgreSQL gate為1878 passed、3 skipped、coverage 87.48%。617 files format、Ruff、strict mypy 323 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過。
+- P6.5 focused budget/SLO/config/canonical flow/Prometheus rules與真實三容器smoke全通過；完整non-PostgreSQL gate為1679 passed、3 skipped、259 deselected、coverage 87.85%，完整PostgreSQL gate為1938 passed、3 skipped、coverage 87.57%。630 files format、Ruff、strict mypy 329 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P6 與架構藍圖。
-2. 保持 TDD；從P6.5 alerts、budgets與SLOs開始，先固定correctness/availability/latency/cost SLO與fail-closed budget action，再接Prometheus rules與runbook。
+2. 保持 TDD；從P6.6 S3-compatible artifact adapter與retention開始，先固定object finalize/hash、encryption、signed scoped URL、retention/GC與restore contracts。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

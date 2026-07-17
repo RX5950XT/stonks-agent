@@ -18,8 +18,15 @@ from stonks_agent.adapters.observability.otel import (
     OTLPHTTPConfig,
     build_otlp_runtime,
 )
+from stonks_agent.application.slo_metrics import SLOMetricsRecorder
 from stonks_agent.domain.errors import Success
-from stonks_agent.domain.telemetry import ComponentName, OperationName
+from stonks_agent.domain.telemetry import (
+    BudgetDimension,
+    BudgetOutcome,
+    BudgetScope,
+    ComponentName,
+    OperationName,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_PATH = ROOT / "infra" / "compose.observability.yaml"
@@ -32,9 +39,23 @@ METRICS = frozenset(
         "stonks_operation_calls_total",
         "stonks_operation_errors_total",
         "stonks_operation_duration_seconds",
+        "stonks_correctness_violations_total",
+        "stonks_budget_usage_ratio",
+        "stonks_budget_outcomes_total",
     }
 )
-LABELS = frozenset({"component", "operation", "status", "environment"})
+LABELS = frozenset(
+    {
+        "budget",
+        "component",
+        "environment",
+        "invariant",
+        "operation",
+        "outcome",
+        "scope",
+        "status",
+    }
+)
 COMPONENTS = (
     "api|provider|queue|worker|llm|model|signal|risk|execution|reconciliation|delivery"
 )
@@ -233,7 +254,7 @@ def test_prometheus_relabels_to_exact_low_cardinality_catalog() -> None:
     assert prometheus["global"]["scrape_interval"] == "15s"
     assert prometheus["global"]["scrape_timeout"] == "5s"
     assert "remote_write" not in prometheus
-    assert "rule_files" not in prometheus
+    assert prometheus["rule_files"] == ["/etc/prometheus/rules/*.yaml"]
     scrape = prometheus["scrape_configs"]
     assert len(scrape) == 1
     collector = scrape[0]
@@ -247,20 +268,61 @@ def test_prometheus_relabels_to_exact_low_cardinality_catalog() -> None:
             "regex": (
                 "stonks_api_requests_total|stonks_operation_calls_total|"
                 "stonks_operation_errors_total|"
-                "stonks_operation_duration_seconds_(bucket|sum|count)"
+                "stonks_operation_duration_seconds_(bucket|sum|count)|"
+                "stonks_correctness_violations_total|"
+                "stonks_budget_usage_ratio_(bucket|sum|count)|"
+                "stonks_budget_outcomes_total"
             ),
             "action": "keep",
         },
-        {"source_labels": ["component"], "regex": COMPONENTS, "action": "keep"},
-        {"source_labels": ["operation"], "regex": OPERATIONS, "action": "keep"},
-        {"source_labels": ["status"], "regex": STATUSES, "action": "keep"},
+        {
+            "source_labels": ["component"],
+            "regex": f"^$|{COMPONENTS}",
+            "action": "keep",
+        },
+        {
+            "source_labels": ["operation"],
+            "regex": f"^$|{OPERATIONS}",
+            "action": "keep",
+        },
+        {
+            "source_labels": ["status"],
+            "regex": f"^$|{STATUSES}",
+            "action": "keep",
+        },
         {
             "source_labels": ["environment"],
             "regex": ENVIRONMENTS,
             "action": "keep",
         },
         {
-            "regex": "__name__|component|operation|status|environment|le",
+            "source_labels": ["invariant"],
+            "regex": (
+                "^$|duplicate_paper_order|future_evidence|"
+                "claim_provenance|risk_replayability"
+            ),
+            "action": "keep",
+        },
+        {
+            "source_labels": ["budget"],
+            "regex": "^$|cost|latency",
+            "action": "keep",
+        },
+        {
+            "source_labels": ["scope"],
+            "regex": "^$|research|paper_cycle",
+            "action": "keep",
+        },
+        {
+            "source_labels": ["outcome"],
+            "regex": "^$|within|degraded|failed",
+            "action": "keep",
+        },
+        {
+            "regex": (
+                "__name__|budget|component|environment|invariant|le|"
+                "operation|outcome|scope|status"
+            ),
             "action": "labelkeep",
         },
     ]
@@ -382,10 +444,22 @@ def test_observability_stack_smoke_when_images_are_already_local(
         metrics = _wait_for_collector_metrics(command, environment)
         assert "stonks_api_requests_total" in metrics
         assert "stonks_operation_calls_total" in metrics
+        assert "stonks_correctness_violations_total" in metrics
+        assert "stonks_budget_usage_ratio_bucket" in metrics
+        assert "stonks_budget_outcomes_total" in metrics
         assert 'component="api"' in metrics
         assert 'operation="http_request"' in metrics
         assert 'environment="test"' in metrics
+        assert 'invariant="future_evidence"' in metrics
+        assert 'budget="cost"' in metrics
+        assert 'scope="research"' in metrics
+        assert 'outcome="within"' in metrics
         assert "request_id" not in metrics
+        scraped = _wait_for_prometheus_metrics(command, environment)
+        assert "stonks_api_requests_total" in scraped
+        assert "stonks_correctness_violations_total" in scraped
+        assert "stonks_budget_usage_ratio_bucket" in scraped
+        assert "stonks_budget_outcomes_total" in scraped
     finally:
         subprocess.run(
             [*command, "down", "--remove-orphans"],
@@ -437,6 +511,13 @@ def _emit_smoke_telemetry(http_port: int) -> None:
             call=lambda: Success(None),
         )
         assert isinstance(result, Success)
+        slo = SLOMetricsRecorder(metrics=runtime.metrics, environment="test")
+        slo.record_budget_evaluation(
+            budget=BudgetDimension.COST,
+            scope=BudgetScope.RESEARCH,
+            outcome=BudgetOutcome.WITHIN,
+            usage_ratio=0.75,
+        )
         assert runtime.force_flush(5_000)
     finally:
         runtime.shutdown()
@@ -473,3 +554,40 @@ def _wait_for_collector_metrics(
             return response.stdout
         time.sleep(0.25)
     raise AssertionError("collector did not expose canonical smoke metrics")
+
+
+def _wait_for_prometheus_metrics(
+    command: list[str],
+    environment: dict[str, str],
+) -> str:
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        response = subprocess.run(
+            [
+                *command,
+                "exec",
+                "-T",
+                "prometheus",
+                "wget",
+                "-q",
+                "-T",
+                "3",
+                "-O",
+                "-",
+                "http://127.0.0.1:9090/api/v1/label/__name__/values",
+            ],
+            cwd=ROOT,
+            env=environment,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if (
+            response.returncode == 0
+            and "stonks_correctness_violations_total" in response.stdout
+            and "stonks_budget_outcomes_total" in response.stdout
+        ):
+            return response.stdout
+        time.sleep(0.25)
+    raise AssertionError("Prometheus did not ingest the complete metric catalog")

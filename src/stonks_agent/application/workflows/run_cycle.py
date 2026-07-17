@@ -14,6 +14,7 @@ from typing import Any, Protocol
 from stonks_agent.application.telemetry import record_operation
 from stonks_agent.domain.artifact import ArtifactMetadata
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, StructuredError
+from stonks_agent.domain.operational_budget import BudgetScope, BudgetStatus
 from stonks_agent.domain.paper_cycle import (
     CancelPaperCycle,
     PaperCycleRunResult,
@@ -22,6 +23,7 @@ from stonks_agent.domain.paper_cycle import (
 )
 from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.ports.artifact_store import ArtifactStore
+from stonks_agent.ports.operational_budget import OperationalBudgetEvaluatorPort
 from stonks_agent.ports.paper_cycle import PaperCycleStageHandler, PaperCycleStore
 from stonks_agent.ports.telemetry import OperationRecorderPort
 from stonks_contracts.common import canonical_json
@@ -228,6 +230,7 @@ def run_paper_fund_cycle(
     handler: PaperCycleStageHandler,
     store: PaperCycleStore,
     artifacts: ArtifactStore,
+    budget: OperationalBudgetEvaluatorPort,
     clock: CycleClock,
     telemetry: OperationRecorderPort | None = None,
 ) -> Result[PaperCycleRunResult]:
@@ -249,6 +252,17 @@ def run_paper_fund_cycle(
         )
     while state.next_stage is not None:
         stage = state.next_stage
+        try:
+            budget_decision = budget.evaluate(BudgetScope.PAPER_CYCLE)
+        except Exception:
+            budget_decision = None
+        if budget_decision is None or budget_decision.status is not BudgetStatus.WITHIN:
+            return _fail_cycle(
+                command,
+                store,
+                ErrorCode.BUDGET_EXHAUSTED,
+                "Paper cycle operational budget exhausted",
+            )
         before_hash = state.state_hash
         component, operation = _STAGE_TELEMETRY[stage]
         advanced = record_operation(

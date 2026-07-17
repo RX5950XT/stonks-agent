@@ -31,3 +31,6 @@
 - Async telemetry latency必須包住完整`await`，且不得把`CancelledError`當一般export failure後重新dispatch；root sampling、flush與shutdown也要有實際訊號測試。
 - OTel SDK constructor仍可能隱式讀`OTEL_*`、proxy、`.netrc`、redirect與resource env；exact config要逐項覆寫或拒絕，不能只傳endpoint就宣稱設定已固定。
 - Docker internal network在Docker Desktop可能讓宣告的host port實際不建立binding；observability smoke必須從host送真實OTLP並讀回metric，不能只相信container health或Compose render。
+- Budget usage ratio必須以各scope的soft/degraded threshold正規化，ratio大於1才直接代表degraded；hard threshold可能不是固定倍數，應由typed decision與`outcome=failed`告警表達。
+- Zero-tolerance violation counter必須先建立四個固定series，否則`absent_over_time`會把健康但未發生事件誤判為缺失；zero初始化只證明metric liveness，不能取代canonical validation、DB constraint與immutable audit。
+- Paper cycle的budget exhaustion必須是非重試terminal transition；只在應用層停止當次call仍可能被queue retry成追單，需以真實PostgreSQL狀態測試證明不會重新排程。

@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
+from support.budgets import FixedBudgetEvaluator
 from support.telemetry import RecordingOperationRecorder
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
@@ -21,6 +22,7 @@ from stonks_agent.domain.delivery import (
     DeliveryRequest,
 )
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError, Success
+from stonks_agent.domain.operational_budget import BudgetStatus
 from stonks_agent.domain.research import (
     AgentOpinion,
     OpinionRating,
@@ -130,6 +132,7 @@ def test_snapshot_to_dual_research_report_render_and_file_delivery(
             clock=lambda: NOW,
         ),
         artifacts=artifacts,
+        budget=FixedBudgetEvaluator(),
         clock=lambda: NOW,
         telemetry=telemetry,
     )
@@ -234,6 +237,7 @@ def test_outages_become_degraded_or_failed_audit_not_fake_success() -> None:
                 clock=lambda: NOW,
             ),
             artifacts=artifacts,
+            budget=FixedBudgetEvaluator(),
             clock=lambda: NOW,
         )
 
@@ -245,6 +249,35 @@ def test_outages_become_degraded_or_failed_audit_not_fake_success() -> None:
         assert isinstance(audit, Success)
         assert b'"status":"succeeded"' not in audit.value
         assert b"order" not in audit.value
+
+
+def test_operational_budget_degradation_stops_before_external_research() -> None:
+    class UnexpectedRepository:
+        def query_available(self, *, subject: str, as_of: datetime) -> object:
+            del subject, as_of
+            raise AssertionError("budget gate must run before evidence access")
+
+    artifacts = MemoryArtifactStore()
+    result = run_research_pipeline(
+        command(),
+        repository=UnexpectedRepository(),  # type: ignore[arg-type]
+        deterministic=Deterministic(),  # type: ignore[arg-type]
+        tradingagents=TradingAgents(),  # type: ignore[arg-type]
+        llm=LLM(),  # type: ignore[arg-type]
+        renderer=JinjaReportRenderer(
+            template_directory=Path("templates"),
+            artifacts=artifacts,
+            clock=lambda: NOW,
+        ),
+        artifacts=artifacts,
+        budget=FixedBudgetEvaluator((BudgetStatus.DEGRADED,)),
+        clock=lambda: NOW,
+    )
+
+    assert isinstance(result, Success)
+    assert result.value.status is PipelineStatus.DEGRADED
+    assert result.value.report is None
+    assert tuple(item.code for item in result.value.issues) == ("budget_exhausted",)
 
 
 def command() -> ResearchPipelineCommand:

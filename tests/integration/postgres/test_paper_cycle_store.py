@@ -150,6 +150,33 @@ def test_retry_and_dead_letter_are_fenced_audited_transitions(
     ]
 
 
+def test_budget_exhaustion_is_terminal_and_never_schedules_a_chase_retry(
+    clean_database: Engine,
+) -> None:
+    command = _seed_and_claim(clean_database, max_attempts=3)
+    store = PostgresPaperCycleStore(clean_database)
+
+    stopped = store.fail(
+        command,
+        StructuredError(
+            code=ErrorCode.BUDGET_EXHAUSTED,
+            message="Paper cycle operational budget exhausted",
+        ),
+    )
+
+    assert isinstance(stopped, Success)
+    assert stopped.value.status is PaperCycleRunStatus.DEAD_LETTERED
+    with clean_database.connect() as connection:
+        row = connection.execute(
+            text(
+                "select status, not_before, lease_owner from job where job_id=:job_id"
+            ),
+            {"job_id": JOB_ID},
+        ).one()
+    assert row.status == "dead_letter"
+    assert row.lease_owner is None
+
+
 def test_cancel_is_terminal_idempotent_and_conflicting_reason_fails_closed(
     clean_database: Engine,
 ) -> None:

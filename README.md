@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0–P5 phase gates與P6.1–P6.4 production identity、secrets、API security、observability已通過，P6.5之後的production hardening依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0–P5 phase gates與P6.1–P6.5 production identity、secrets、API security、observability、alerts/budgets/SLOs已通過，P6.6之後的production hardening依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -58,6 +58,7 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Bounded immutable-copy redaction涵蓋structured error/log/report、nested containers、credential URL/JWT/PEM/provider keys與explicit known values。Canonical run event/job/outbox/last-error在PostgreSQL JSONB bind前拒絕secret-shaped payload並整筆rollback；API egress redaction不是DB洩漏的替代品。
 - 所有FastAPI app共用同一typed security composition：body byte/frame上限、body前edge/credential admission、body後verified-principal rate limit、exact CORS、安全headers、forwarded identity fail-closed與全域structured error。Cookie auth僅能顯式啟用，並要求canonical same-origin與double-submit CSRF；bearer-only模式拒絕ambient auth cookie。
 - Frozen W3C trace/correlation contracts、低基數metric/span catalog與exact OTel runtime已接入五個FastAPI app、durable job/outbox/inbox、queue/worker及provider/model/signal/risk/execution/reconciliation/delivery boundaries。Telemetry callback無法跳過、替換、吞掉或重播canonical結果；OTLP exporter拒絕ambient `OTEL_*`、proxy、`.netrc`與redirect。Pinned Collector→Prometheus→Grafana stack已完成真實OTLP metrics/trace、host health與dashboard runtime smoke。
+- Versioned cost/latency budget以Decimal cost與同一monotonic clock形成immutable `within/degraded/failed` decision；missing/invalid usage fail closed。Research與durable paper cycle在每個外部／canonical stage前重驗，超過soft/hard門檻後不再建立target、reservation或order，`budget_exhausted`為非重試terminal transition。Prometheus已載入correctness、availability、p95 latency、normalized budget burn與hard outcome alerts，pinned `promtool` fixtures及三容器Collector→Prometheus smoke均通過。
 - Webhook dynamic URL使用exact scheme/host/port/path allowlist、全public DNS答案驗證與TCP pinned transport，拒絕redirect、DNS rebinding及loopback/private/link-local/multicast/unspecified/reserved位址；其他固定provider URL尚未套用此transport。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 
@@ -71,7 +72,7 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 
 `fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。
 
-P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。Research API目前只建立`research_pipeline` job；P4.7已驗證core-owned durable paper cycle與crash replay，但尚未接成常駐production dispatcher，`stonks-worker claim-once`也不是常駐dispatcher。AI-Trader adapter預設關閉，目前只以固定commit `d03ff6c`的最小runtime shapes與clean-room cassettes驗證；`api.ai4trade.ai`於驗證時DNS無法解析，因此live OpenAPI與真實credential smoke仍是unverified，不宣稱production compatibility。OIDC目前以pinned與CI ephemeral issuer/JWKS integration驗證，尚未宣稱已連接真實外部IdP；cloud secret strategy目前以injected workload client驗證，尚未連接真實cloud secret manager。Rate limit預設為單process bounded store，尚未接distributed store；forwarded identity一律拒絕，尚未建立trusted reverse-proxy policy；DNS resolver本身尚無lifetime/timeout pin，HSTS與跨host TLS/mTLS留待P6.7 deployment gate。Observability stack目前只做本機loopback ingress、tmpfs狀態與nop trace sink，未接真實remote backend、持久化trace、跨host TLS或network-policy egress boundary；response/durable carrier的synthetic span ID只保證trace ID關聯，尚未回綁SDK child span ID。
+P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。Research API目前只建立`research_pipeline` job；P4.7已驗證core-owned durable paper cycle與crash replay，但尚未接成常駐production dispatcher，`stonks-worker claim-once`也不是常駐dispatcher。AI-Trader adapter預設關閉，目前只以固定commit `d03ff6c`的最小runtime shapes與clean-room cassettes驗證；`api.ai4trade.ai`於驗證時DNS無法解析，因此live OpenAPI與真實credential smoke仍是unverified，不宣稱production compatibility。OIDC目前以pinned與CI ephemeral issuer/JWKS integration驗證，尚未宣稱已連接真實外部IdP；cloud secret strategy目前以injected workload client驗證，尚未連接真實cloud secret manager。Rate limit預設為單process bounded store，尚未接distributed store；forwarded identity一律拒絕，尚未建立trusted reverse-proxy policy；DNS resolver本身尚無lifetime/timeout pin，HSTS與跨host TLS/mTLS留待P6.7 deployment gate。Observability stack目前只做本機loopback ingress、tmpfs狀態與nop trace sink，未接真實remote backend、持久化trace、跨host TLS或network-policy egress boundary；response/durable carrier的synthetic span ID只保證trace ID關聯，尚未回綁SDK child span ID。SLO routing目前只有policy，未接Alertmanager/paging backend或送達驗證；correctness violation counter即使為0也不能單獨取代canonical validation、DB constraint、immutable audit與phase-gate證據。
 
 ## 核心文件
 
@@ -81,6 +82,7 @@ P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與
 - [研究一致性驗證](./docs/research/verification.md)
 - [Optional integrations 操作手冊](./docs/runbooks/optional-integrations.md)
 - [Observability 操作與限制](./docs/runbooks/observability.md)
+- [SLO、預算與告警操作](./docs/operations/slo.md)
 - [Service OIDC key rotation](./docs/runbooks/service-oidc-key-rotation.md)
 - [開發交接](./CONTEXT.md)
 

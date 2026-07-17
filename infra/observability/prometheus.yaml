@@ -3,6 +3,9 @@ global:
   scrape_timeout: 5s
   evaluation_interval: 30s
 
+rule_files:
+  - /etc/prometheus/rules/*.yaml
+
 scrape_configs:
   - job_name: otel-collector
     scheme: http
@@ -20,19 +23,31 @@ scrape_configs:
       - targets: [otel-collector:8889]
     metric_relabel_configs:
       - source_labels: [__name__]
-        regex: stonks_api_requests_total|stonks_operation_calls_total|stonks_operation_errors_total|stonks_operation_duration_seconds_(bucket|sum|count)
+        regex: stonks_api_requests_total|stonks_operation_calls_total|stonks_operation_errors_total|stonks_operation_duration_seconds_(bucket|sum|count)|stonks_correctness_violations_total|stonks_budget_usage_ratio_(bucket|sum|count)|stonks_budget_outcomes_total
         action: keep
       - source_labels: [component]
-        regex: api|provider|queue|worker|llm|model|signal|risk|execution|reconciliation|delivery
+        regex: ^$|api|provider|queue|worker|llm|model|signal|risk|execution|reconciliation|delivery
         action: keep
       - source_labels: [operation]
-        regex: http_request|fetch|enqueue|claim|process|complete|generate|infer|derive|authorize|execute|reconcile|deliver
+        regex: ^$|http_request|fetch|enqueue|claim|process|complete|generate|infer|derive|authorize|execute|reconcile|deliver
         action: keep
       - source_labels: [status]
-        regex: success|error|denied|conflict|timeout|retry|skipped
+        regex: ^$|success|error|denied|conflict|timeout|retry|skipped
         action: keep
       - source_labels: [environment]
         regex: local|development|test|staging|production
         action: keep
-      - regex: __name__|component|operation|status|environment|le
+      - source_labels: [invariant]
+        regex: ^$|duplicate_paper_order|future_evidence|claim_provenance|risk_replayability
+        action: keep
+      - source_labels: [budget]
+        regex: ^$|cost|latency
+        action: keep
+      - source_labels: [scope]
+        regex: ^$|research|paper_cycle
+        action: keep
+      - source_labels: [outcome]
+        regex: ^$|within|degraded|failed
+        action: keep
+      - regex: __name__|budget|component|environment|invariant|le|operation|outcome|scope|status
         action: labelkeep

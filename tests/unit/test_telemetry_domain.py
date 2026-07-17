@@ -6,7 +6,11 @@ import pytest
 from pydantic import ValidationError
 
 from stonks_agent.domain.telemetry import (
+    BudgetDimension,
+    BudgetOutcome,
+    BudgetScope,
     ComponentName,
+    CorrectnessInvariant,
     CorrelationContext,
     MetricKind,
     MetricName,
@@ -138,6 +142,117 @@ def test_metric_catalog_accepts_only_exact_low_cardinality_labels() -> None:
         "status": "success",
         "environment": "production",
     }
+
+
+@pytest.mark.parametrize(
+    ("name", "kind", "attributes"),
+    [
+        (
+            MetricName.CORRECTNESS_VIOLATIONS,
+            MetricKind.COUNTER,
+            {
+                "invariant": CorrectnessInvariant.FUTURE_EVIDENCE,
+                "environment": "production",
+            },
+        ),
+        (
+            MetricName.BUDGET_USAGE_RATIO,
+            MetricKind.HISTOGRAM,
+            {
+                "budget": BudgetDimension.COST,
+                "scope": BudgetScope.RESEARCH,
+                "environment": "production",
+            },
+        ),
+        (
+            MetricName.BUDGET_OUTCOMES,
+            MetricKind.COUNTER,
+            {
+                "budget": BudgetDimension.LATENCY,
+                "scope": BudgetScope.PAPER_CYCLE,
+                "outcome": BudgetOutcome.FAILED,
+                "environment": "production",
+            },
+        ),
+    ],
+)
+def test_slo_metric_catalog_has_exact_metric_specific_labels(
+    name: MetricName,
+    kind: MetricKind,
+    attributes: dict[str, str],
+) -> None:
+    assert validate_metric_measurement(name, kind, 1, attributes) == attributes
+
+
+def test_correctness_counter_allows_zero_only_for_series_initialization() -> None:
+    attributes = {
+        "invariant": CorrectnessInvariant.RISK_REPLAYABILITY,
+        "environment": "production",
+    }
+
+    assert (
+        validate_metric_measurement(
+            MetricName.CORRECTNESS_VIOLATIONS,
+            MetricKind.COUNTER,
+            0,
+            attributes,
+        )
+        == attributes
+    )
+    with pytest.raises(ValueError):
+        validate_metric_measurement(
+            MetricName.OPERATION_CALLS,
+            MetricKind.COUNTER,
+            0,
+            {
+                "component": "worker",
+                "operation": "process",
+                "status": "success",
+                "environment": "production",
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    ("name", "kind", "attributes"),
+    [
+        (
+            MetricName.CORRECTNESS_VIOLATIONS,
+            MetricKind.COUNTER,
+            {
+                "invariant": "account-123",
+                "environment": "production",
+            },
+        ),
+        (
+            MetricName.BUDGET_USAGE_RATIO,
+            MetricKind.HISTOGRAM,
+            {
+                "budget": "tokens",
+                "scope": "research",
+                "environment": "production",
+            },
+        ),
+        (
+            MetricName.BUDGET_OUTCOMES,
+            MetricKind.COUNTER,
+            {
+                "budget": "latency",
+                "scope": "paper_cycle",
+                "outcome": "failed",
+                "environment": "production",
+                "run_id": "run-1",
+            },
+        ),
+    ],
+)
+def test_slo_metrics_reject_identity_and_unknown_dimensions(
+    name: MetricName,
+    kind: MetricKind,
+    attributes: dict[str, str],
+) -> None:
+    with pytest.raises(ValueError):
+        validate_metric_measurement(name, kind, 1, attributes)
 
 
 def test_component_and_operation_catalog_covers_canonical_boundaries() -> None:

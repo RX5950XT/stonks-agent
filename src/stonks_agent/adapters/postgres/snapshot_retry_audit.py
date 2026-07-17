@@ -342,6 +342,9 @@ def _audit_is_valid(
         == f"job:{job.job_id}:complete:{request.attempt_generation}"
         and outbox.created_at == event.occurred_at
         and outbox.not_before == event.occurred_at
+        and outbox.traceparent == job.traceparent
+        and outbox.tracestate == job.tracestate
+        and outbox.correlation_id == job.correlation_id
     )
 
 

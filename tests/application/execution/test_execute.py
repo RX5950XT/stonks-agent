@@ -6,6 +6,7 @@ from types import TracebackType
 from uuid import UUID
 
 import pytest
+from support.telemetry import RecordingOperationRecorder
 
 from stonks_agent.application.execution.execute import execute_reference_paper
 from stonks_agent.application.ledger.post import (
@@ -31,6 +32,7 @@ from stonks_agent.domain.portfolio import (
     PaperAccountState,
 )
 from stonks_agent.domain.reservations import AccountReservation
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.domain.trading_persistence import PaperExecutionRecord
 
 from .helpers import ACCOUNT_ID, command, request, reservation
@@ -233,14 +235,20 @@ class FailingModel:
 def test_use_case_rehydrates_authority_and_commits_once() -> None:
     repository = FakeExecutionRepository()
     unit_of_work = FakeUnitOfWork(repository)
+    telemetry = RecordingOperationRecorder()
 
     result = execute_reference_paper(
-        request(), broker(), ledger_policy(), lambda: unit_of_work
+        request(),
+        broker(),
+        ledger_policy(),
+        lambda: unit_of_work,
+        telemetry=telemetry,
     )
 
     assert isinstance(result, Success)
     assert unit_of_work.committed is True
     assert result.value == repository.record
+    assert telemetry.calls == [(ComponentName.EXECUTION, OperationName.EXECUTE)]
 
 
 def test_existing_exact_receipt_replays_without_second_commit() -> None:

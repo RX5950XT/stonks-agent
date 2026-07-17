@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 
 from pydantic import ValidationError
 
+from stonks_agent.application.telemetry import record_operation
 from stonks_agent.domain.delivery import (
     DeliveryChannel,
     DeliveryCommand,
@@ -22,9 +23,11 @@ from stonks_agent.domain.errors import (
     Success,
 )
 from stonks_agent.domain.outbox import OutboxLease
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.ports.artifact_store import ArtifactReaderPort
 from stonks_agent.ports.delivery import DeliveryPort
 from stonks_agent.ports.outbox import OutboxPort
+from stonks_agent.ports.telemetry import OperationRecorderPort
 
 _CHANNEL_LIMITS = {
     DeliveryChannel.CONSOLE: 16_384,
@@ -35,6 +38,31 @@ _CHANNEL_LIMITS = {
 
 
 def deliver_outbox_lease(
+    lease: OutboxLease,
+    *,
+    now: datetime,
+    worker_id: str,
+    artifacts: ArtifactReaderPort,
+    channels: Mapping[DeliveryChannel, DeliveryPort],
+    outbox: OutboxPort,
+    telemetry: OperationRecorderPort | None = None,
+) -> Result[DeliveryProcessReceipt]:
+    return record_operation(
+        telemetry,
+        component=ComponentName.DELIVERY,
+        operation=OperationName.DELIVER,
+        call=lambda: _deliver_outbox_lease(
+            lease,
+            now=now,
+            worker_id=worker_id,
+            artifacts=artifacts,
+            channels=channels,
+            outbox=outbox,
+        ),
+    )
+
+
+def _deliver_outbox_lease(
     lease: OutboxLease,
     *,
     now: datetime,

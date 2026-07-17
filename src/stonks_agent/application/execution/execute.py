@@ -6,11 +6,14 @@ from stonks_agent.application.ledger.post import (
     LedgerPostingPolicy,
     build_fill_journal,
 )
+from stonks_agent.application.telemetry import record_operation
 from stonks_agent.domain._trading import failure
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, Success
 from stonks_agent.domain.execution_model import PaperExecutionRequest
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.domain.trading_persistence import PaperExecutionRecord
 from stonks_agent.ports.execution import PaperExecutionModelPort
+from stonks_agent.ports.telemetry import OperationRecorderPort
 from stonks_agent.ports.trading_unit_of_work import (
     TradingCommitError,
     TradingUnitOfWorkFactory,
@@ -22,9 +25,30 @@ def execute_reference_paper(
     model: PaperExecutionModelPort,
     ledger_policy: LedgerPostingPolicy,
     unit_of_work: TradingUnitOfWorkFactory,
+    *,
+    telemetry: OperationRecorderPort | None = None,
 ) -> Result[PaperExecutionRecord]:
     """Persist receipt, fills, journals, and settled projections atomically."""
 
+    return record_operation(
+        telemetry,
+        component=ComponentName.EXECUTION,
+        operation=OperationName.EXECUTE,
+        call=lambda: _execute_reference_paper(
+            request,
+            model,
+            ledger_policy,
+            unit_of_work,
+        ),
+    )
+
+
+def _execute_reference_paper(
+    request: PaperExecutionRequest,
+    model: PaperExecutionModelPort,
+    ledger_policy: LedgerPostingPolicy,
+    unit_of_work: TradingUnitOfWorkFactory,
+) -> Result[PaperExecutionRecord]:
     result, activate_kill = _execute_once(request, model, ledger_policy, unit_of_work)
     if not activate_kill:
         return result

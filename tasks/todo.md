@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.3 已通過，P6.4 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.4 已通過，P6.5 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -525,9 +525,16 @@
   - [x] 建立`tests/security/`涵蓋auth bypass、IDOR、prompt injection、SSRF、XSS、CSRF、secret leakage、rate-limit bypass與oversize streaming body。
   - [x] 完成focused/full non-PostgreSQL/PostgreSQL、security/secret/dependency gates與文件同步；未接distributed rate-limit store或trusted reverse proxy時不得宣稱multi-replica production enforcement。
 
-- [ ] **P6.4 Production OpenTelemetry exporters and metrics** — 將P0 trace/log/metric ports接到`adapters/observability/{logging,tracing,metrics}.py`、`infra/observability/{otel-collector,prometheus,grafana}/`。（Depends：P0.9、P1.6、P4.7；Complexity：L；Risk：Medium）
+- [x] **P6.4 Production OpenTelemetry exporters and metrics** — 將P0 trace/log/metric ports接到`adapters/observability/{logging,tracing,metrics}.py`、`infra/observability/{otel-collector,prometheus,grafana}/`。（Depends：P0.9、P1.6、P4.7；Complexity：L；Risk：Medium）
   - Correlation IDs、provider/queue/worker/LLM/model/signal/risk/execution/reconciliation/delivery metrics完整。
   - Logs不得包含raw secrets、tokens、unredacted sensitive evidence或完整prompts。
+  - [x] TDD固定frozen trace carrier、low-cardinality metric catalog與typed trace/metric ports；attribute/label allowlist拒絕raw ID、symbol、account、user、prompt、URL、exception與secret-shaped值。
+  - [x] 實作OpenTelemetry SDK tracing/metrics/log correlation adapters與validated runtime config；local no-op、OTLP HTTP export、shutdown/flush、export failure不得影響canonical transaction。
+  - [x] 五個FastAPI app加入request span/correlation middleware；只接受canonical W3C trace context，response回bounded correlation ID，validation/error/rate-limit paths亦可觀測且不洩漏輸入。
+  - [x] Job/outbox/inbox與worker boundaries durable保存獨立trace context欄位並跨process延續；trace欄位不進canonical payload/content hash，舊generation/nonce/lease仍不得commit。
+  - [x] 對provider、queue/worker、LLM/model、signal、risk、execution、reconciliation、delivery做manual instrumentation；固定operation/status/provider-kind等低基數dimensions與latency/error/counter/histogram。
+  - [x] 建立hardened OTEL Collector、Prometheus、Grafana設定與provisioned dashboard；預設只bind loopback/internal network，無anonymous admin、無host metrics/raw logs，resource limits與health/readiness明示。
+  - [x] 完成contract/API/PostgreSQL/E2E/collector smoke、cardinality/redaction/failure tests及full gates；未做real remote backend與multi-host TLS時不得宣稱production telemetry transport完成。
 
 - [ ] **P6.5 Alerts, budgets and SLOs** — 建立`config/{budgets,slo}.yaml`、`docs/operations/slo.md`、alert rules。（Depends：P6.4；Complexity：M；Risk：Medium）
   - Correctness SLO：zero duplicate paper order、zero future evidence、100% claim provenance、100% replayable risk decision。
@@ -970,3 +977,10 @@
 - SSRF / rendering：新增exact scheme/host/port/path outbound guard、全public DNS集合驗證與httpcore pinned TCP transport；webhook拒絕userinfo/query/fragment、redirect、DNS rebind及所有非public位址。Jinja autoescape、Markdown escaping、CSP與redaction回歸均通過；custom webhook client只允許test注入。
 - Adversarial closure：補上256-frame上限、pre-auth credential/direct-peer admission、principal二段quota、credential SHA-256 key、heap expiry、clock/store safe 503、denied preflight JSON與forwarded header fail-closed。最終唯讀security review未找到可重現blocker/high。
 - Verification / boundary：focused matrix為199 passed；完整non-PostgreSQL gate為1497 passed、3 skipped、244 deselected、coverage 87.42%。完整PostgreSQL gate為1741 passed、3 skipped、coverage 87.26%；593 files format、Ruff、strict mypy 316 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過。Rate limit仍為單process store；trusted proxy/distributed enforcement、DNS resolver lifetime/timeout pin與HSTS未宣稱完成，下一項為P6.4 production observability。
+
+### P6 Progress Review — P6.4 — 2026-07-17
+
+- Scope completed：新增frozen W3C `TraceCarrier/TraceContext/CorrelationContext`、四個canonical metrics、typed telemetry ports、contextvars、redacting log correlation、sync/async OperationRecorder及exact OTel SDK/OTLP runtime。Root trace預設sampled；endpoint、span/metric attributes、resource、sampler、limits、batch與lifecycle均bounded，ambient `OTEL_*`、proxy、`.netrc`、redirect、credential與resource override fail closed。
+- Propagation / authority：五個FastAPI app在validation/error/rate-limit paths回傳bounded trace/request metadata；0016為job/outbox/inbox新增獨立nullable trace欄位並跨API→queue→worker→completion/delivery延續，不進payload hash且不改generation/nonce/lease。Queue/worker與provider、LLM/model、signal、risk、execution、reconciliation、delivery均manual instrument；recorder即使skip、replace、swallow、duplicate或前後失敗，也只能取得同一canonical result/exception。
+- Infra / smoke：官方digest-pinned Collector、Prometheus、Grafana以internal backend＋loopback ingress、non-root、read-only、cap-drop/NNP、external secrets、resource limits與provisioned dashboard啟動。真實三容器smoke由core OTLP exporter送出trace/metrics，驗證host health、Grafana health及collector exact metric/label catalog；Grafana ambient plugin/update/news/live均關閉。
+- Verification / boundary：完整non-PostgreSQL gate為1620 passed、3 skipped、258 deselected、coverage 87.75%；完整PostgreSQL gate為1878 passed、3 skipped、coverage 87.48%。617 files format、Ruff、strict mypy 323 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過，三容器OTLP runtime smoke包含在final gates。Trace目前送到nop sink且狀態為tmpfs，未接真實remote backend或multi-host TLS/network policy；response/durable synthetic span尚未回綁SDK child span ID。下一項為P6.5 alerts、budgets與SLOs。

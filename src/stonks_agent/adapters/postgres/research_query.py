@@ -9,6 +9,7 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from stonks_agent.adapters.postgres.durable_trace import current_durable_trace
 from stonks_agent.adapters.postgres.models import (
     DatasetSnapshotRow,
     JobRow,
@@ -207,6 +208,7 @@ def _job_row(
     request: ResearchRunRequest, refs: ResearchRunRefs, run_key: str
 ) -> JobRow:
     payload = _job_payload(request)
+    trace_carrier, correlation_id = current_durable_trace()
     return JobRow(
         job_id=refs.job_id,
         run_id=refs.run_id,
@@ -220,6 +222,9 @@ def _job_row(
         attempts=0,
         max_attempts=3,
         attempt_generation=0,
+        traceparent=(trace_carrier.traceparent if trace_carrier is not None else None),
+        tracestate=(trace_carrier.tracestate if trace_carrier is not None else None),
+        correlation_id=correlation_id,
         created_at=request.requested_at,
         updated_at=request.requested_at,
     )

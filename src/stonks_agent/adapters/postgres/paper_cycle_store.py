@@ -582,6 +582,9 @@ def _append_audit(
             created_at=occurred_at,
             not_before=occurred_at,
             attempts=0,
+            traceparent=job.traceparent,
+            tracestate=job.tracestate,
+            correlation_id=job.correlation_id,
         )
     )
     run.status = run_status.value

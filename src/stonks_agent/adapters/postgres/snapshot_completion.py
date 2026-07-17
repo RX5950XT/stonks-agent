@@ -716,6 +716,9 @@ def _completion_outbox(
         created_at=now,
         not_before=now,
         attempts=0,
+        traceparent=job.traceparent,
+        tracestate=job.tracestate,
+        correlation_id=job.correlation_id,
     )
 
 

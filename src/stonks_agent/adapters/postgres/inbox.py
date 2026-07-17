@@ -10,6 +10,7 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from stonks_agent.adapters.postgres.durable_trace import trace_carrier_from_columns
 from stonks_agent.adapters.postgres.models import InboxRow
 from stonks_agent.domain.errors import (
     ErrorCode,
@@ -57,6 +58,8 @@ class PostgresInbox:
                         duplicate=False,
                         processed_at=message.processed_at,
                         result=result,
+                        trace_carrier=message.trace_carrier,
+                        correlation_id=message.correlation_id,
                     )
                     session.add(_row(message, receipt))
                     session.flush()
@@ -96,6 +99,11 @@ def _existing_receipt(
             duplicate=True,
             processed_at=row.processed_at,
             result=row.result,
+            trace_carrier=trace_carrier_from_columns(
+                row.traceparent,
+                row.tracestate,
+            ),
+            correlation_id=row.correlation_id,
         )
     except ValidationError:
         return _failure(ErrorCode.CONFLICT, "Inbox receipt is invalid")
@@ -110,6 +118,17 @@ def _row(message: InboxMessage, receipt: InboxReceipt) -> InboxRow:
         received_at=message.received_at,
         processed_at=receipt.processed_at,
         result=receipt.result,
+        traceparent=(
+            message.trace_carrier.traceparent
+            if message.trace_carrier is not None
+            else None
+        ),
+        tracestate=(
+            message.trace_carrier.tracestate
+            if message.trace_carrier is not None
+            else None
+        ),
+        correlation_id=message.correlation_id,
     )
 
 

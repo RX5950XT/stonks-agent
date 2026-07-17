@@ -38,6 +38,10 @@ from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
 )
+from stonks_agent.entrypoints.api.telemetry import (
+    ApiTelemetryOptions,
+    install_api_telemetry,
+)
 from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.paper_operations import PaperOperationsUnitOfWorkFactory
 
@@ -77,6 +81,7 @@ def create_paper_operations_app(
     *,
     clock: Callable[[], datetime] | None = None,
     api_security: ApiSecurityOptions | None = None,
+    api_telemetry: ApiTelemetryOptions | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Stonks Agent Paper Operations API", version="0.1.0")
     install_api_security(
@@ -84,6 +89,7 @@ def create_paper_operations_app(
         max_request_bytes=MAX_OPERATIONS_REQUEST_BYTES,
         options=api_security,
     )
+    install_api_telemetry(app, options=api_telemetry)
     install_authentication(app, authenticator or DenyAllAuthenticator())
     selected_clock = clock or _utc_now
     app.add_api_route(

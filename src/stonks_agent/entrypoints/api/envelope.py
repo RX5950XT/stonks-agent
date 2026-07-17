@@ -7,6 +7,7 @@ from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from stonks_agent.adapters.observability.context import current_trace_context
 from stonks_agent.domain.errors import ErrorCode, StructuredError
 from stonks_agent.domain.redaction import redact, redact_text
 
@@ -88,7 +89,7 @@ def success_envelope[T](
     return SuccessEnvelope[T](
         data=data,
         status=status,
-        metadata=metadata or ResponseMetadata(),
+        metadata=metadata if metadata is not None else _context_metadata(),
     )
 
 
@@ -105,7 +106,7 @@ def error_envelope(
             message=redact_text(error.message),
             details=redacted_details,
         ),
-        metadata=metadata or ResponseMetadata(),
+        metadata=metadata if metadata is not None else _context_metadata(),
     )
 
 
@@ -118,5 +119,15 @@ def unexpected_error_envelope(
     return ErrorEnvelope(
         status=500,
         error=ApiError(code="internal_error", message="Internal server error"),
-        metadata=metadata or ResponseMetadata(),
+        metadata=metadata if metadata is not None else _context_metadata(),
+    )
+
+
+def _context_metadata() -> ResponseMetadata:
+    context = current_trace_context()
+    if context is None:
+        return ResponseMetadata()
+    return ResponseMetadata(
+        request_id=context.request_id,
+        trace_id=context.trace_id,
     )

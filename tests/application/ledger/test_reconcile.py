@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import TracebackType
 
 import pytest
+from support.telemetry import RecordingOperationRecorder
 
 from stonks_agent.application.ledger.post import build_fill_journal
 from stonks_agent.application.ledger.reconcile import (
@@ -20,6 +21,7 @@ from stonks_agent.domain.errors import (
 from stonks_agent.domain.journal import JournalTransaction
 from stonks_agent.domain.ledger import LedgerProjection
 from stonks_agent.domain.portfolio import AccountPortfolioSnapshot
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.domain.trading_persistence import PaperExecutionRecord
 from stonks_agent.ports.trading_unit_of_work import TradingCommitError
 
@@ -161,14 +163,21 @@ def test_reconcile_read_or_graph_failure_uses_separate_kill_transaction(
 ) -> None:
     ledger = StubLedger(fail_at=fail_at)
     factory = StubFactory(ledger)
+    telemetry = RecordingOperationRecorder()
 
-    result = reconcile_paper_account(ACCOUNT_ID, as_of=NOW, unit_of_work=factory)
+    result = reconcile_paper_account(
+        ACCOUNT_ID,
+        as_of=NOW,
+        unit_of_work=factory,
+        telemetry=telemetry,
+    )
 
     assert isinstance(result, Failure)
     assert ledger.killed
     assert len(factory.transactions) == 2
     assert not factory.transactions[0].committed
     assert factory.transactions[1].committed
+    assert telemetry.calls == [(ComponentName.RECONCILIATION, OperationName.RECONCILE)]
 
 
 def test_reconcile_returns_internal_error_when_kill_activation_fails() -> None:

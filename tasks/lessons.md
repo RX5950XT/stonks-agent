@@ -27,3 +27,7 @@
 - `.gitignore`若用negation重新納入被忽略目錄，必須在該目錄層級再次忽略`__pycache__/`與`*.pyc`；commit前同時檢查staged file list，避免生成物被誤納。
 - Request body只限制bytes仍可被無限零長ASGI frames拖住；byte cap與frame cap必須一起做，且昂貴auth必須放在body前的credential/direct-peer admission之後。
 - 應用程式不採信forwarded header不代表direct peer可靠；在trusted proxy拓樸與header清洗契約完成前，必須直接拒絕forwarded identity並避免宣稱multi-replica ingress enforcement。
+- Observability callback必須視為無authority的旁路：即使它不呼叫、偽造回傳、吞掉exception或重複呼叫，canonical動作仍只能執行一次且保留原result/exception。
+- Async telemetry latency必須包住完整`await`，且不得把`CancelledError`當一般export failure後重新dispatch；root sampling、flush與shutdown也要有實際訊號測試。
+- OTel SDK constructor仍可能隱式讀`OTEL_*`、proxy、`.netrc`、redirect與resource env；exact config要逐項覆寫或拒絕，不能只傳endpoint就宣稱設定已固定。
+- Docker internal network在Docker Desktop可能讓宣告的host port實際不建立binding；observability smoke必須從host送真實OTLP並讀回metric，不能只相信container health或Compose render。

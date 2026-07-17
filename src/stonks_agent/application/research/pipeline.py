@@ -10,6 +10,7 @@ from stonks_agent.application.reporting.evidence_assembler import (
     assemble_evidence_context,
 )
 from stonks_agent.application.reporting.generate import generate_report
+from stonks_agent.application.telemetry import record_operation
 from stonks_agent.domain.analysis_context import AnalysisContext
 from stonks_agent.domain.artifact import ArtifactMetadata
 from stonks_agent.domain.errors import (
@@ -27,9 +28,11 @@ from stonks_agent.domain.research_pipeline import (
     ResearchPipelineCommand,
     ResearchPipelineResult,
 )
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.ports.artifact_store import ArtifactStore
 from stonks_agent.ports.evidence_repository import EvidenceRepository
 from stonks_agent.ports.llm import LLMPort
+from stonks_agent.ports.telemetry import OperationRecorderPort
 from stonks_contracts.common import canonical_json
 from stonks_contracts.evidence import Sensitivity
 from stonks_contracts.report import AnalysisReport
@@ -57,6 +60,7 @@ def run_research_pipeline(
     renderer: ReportRendererPort,
     artifacts: ArtifactStore,
     clock: Callable[[], datetime],
+    telemetry: OperationRecorderPort | None = None,
 ) -> Result[ResearchPipelineResult]:
     if clock() >= command.deadline_at:
         return _finish(
@@ -69,7 +73,12 @@ def run_research_pipeline(
             artifacts,
             clock,
         )
-    assembled = assemble_evidence_context(command.context_request, repository)
+    assembled = record_operation(
+        telemetry,
+        component=ComponentName.PROVIDER,
+        operation=OperationName.FETCH,
+        call=lambda: assemble_evidence_context(command.context_request, repository),
+    )
     if isinstance(assembled, Failure):
         return _finish(
             command,
@@ -82,7 +91,12 @@ def run_research_pipeline(
             clock,
         )
     context = assembled.value
-    researched = deterministic.research(context)
+    researched = record_operation(
+        telemetry,
+        component=ComponentName.MODEL,
+        operation=OperationName.INFER,
+        call=lambda: deterministic.research(context),
+    )
     if isinstance(researched, Failure):
         return _finish(
             command,
@@ -109,7 +123,12 @@ def run_research_pipeline(
         )
     issues: tuple[PipelineIssue, ...] = ()
     opinion: AgentOpinion | None = None
-    analyzed = tradingagents.analyze(context)
+    analyzed = record_operation(
+        telemetry,
+        component=ComponentName.MODEL,
+        operation=OperationName.INFER,
+        call=lambda: tradingagents.analyze(context),
+    )
     if isinstance(analyzed, Failure):
         issues = (_from_failure(PipelineStage.TRADINGAGENTS, analyzed),)
     else:
@@ -126,22 +145,25 @@ def run_research_pipeline(
             key=str,
         )
     )
-    generated = generate_report(
-        GenerateReportRequest(
-            request_id=command.report_request_id,
-            report_id=command.report_id,
-            run_id=command.run_id,
-            owner_subject=command.owner_subject,
-            context=context,
-            language=command.language,
-            report_type=command.report_type,
-            model=command.model,
-            policy_version=command.policy_version,
-            signal_ids=signal_ids,
-            max_output_tokens=command.max_output_tokens,
-            deadline_at=command.deadline_at,
-        ),
-        llm,
+    report_request = GenerateReportRequest(
+        request_id=command.report_request_id,
+        report_id=command.report_id,
+        run_id=command.run_id,
+        owner_subject=command.owner_subject,
+        context=context,
+        language=command.language,
+        report_type=command.report_type,
+        model=command.model,
+        policy_version=command.policy_version,
+        signal_ids=signal_ids,
+        max_output_tokens=command.max_output_tokens,
+        deadline_at=command.deadline_at,
+    )
+    generated = record_operation(
+        telemetry,
+        component=ComponentName.LLM,
+        operation=OperationName.GENERATE,
+        call=lambda: generate_report(report_request, llm),
     )
     if isinstance(generated, Failure):
         return _finish(
@@ -154,7 +176,12 @@ def run_research_pipeline(
             artifacts,
             clock,
         )
-    rendered = renderer.render(generated.value)
+    rendered = record_operation(
+        telemetry,
+        component=ComponentName.DELIVERY,
+        operation=OperationName.GENERATE,
+        call=lambda: renderer.render(generated.value),
+    )
     if isinstance(rendered, Failure):
         return _finish(
             command,

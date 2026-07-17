@@ -1,0 +1,6 @@
+enabled = false
+endpoint = "http://127.0.0.1:4318"
+service_name = "stonks-agent"
+environment = "local"
+export_interval_millis = 10000
+export_timeout_millis = 5000

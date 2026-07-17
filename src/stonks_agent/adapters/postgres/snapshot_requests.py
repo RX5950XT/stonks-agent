@@ -9,6 +9,7 @@ from sqlalchemy import Engine, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from stonks_agent.adapters.postgres.durable_trace import current_durable_trace
 from stonks_agent.adapters.postgres.models import JobRow, WorkflowRunRow
 from stonks_agent.domain.errors import (
     ErrorCode,
@@ -60,6 +61,7 @@ class PostgresSnapshotRequestStore:
                     )
                 )
                 session.flush()
+                trace_carrier, correlation_id = current_durable_trace()
                 session.add(
                     JobRow(
                         job_id=identifiers.job_id,
@@ -74,6 +76,17 @@ class PostgresSnapshotRequestStore:
                         attempts=0,
                         max_attempts=3,
                         attempt_generation=0,
+                        traceparent=(
+                            trace_carrier.traceparent
+                            if trace_carrier is not None
+                            else None
+                        ),
+                        tracestate=(
+                            trace_carrier.tracestate
+                            if trace_carrier is not None
+                            else None
+                        ),
+                        correlation_id=correlation_id,
                         created_at=request.requested_at,
                         updated_at=request.requested_at,
                     )

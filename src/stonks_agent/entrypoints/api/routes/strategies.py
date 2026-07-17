@@ -34,6 +34,10 @@ from stonks_agent.entrypoints.api.envelope import (
 )
 from stonks_agent.entrypoints.api.routes.evaluations import EvaluationEndpoint
 from stonks_agent.entrypoints.api.routes.signals import SignalEligibilityEndpoint
+from stonks_agent.entrypoints.api.telemetry import (
+    ApiTelemetryOptions,
+    install_api_telemetry,
+)
 from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.strategy_registry import StrategyUnitOfWorkFactory
 from stonks_contracts.common import Sha256
@@ -60,6 +64,7 @@ def create_strategy_app(
     *,
     clock: Callable[[], datetime] | None = None,
     api_security: ApiSecurityOptions | None = None,
+    api_telemetry: ApiTelemetryOptions | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Stonks Agent Strategy API", version="0.1.0")
     install_api_security(
@@ -67,6 +72,7 @@ def create_strategy_app(
         max_request_bytes=MAX_STRATEGY_REQUEST_BYTES,
         options=api_security,
     )
+    install_api_telemetry(app, options=api_telemetry)
     install_authentication(app, authenticator or DenyAllAuthenticator())
     selected_clock = clock or _utc_now
     base = "/v1/strategies/{strategy_id}/versions/{strategy_version}"

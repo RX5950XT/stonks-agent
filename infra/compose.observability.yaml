@@ -1,0 +1,160 @@
+name: stonks-observability
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.123.0@sha256:e39311df1f3d941923c00da79ac7ba6269124a870ee87e3c3ad24d60f8aee4d2
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    init: true
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      GOMEMLIMIT: 192MiB
+    ports:
+      - "127.0.0.1:${STONKS_OTLP_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${STONKS_OTLP_HTTP_PORT:-4318}:4318"
+      - "127.0.0.1:${STONKS_OTEL_HEALTH_PORT:-13133}:13133"
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=10001,gid=10001,mode=1770
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.50
+    stop_grace_period: 20s
+    healthcheck:
+      test:
+        - CMD
+        - /otelcol-contrib
+        - validate
+        - --config=/etc/otelcol-contrib/config.yaml
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks: [observability_internal, observability_ingress]
+
+  prometheus:
+    image: prom/prometheus:v3.2.1@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=24h
+      - --storage.tsdb.retention.size=192MB
+      - --storage.tsdb.wal-compression
+      - --web.listen-address=0.0.0.0:9090
+      - --query.max-concurrency=8
+      - --query.timeout=30s
+      - --log.level=warn
+    init: true
+    restart: unless-stopped
+    read_only: true
+    user: "65534:65534"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./observability/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+    tmpfs:
+      - /prometheus:rw,noexec,nosuid,nodev,size=256m,uid=65534,gid=65534,mode=0750
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=65534,gid=65534,mode=1770
+    pids_limit: 128
+    mem_limit: 384m
+    cpus: 0.75
+    stop_grace_period: 20s
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -T 3 -O /dev/null http://127.0.0.1:9090/-/ready
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      otel-collector:
+        condition: service_healthy
+    networks: [observability_internal]
+
+  grafana:
+    image: grafana/grafana:11.6.0@sha256:62d2b9d20a19714ebfe48d1bb405086081bc602aa053e28cf6d73c7537640dfb
+    init: true
+    restart: unless-stopped
+    read_only: true
+    user: "472:0"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_DASHBOARDS_MIN_REFRESH_INTERVAL: 10s
+      GF_EXPLORE_ENABLED: "false"
+      GF_LIVE_MAX_CONNECTIONS: "0"
+      GF_LOG_LEVEL: warn
+      GF_LOG_MODE: console
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      GF_PATHS_DATA: /var/lib/grafana
+      GF_PATHS_LOGS: /var/log/grafana
+      GF_PATHS_PLUGINS: /var/lib/grafana/plugins
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_SECURITY_ADMIN_USER: stonks-admin
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SECURITY_SECRET_KEY__FILE: /run/secrets/grafana_secret_key
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_SERVER_DOMAIN: localhost
+      GF_SERVER_ENABLE_GZIP: "true"
+      GF_SERVER_HTTP_ADDR: 0.0.0.0
+      GF_SERVER_HTTP_PORT: "3000"
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_VIEWERS_CAN_EDIT: "false"
+    ports:
+      - "127.0.0.1:${STONKS_GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    secrets:
+      - grafana_admin_password
+      - grafana_secret_key
+    tmpfs:
+      - /var/lib/grafana:rw,noexec,nosuid,nodev,size=128m,uid=472,gid=0,mode=0750
+      - /var/log/grafana:rw,noexec,nosuid,nodev,size=16m,uid=472,gid=0,mode=0750
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=472,gid=0,mode=1770
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.50
+    stop_grace_period: 20s
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -T 3 -O /dev/null http://127.0.0.1:3000/api/health
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks: [observability_internal, observability_ingress]
+
+networks:
+  observability_internal:
+    driver: bridge
+    internal: true
+  observability_ingress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.host_binding_ipv4: 127.0.0.1
+
+secrets:
+  grafana_admin_password:
+    file: ${STONKS_GRAFANA_ADMIN_PASSWORD_FILE:-../.data/observability/missing-grafana-admin-password}
+  grafana_secret_key:
+    file: ${STONKS_GRAFANA_SECRET_KEY_FILE:-../.data/observability/missing-grafana-secret-key}

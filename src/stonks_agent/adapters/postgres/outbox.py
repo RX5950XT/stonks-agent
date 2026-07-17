@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import Engine, func, or_, select
 from sqlalchemy.orm import Session
 
+from stonks_agent.adapters.postgres.durable_trace import trace_carrier_from_columns
 from stonks_agent.adapters.postgres.models import OutboxRow
 from stonks_agent.domain.errors import (
     ErrorCode,
@@ -234,6 +235,8 @@ def _lease(row: OutboxRow) -> OutboxLease:
         lease_generation=row.lease_generation,
         lease_nonce=row.lease_nonce,
         attempts=row.attempts,
+        trace_carrier=trace_carrier_from_columns(row.traceparent, row.tracestate),
+        correlation_id=row.correlation_id,
     )
 
 

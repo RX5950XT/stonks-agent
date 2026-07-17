@@ -217,6 +217,7 @@ def _append_failure(
     _add_failure_audit(
         session,
         run,
+        job,
         event_id,
         outbox_id,
         sequence,
@@ -242,6 +243,7 @@ def _append_failure(
 def _add_failure_audit(
     session: Session,
     run: WorkflowRunRow,
+    job: JobRow,
     event_id: UUID,
     outbox_id: UUID,
     sequence: int,
@@ -276,6 +278,9 @@ def _add_failure_audit(
             created_at=now,
             not_before=now,
             attempts=0,
+            traceparent=job.traceparent,
+            tracestate=job.tracestate,
+            correlation_id=job.correlation_id,
         )
     )
 

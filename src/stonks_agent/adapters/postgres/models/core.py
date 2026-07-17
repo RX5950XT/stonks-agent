@@ -315,6 +315,24 @@ class JobRow(Base):
             "deadline_at > not_before",
             name="job_deadline_after_not_before",
         ),
+        CheckConstraint(
+            "traceparent is null or ("
+            "traceparent ~ '^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$' "
+            "and substring(traceparent from 4 for 32) <> repeat('0', 32) "
+            "and substring(traceparent from 37 for 16) <> repeat('0', 16))",
+            name="job_traceparent_valid",
+        ),
+        CheckConstraint(
+            "tracestate is null or (traceparent is not null "
+            "and octet_length(tracestate) between 1 and 512 "
+            "and tracestate !~ '[^ -~]')",
+            name="job_tracestate_valid",
+        ),
+        CheckConstraint(
+            "correlation_id is null or "
+            "correlation_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'",
+            name="job_correlation_id_valid",
+        ),
         UniqueConstraint("idempotency_key", name="uq_job_idempotency_key"),
         Index("ix_job_claim", "status", "not_before", "lease_until"),
     )
@@ -344,6 +362,9 @@ class JobRow(Base):
         String(64), ForeignKey("artifact_manifest.content_hash", ondelete="RESTRICT")
     )
     last_error: Mapped[dict[str, object] | None] = mapped_column(SecretFreeJSONB())
+    traceparent: Mapped[str | None] = mapped_column(String(55))
+    tracestate: Mapped[str | None] = mapped_column(String(512))
+    correlation_id: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -365,6 +386,24 @@ class OutboxRow(Base):
             "lease_generation >= 0",
             name="outbox_lease_generation_nonnegative",
         ),
+        CheckConstraint(
+            "traceparent is null or ("
+            "traceparent ~ '^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$' "
+            "and substring(traceparent from 4 for 32) <> repeat('0', 32) "
+            "and substring(traceparent from 37 for 16) <> repeat('0', 16))",
+            name="outbox_traceparent_valid",
+        ),
+        CheckConstraint(
+            "tracestate is null or (traceparent is not null "
+            "and octet_length(tracestate) between 1 and 512 "
+            "and tracestate !~ '[^ -~]')",
+            name="outbox_tracestate_valid",
+        ),
+        CheckConstraint(
+            "correlation_id is null or "
+            "correlation_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'",
+            name="outbox_correlation_id_valid",
+        ),
     )
 
     outbox_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
@@ -384,11 +423,34 @@ class OutboxRow(Base):
     lease_generation: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     lease_nonce: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     last_error: Mapped[dict[str, object] | None] = mapped_column(SecretFreeJSONB())
+    traceparent: Mapped[str | None] = mapped_column(String(55))
+    tracestate: Mapped[str | None] = mapped_column(String(512))
+    correlation_id: Mapped[str | None] = mapped_column(String(128))
 
 
 class InboxRow(Base):
     __tablename__ = "inbox"
-    __table_args__ = (PrimaryKeyConstraint("consumer", "message_id"),)
+    __table_args__ = (
+        PrimaryKeyConstraint("consumer", "message_id"),
+        CheckConstraint(
+            "traceparent is null or ("
+            "traceparent ~ '^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$' "
+            "and substring(traceparent from 4 for 32) <> repeat('0', 32) "
+            "and substring(traceparent from 37 for 16) <> repeat('0', 16))",
+            name="inbox_traceparent_valid",
+        ),
+        CheckConstraint(
+            "tracestate is null or (traceparent is not null "
+            "and octet_length(tracestate) between 1 and 512 "
+            "and tracestate !~ '[^ -~]')",
+            name="inbox_tracestate_valid",
+        ),
+        CheckConstraint(
+            "correlation_id is null or "
+            "correlation_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'",
+            name="inbox_correlation_id_valid",
+        ),
+    )
 
     consumer: Mapped[str] = mapped_column(String(128))
     message_id: Mapped[str] = mapped_column(String(256))
@@ -396,6 +458,9 @@ class InboxRow(Base):
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     result: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    traceparent: Mapped[str | None] = mapped_column(String(55))
+    tracestate: Mapped[str | None] = mapped_column(String(512))
+    correlation_id: Mapped[str | None] = mapped_column(String(128))
 
 
 class ProviderHealthRow(Base):

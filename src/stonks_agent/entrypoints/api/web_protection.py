@@ -7,6 +7,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from ipaddress import AddressValueError, IPv6Address
+from types import MappingProxyType
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
@@ -34,12 +35,18 @@ _CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _ORIGIN_OPTIONAL_METHODS = frozenset({"GET", "HEAD"})
 _MAX_COOKIE_HEADER_BYTES = 8192
 _INSTALLED_STATE_KEY = "_stonks_web_protection_policy"
-_SECURITY_HEADERS = (
-    (b"content-security-policy", CONTENT_SECURITY_POLICY.encode("ascii")),
-    (b"x-content-type-options", b"nosniff"),
-    (b"x-frame-options", b"DENY"),
-    (b"referrer-policy", b"no-referrer"),
-    (b"permissions-policy", b"camera=(), geolocation=(), microphone=()"),
+SECURITY_RESPONSE_HEADERS = MappingProxyType(
+    {
+        "content-security-policy": CONTENT_SECURITY_POLICY,
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "permissions-policy": "camera=(), geolocation=(), microphone=()",
+    }
+)
+_SECURITY_HEADERS = tuple(
+    (name.encode("ascii"), value.encode("ascii"))
+    for name, value in SECURITY_RESPONSE_HEADERS.items()
 )
 
 

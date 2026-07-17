@@ -1,34 +1,16 @@
-"""Vendor-neutral tracing and metrics ports."""
+"""Runtime-checkable vendor-neutral tracing and metrics ports."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-from stonks_agent.domain.errors import StructuredError
-
-
-class TraceContext(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    trace_id: str = Field(pattern=r"^[0-9a-f]{32}$")
-    span_id: str = Field(pattern=r"^[0-9a-f]{16}$")
-    request_id: str | None = Field(default=None, min_length=1, max_length=128)
-    run_id: str | None = Field(default=None, min_length=1, max_length=128)
-    job_id: str | None = Field(default=None, min_length=1, max_length=128)
-
-    @field_validator("trace_id", "span_id")
-    @classmethod
-    def reject_zero_ids(cls, value: str) -> str:
-        if set(value) == {"0"}:
-            raise ValueError("trace identifiers cannot be all zero")
-        return value
-
-    def correlation_attributes(self) -> dict[str, str]:
-        values = self.model_dump(exclude_none=True)
-        return {str(key): str(value) for key, value in values.items()}
+from stonks_agent.domain.errors import Result, StructuredError
+from stonks_agent.domain.telemetry import (
+    ComponentName,
+    OperationName,
+    TraceContext,
+)
 
 
 @runtime_checkable
@@ -50,6 +32,7 @@ class MetricsPort(Protocol):
     ) -> None: ...
 
 
+@runtime_checkable
 class SpanPort(Protocol):
     def set_attribute(self, name: str, value: str | int | float | bool) -> None: ...
 
@@ -67,3 +50,41 @@ class TracerPort(Protocol):
         parent: TraceContext | None = None,
         attributes: Mapping[str, str] | None = None,
     ) -> SpanPort: ...
+
+
+@runtime_checkable
+class TelemetryLifecyclePort(Protocol):
+    def force_flush(self, timeout_millis: int = 10_000) -> bool: ...
+
+    def shutdown(self) -> None: ...
+
+
+@runtime_checkable
+class OperationRecorderPort(Protocol):
+    def record_result[T](
+        self,
+        *,
+        component: ComponentName,
+        operation: OperationName,
+        call: Callable[[], Result[T]],
+        parent: TraceContext | None = None,
+    ) -> Result[T]: ...
+
+    async def record_async_result[T](
+        self,
+        *,
+        component: ComponentName,
+        operation: OperationName,
+        call: Callable[[], Awaitable[Result[T]]],
+        parent: TraceContext | None = None,
+    ) -> Result[T]: ...
+
+
+__all__ = [
+    "MetricsPort",
+    "OperationRecorderPort",
+    "SpanPort",
+    "TelemetryLifecyclePort",
+    "TraceContext",
+    "TracerPort",
+]

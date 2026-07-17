@@ -5,6 +5,8 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
+from support.telemetry import RecordingOperationRecorder
+
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
 from stonks_agent.adapters.delivery.file import FileDeliveryAdapter
 from stonks_agent.adapters.reporting.jinja import JinjaReportRenderer
@@ -32,6 +34,7 @@ from stonks_agent.domain.research_pipeline import (
     PipelineStatus,
     ResearchPipelineCommand,
 )
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.domain.usage_budget import UsageConsumption
 from stonks_contracts.common import ConfidenceCalibration
 from stonks_contracts.evidence import EvidenceItem, EvidenceKind, Sensitivity
@@ -114,6 +117,7 @@ def test_snapshot_to_dual_research_report_render_and_file_delivery(
     tmp_path: Path,
 ) -> None:
     artifacts = MemoryArtifactStore()
+    telemetry = RecordingOperationRecorder()
     result = run_research_pipeline(
         command(),
         repository=Repository(),  # type: ignore[arg-type]
@@ -127,6 +131,7 @@ def test_snapshot_to_dual_research_report_render_and_file_delivery(
         ),
         artifacts=artifacts,
         clock=lambda: NOW,
+        telemetry=telemetry,
     )
 
     assert isinstance(result, Success)
@@ -141,6 +146,13 @@ def test_snapshot_to_dual_research_report_render_and_file_delivery(
     )
     payload = result.value.model_dump(mode="json")
     assert not ({"order", "target", "risk_override"} & set(payload))
+    assert telemetry.calls == [
+        (ComponentName.PROVIDER, OperationName.FETCH),
+        (ComponentName.MODEL, OperationName.INFER),
+        (ComponentName.MODEL, OperationName.INFER),
+        (ComponentName.LLM, OperationName.GENERATE),
+        (ComponentName.DELIVERY, OperationName.GENERATE),
+    ]
 
     rendering = next(
         item for item in report.renderings if item.format == "markdown_full"

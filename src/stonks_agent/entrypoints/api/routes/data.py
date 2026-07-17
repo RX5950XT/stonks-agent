@@ -25,6 +25,10 @@ from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
 )
+from stonks_agent.entrypoints.api.telemetry import (
+    ApiTelemetryOptions,
+    install_api_telemetry,
+)
 from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.snapshot_request import SnapshotRequestStore
 from stonks_contracts.common import UTCDateTime
@@ -49,6 +53,7 @@ def create_data_app(
     *,
     clock: Callable[[], datetime] | None = None,
     api_security: ApiSecurityOptions | None = None,
+    api_telemetry: ApiTelemetryOptions | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Stonks Agent Data API", version="0.1.0")
     install_api_security(
@@ -56,6 +61,7 @@ def create_data_app(
         max_request_bytes=MAX_SNAPSHOT_REQUEST_BYTES,
         options=api_security,
     )
+    install_api_telemetry(app, options=api_telemetry)
     identity = authenticator or DenyAllAuthenticator()
     install_authentication(app, identity)
     app.add_api_route(

@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
+from support.telemetry import RecordingOperationRecorder
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
 from stonks_agent.application.workflows.run_cycle import (
@@ -28,6 +29,7 @@ from stonks_agent.domain.paper_cycle import (
     PaperCycleState,
     RunPaperCycle,
 )
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.ports.artifact_store import ArtifactManifest
 
 NOW = datetime(2026, 7, 13, 18, 0, tzinfo=UTC)
@@ -192,6 +194,7 @@ def test_runner_checkpoints_exact_canonical_flow_and_final_artifact() -> None:
     store = FakeCycleStore()
     handler = FakeHandler()
     artifacts = MemoryArtifactStore()
+    telemetry = RecordingOperationRecorder()
 
     result = run_paper_fund_cycle(
         request(),
@@ -199,6 +202,7 @@ def test_runner_checkpoints_exact_canonical_flow_and_final_artifact() -> None:
         store=store,
         artifacts=artifacts,
         clock=lambda: NOW,
+        telemetry=telemetry,
     )
 
     assert isinstance(result, Success)
@@ -207,6 +211,17 @@ def test_runner_checkpoints_exact_canonical_flow_and_final_artifact() -> None:
     assert store.state.complete
     assert store.completed_manifest is not None
     assert artifacts.is_finalized(store.completed_manifest.content_hash)
+    assert telemetry.calls == [
+        (ComponentName.PROVIDER, OperationName.FETCH),
+        (ComponentName.MODEL, OperationName.INFER),
+        (ComponentName.SIGNAL, OperationName.DERIVE),
+        (ComponentName.SIGNAL, OperationName.DERIVE),
+        (ComponentName.RISK, OperationName.AUTHORIZE),
+        (ComponentName.EXECUTION, OperationName.AUTHORIZE),
+        (ComponentName.EXECUTION, OperationName.EXECUTE),
+        (ComponentName.EXECUTION, OperationName.COMPLETE),
+        (ComponentName.DELIVERY, OperationName.GENERATE),
+    ]
 
 
 def test_runner_schedules_retry_without_advancing_failed_stage() -> None:

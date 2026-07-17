@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime, timedelta
 
 from sqlalchemy import Engine, func, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from stonks_agent.adapters.observability.context import current_trace_context
+from stonks_agent.adapters.postgres.durable_trace import trace_carrier_from_columns
 from stonks_agent.adapters.postgres.job_queue_audit import (
     commit_job_result,
     completed_job_receipt,
@@ -34,15 +38,26 @@ from stonks_agent.domain.job import (
     JobRecord,
     JobStatus,
 )
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.ports.artifact_store import ArtifactManifest
+from stonks_agent.ports.telemetry import OperationRecorderPort
 from stonks_contracts.common import stable_payload_hash
 
 
 class PostgresJobQueue:
-    def __init__(self, engine: Engine) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        *,
+        recorder: OperationRecorderPort | None = None,
+    ) -> None:
         self._engine = engine
+        self._recorder = recorder
 
     def enqueue(self, request: EnqueueJob) -> Result[JobRecord]:
+        return self._record(OperationName.ENQUEUE, lambda: self._enqueue(request))
+
+    def _enqueue(self, request: EnqueueJob) -> Result[JobRecord]:
         try:
             with (
                 Session(self._engine, expire_on_commit=False) as session,
@@ -68,6 +83,17 @@ class PostgresJobQueue:
                     attempts=0,
                     max_attempts=request.max_attempts,
                     attempt_generation=0,
+                    traceparent=(
+                        request.trace_carrier.traceparent
+                        if request.trace_carrier is not None
+                        else None
+                    ),
+                    tracestate=(
+                        request.trace_carrier.tracestate
+                        if request.trace_carrier is not None
+                        else None
+                    ),
+                    correlation_id=request.correlation_id,
                     created_at=request.created_at,
                     updated_at=request.created_at,
                 )
@@ -80,6 +106,22 @@ class PostgresJobQueue:
             return _failure(ErrorCode.INTERNAL_ERROR, "Job enqueue failed")
 
     def claim(
+        self,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_for: timedelta,
+    ) -> Result[JobLease]:
+        return self._record(
+            OperationName.CLAIM,
+            lambda: self._claim(
+                worker_id=worker_id,
+                now=now,
+                lease_for=lease_for,
+            ),
+        )
+
+    def _claim(
         self,
         *,
         worker_id: str,
@@ -121,6 +163,18 @@ class PostgresJobQueue:
         now: datetime,
         artifact: ArtifactManifest | None = None,
     ) -> Result[JobCompletionReceipt]:
+        return self._record(
+            OperationName.COMPLETE,
+            lambda: self._complete(request, now=now, artifact=artifact),
+        )
+
+    def _complete(
+        self,
+        request: CompleteJob,
+        *,
+        now: datetime,
+        artifact: ArtifactManifest | None = None,
+    ) -> Result[JobCompletionReceipt]:
         if now.tzinfo is None or now.utcoffset() is None:
             return _failure(ErrorCode.INVALID_INPUT, "Completion time is invalid")
         try:
@@ -129,6 +183,41 @@ class PostgresJobQueue:
             return _failure(ErrorCode.CONFLICT, "Job completion audit conflicts")
         except SQLAlchemyError:
             return _failure(ErrorCode.INTERNAL_ERROR, "Job completion failed")
+
+    def _record[T](
+        self,
+        operation: OperationName,
+        call: Callable[[], Result[T]],
+    ) -> Result[T]:
+        if self._recorder is None:
+            return call()
+        captured: list[Result[T]] = []
+        raised: list[BaseException] = []
+        executed = False
+
+        def invoke() -> Result[T]:
+            nonlocal executed
+            if executed:
+                if raised:
+                    raise raised[0]
+                return captured[0]
+            executed = True
+            try:
+                result = call()
+            except BaseException as error:
+                raised.append(error)
+                raise
+            captured.append(result)
+            return result
+
+        with suppress(Exception):
+            self._recorder.record_result(
+                component=ComponentName.QUEUE,
+                operation=operation,
+                call=invoke,
+                parent=current_trace_context(),
+            )
+        return invoke()
 
     def _complete_transaction(
         self,
@@ -361,6 +450,8 @@ def _job_record(row: JobRow) -> JobRecord:
         attempts=row.attempts,
         max_attempts=row.max_attempts,
         attempt_generation=row.attempt_generation,
+        trace_carrier=trace_carrier_from_columns(row.traceparent, row.tracestate),
+        correlation_id=row.correlation_id,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -380,6 +471,8 @@ def _job_lease(row: JobRow) -> JobLease:
         lease_until=row.lease_until,
         attempts=row.attempts,
         deadline_at=row.deadline_at,
+        trace_carrier=trace_carrier_from_columns(row.traceparent, row.tracestate),
+        correlation_id=row.correlation_id,
     )
 
 

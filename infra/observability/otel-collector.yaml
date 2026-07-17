@@ -1,0 +1,130 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 4
+      http:
+        endpoint: 0.0.0.0:4318
+  otlp/trace_sink:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4319
+        max_recv_msg_size_mib: 4
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 192
+    spike_limit_mib: 48
+  filter/metric_catalog:
+    error_mode: propagate
+    metrics:
+      metric:
+        - >-
+          name != "stonks_api_requests_total" and
+          name != "stonks_operation_calls_total" and
+          name != "stonks_operation_errors_total" and
+          name != "stonks_operation_duration_seconds"
+  transform/allowlists:
+    error_mode: propagate
+    metric_statements:
+      - context: resource
+        statements:
+          - >-
+            keep_keys(attributes, ["service.name", "service.namespace",
+            "service.version", "deployment.environment.name"])
+      - context: datapoint
+        statements:
+          - keep_keys(attributes, ["component", "operation", "status", "environment"])
+      - context: scope
+        statements:
+          - keep_keys(attributes, [])
+    trace_statements:
+      - context: resource
+        statements:
+          - >-
+            keep_keys(attributes, ["service.name", "service.namespace",
+            "service.version", "deployment.environment.name"])
+      - context: span
+        statements:
+          - >-
+            set(name, "stonks.api.request") where
+            attributes["component"] == "api" and
+            attributes["operation"] == "http_request"
+          - >-
+            set(name, "stonks.operation") where
+            name != "stonks.api.request" and name != "stonks.operation"
+          - keep_keys(attributes, ["component", "operation", "status", "environment"])
+      - context: spanevent
+        statements:
+          - keep_keys(attributes, [])
+      - context: scope
+        statements:
+          - keep_keys(attributes, [])
+  batch:
+    send_batch_size: 512
+    send_batch_max_size: 1024
+    timeout: 5s
+  batch/trace_sink:
+    send_batch_size: 512
+    send_batch_max_size: 1024
+    timeout: 5s
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    enable_open_metrics: true
+    metric_expiration: 5m
+    resource_to_telemetry_conversion:
+      enabled: false
+  otlp/traces:
+    endpoint: 127.0.0.1:4319
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 512
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 5s
+      max_elapsed_time: 30s
+  nop/traces: {}
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: warn
+      encoding: json
+      disable_caller: true
+      disable_stacktrace: true
+    metrics:
+      level: basic
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 127.0.0.1
+                port: 8888
+                without_type_suffix: true
+                without_units: true
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/metric_catalog, transform/allowlists, batch]
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/allowlists, batch]
+      exporters: [otlp/traces]
+    traces/sink:
+      receivers: [otlp/trace_sink]
+      processors: [memory_limiter, batch/trace_sink]
+      exporters: [nop/traces]

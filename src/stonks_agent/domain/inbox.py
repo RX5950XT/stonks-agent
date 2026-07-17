@@ -8,6 +8,7 @@ from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from stonks_agent.domain.telemetry import TraceCarrier
 from stonks_contracts.common import Sha256, UTCDateTime, stable_payload_hash
 
 MAX_INBOX_JSON_BYTES = 64 * 1024
@@ -30,6 +31,13 @@ class InboxMessage(BaseModel):
     payload: dict[str, object]
     received_at: UTCDateTime
     processed_at: UTCDateTime
+    trace_carrier: TraceCarrier | None = None
+    correlation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+    )
 
     @model_validator(mode="after")
     def validate_message(self) -> Self:
@@ -52,6 +60,13 @@ class InboxReceipt(BaseModel):
     duplicate: bool
     processed_at: UTCDateTime
     result: dict[str, object]
+    trace_carrier: TraceCarrier | None = None
+    correlation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+    )
 
     @model_validator(mode="after")
     def validate_result(self) -> Self:

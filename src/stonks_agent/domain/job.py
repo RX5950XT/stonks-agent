@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from stonks_agent.domain.telemetry import TraceCarrier
 from stonks_contracts.common import (
     NonEmptyString,
     Sha256,
@@ -35,6 +36,13 @@ class EnqueueJob(BaseModel):
     not_before: UTCDateTime
     deadline_at: UTCDateTime
     max_attempts: int = Field(ge=1, le=100)
+    trace_carrier: TraceCarrier | None = None
+    correlation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+    )
     created_at: UTCDateTime
 
     @model_validator(mode="after")
@@ -63,6 +71,13 @@ class JobRecord(BaseModel):
     attempts: int = Field(ge=0)
     max_attempts: int = Field(ge=1)
     attempt_generation: int = Field(ge=0)
+    trace_carrier: TraceCarrier | None = None
+    correlation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+    )
     created_at: UTCDateTime
     updated_at: UTCDateTime
 
@@ -80,6 +95,13 @@ class JobLease(BaseModel):
     lease_until: UTCDateTime
     attempts: int = Field(ge=1)
     deadline_at: UTCDateTime
+    trace_carrier: TraceCarrier | None = None
+    correlation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+    )
 
 
 class CompleteJob(BaseModel):

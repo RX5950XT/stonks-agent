@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from stonks_agent.domain.telemetry import TraceCarrier
 from stonks_contracts.common import NonEmptyString, UTCDateTime
 
 
@@ -24,6 +25,13 @@ class OutboxLease(BaseModel):
     lease_generation: int = Field(ge=1)
     lease_nonce: UUID
     attempts: int = Field(ge=1)
+    trace_carrier: TraceCarrier | None = None
+    correlation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$",
+    )
 
 
 class OutboxAckReceipt(BaseModel):

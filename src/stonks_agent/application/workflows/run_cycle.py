@@ -7,18 +7,23 @@ from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
+from functools import partial
 from hashlib import sha256
 from typing import Any, Protocol
 
+from stonks_agent.application.telemetry import record_operation
 from stonks_agent.domain.artifact import ArtifactMetadata
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, StructuredError
 from stonks_agent.domain.paper_cycle import (
     CancelPaperCycle,
     PaperCycleRunResult,
+    PaperCycleStage,
     RunPaperCycle,
 )
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_agent.ports.artifact_store import ArtifactStore
 from stonks_agent.ports.paper_cycle import PaperCycleStageHandler, PaperCycleStore
+from stonks_agent.ports.telemetry import OperationRecorderPort
 from stonks_contracts.common import canonical_json
 from stonks_contracts.evidence import Sensitivity
 
@@ -192,6 +197,31 @@ class CycleClock(Protocol):
     def __call__(self) -> datetime: ...
 
 
+_STAGE_TELEMETRY = {
+    PaperCycleStage.EVIDENCE: (ComponentName.PROVIDER, OperationName.FETCH),
+    PaperCycleStage.RESEARCH_OPINION: (ComponentName.MODEL, OperationName.INFER),
+    PaperCycleStage.SIGNAL: (ComponentName.SIGNAL, OperationName.DERIVE),
+    PaperCycleStage.PORTFOLIO_TARGET: (
+        ComponentName.SIGNAL,
+        OperationName.DERIVE,
+    ),
+    PaperCycleStage.RISK_DECISION: (
+        ComponentName.RISK,
+        OperationName.AUTHORIZE,
+    ),
+    PaperCycleStage.ORDER_INTENT: (
+        ComponentName.EXECUTION,
+        OperationName.AUTHORIZE,
+    ),
+    PaperCycleStage.EXECUTION_RECEIPT: (
+        ComponentName.EXECUTION,
+        OperationName.EXECUTE,
+    ),
+    PaperCycleStage.LEDGER: (ComponentName.EXECUTION, OperationName.COMPLETE),
+    PaperCycleStage.REPORT: (ComponentName.DELIVERY, OperationName.GENERATE),
+}
+
+
 def run_paper_fund_cycle(
     command: RunPaperCycle,
     *,
@@ -199,6 +229,7 @@ def run_paper_fund_cycle(
     store: PaperCycleStore,
     artifacts: ArtifactStore,
     clock: CycleClock,
+    telemetry: OperationRecorderPort | None = None,
 ) -> Result[PaperCycleRunResult]:
     """Advance durable canonical stages under the active core job lease."""
 
@@ -217,8 +248,15 @@ def run_paper_fund_cycle(
             "Paper cycle checkpoint identity changed",
         )
     while state.next_stage is not None:
+        stage = state.next_stage
         before_hash = state.state_hash
-        advanced = handler.advance(state.next_stage, state)
+        component, operation = _STAGE_TELEMETRY[stage]
+        advanced = record_operation(
+            telemetry,
+            component=component,
+            operation=operation,
+            call=partial(handler.advance, stage, state),
+        )
         if isinstance(advanced, Failure):
             return store.fail(command, advanced.error)
         try:

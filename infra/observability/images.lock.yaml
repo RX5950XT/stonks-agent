@@ -1,0 +1,20 @@
+schema_version: 1
+verified_at: "2026-07-17"
+verified_by: docker buildx imagetools inspect
+registry: docker.io
+images:
+  otel-collector:
+    repository: otel/opentelemetry-collector-contrib
+    tag: 0.123.0
+    manifest_list_digest: sha256:e39311df1f3d941923c00da79ac7ba6269124a870ee87e3c3ad24d60f8aee4d2
+    linux_amd64_digest: sha256:72dbf759778c9f18432226044e8b89487de4accaf4794438db1b3c98ab889e1e
+  prometheus:
+    repository: prom/prometheus
+    tag: v3.2.1
+    manifest_list_digest: sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62
+    linux_amd64_digest: sha256:5d34817348f69ddb956be509cafa4d4c2b5ecbbb5b786dd99d5a62e686b2ece4
+  grafana:
+    repository: grafana/grafana
+    tag: 11.6.0
+    manifest_list_digest: sha256:62d2b9d20a19714ebfe48d1bb405086081bc602aa053e28cf6d73c7537640dfb
+    linux_amd64_digest: sha256:b739cda4b61ba3b90707578b643a22cd851fecf4498e6c6ec2d8f9d622a5d0b2

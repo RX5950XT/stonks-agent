@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import datetime
 
 from stonks_agent.application.ledger.replay import replay_journal
+from stonks_agent.application.telemetry import record_operation
 from stonks_agent.domain._trading import failure
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, Success
 from stonks_agent.domain.journal import JournalTransaction
 from stonks_agent.domain.ledger import LedgerProjection, LedgerReconciliationReport
 from stonks_agent.domain.portfolio import AccountPortfolioSnapshot
+from stonks_agent.domain.telemetry import ComponentName, OperationName
+from stonks_agent.ports.telemetry import OperationRecorderPort
 from stonks_agent.ports.trading_unit_of_work import (
     TradingCommitError,
     TradingUnitOfWorkFactory,
@@ -50,6 +53,25 @@ def compare_ledger_projection(
 
 
 def reconcile_paper_account(
+    account_id: str,
+    *,
+    as_of: datetime,
+    unit_of_work: TradingUnitOfWorkFactory,
+    telemetry: OperationRecorderPort | None = None,
+) -> Result[LedgerReconciliationReport]:
+    return record_operation(
+        telemetry,
+        component=ComponentName.RECONCILIATION,
+        operation=OperationName.RECONCILE,
+        call=lambda: _reconcile_paper_account(
+            account_id,
+            as_of=as_of,
+            unit_of_work=unit_of_work,
+        ),
+    )
+
+
+def _reconcile_paper_account(
     account_id: str,
     *,
     as_of: datetime,

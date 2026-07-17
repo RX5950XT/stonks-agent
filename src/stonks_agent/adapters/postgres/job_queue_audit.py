@@ -76,6 +76,7 @@ def commit_job_result(
     _add_audit_rows(
         session,
         run,
+        job,
         event_id=event_id,
         outbox_id=outbox_id,
         sequence=sequence,
@@ -177,6 +178,7 @@ def _dead_letter_job(session: Session, job: JobRow, now: datetime) -> None:
     _add_audit_rows(
         session,
         run,
+        job,
         event_id=event_id,
         outbox_id=outbox_id,
         sequence=sequence,
@@ -193,6 +195,7 @@ def _dead_letter_job(session: Session, job: JobRow, now: datetime) -> None:
 def _add_audit_rows(
     session: Session,
     run: WorkflowRunRow,
+    job: JobRow,
     *,
     event_id: UUID,
     outbox_id: UUID,
@@ -228,6 +231,9 @@ def _add_audit_rows(
             created_at=occurred_at,
             not_before=occurred_at,
             attempts=0,
+            traceparent=job.traceparent,
+            tracestate=job.tracestate,
+            correlation_id=job.correlation_id,
         )
     )
 
@@ -308,6 +314,9 @@ def _completed_graph_is_valid(
         and outbox.idempotency_key == expected_key
         and outbox.created_at == event.occurred_at
         and outbox.not_before == event.occurred_at
+        and outbox.traceparent == job.traceparent
+        and outbox.tracestate == job.tracestate
+        and outbox.correlation_id == job.correlation_id
     )
 
 

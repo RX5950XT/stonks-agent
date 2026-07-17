@@ -7,6 +7,7 @@ from uuid import UUID
 
 import httpx
 import pytest
+from support.telemetry import RecordingOperationRecorder
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
 from stonks_agent.adapters.delivery.console import ConsoleDeliveryAdapter
@@ -23,6 +24,7 @@ from stonks_agent.domain.delivery import (
 )
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError, Success
 from stonks_agent.domain.outbox import OutboxAckReceipt, OutboxLease
+from stonks_agent.domain.telemetry import ComponentName, OperationName
 from stonks_contracts.evidence import Sensitivity
 
 NOW = datetime(2026, 7, 13, 7, tzinfo=UTC)
@@ -123,6 +125,7 @@ def test_outbox_delivery_chunks_artifact_then_acks_exact_fence() -> None:
     written: list[str] = []
     channel = ConsoleDeliveryAdapter(writer=written.append, clock=lambda: NOW)
     outbox = Outbox()
+    telemetry = RecordingOperationRecorder()
 
     result = deliver_outbox_lease(
         lease(),
@@ -131,6 +134,7 @@ def test_outbox_delivery_chunks_artifact_then_acks_exact_fence() -> None:
         artifacts=artifacts(),
         channels={DeliveryChannel.CONSOLE: channel},
         outbox=outbox,  # type: ignore[arg-type]
+        telemetry=telemetry,
     )
 
     assert isinstance(result, Success)
@@ -139,6 +143,7 @@ def test_outbox_delivery_chunks_artifact_then_acks_exact_fence() -> None:
     assert result.value.delivery.status is DeliveryStatus.SENT
     assert outbox.acks == [OUTBOX_ID]
     assert outbox.nacks == []
+    assert telemetry.calls == [(ComponentName.DELIVERY, OperationName.DELIVER)]
 
 
 def test_failure_nacks_with_safe_code_and_never_acks() -> None:

@@ -27,6 +27,7 @@
 - 不硬編碼或提交 secrets；錯誤、log、event、report 不得洩漏 token、credentials、敏感 prompt/data。
 - 配置只保存logical `SecretRef`；local/development/test用exact env strategy，staging/production只接受workload-identity cloud strategy且不得stale/env fallback。Consumer每個logical request重新resolve；canonical durable payload遇secret-shaped資料直接拒絕，不靠egress redaction補救。
 - Production human principal 必須由server-side asymmetric OIDC/JWKS驗證並做exact ownership；不得信任client actor/role。Service identity須exact綁issuer/audience/azp/permission/target/fence且不得取得human/operator/admin authority；local token只限loopback local/development/test。
+- 所有FastAPI app必須使用中央API security composition；rate limit先做direct-peer/credential admission再做verified principal，forwarded identity預設拒絕。Dynamic outbound URL必須exact allowlist並連線到已驗證public pinned address；未接distributed store/trusted proxy不得宣稱multi-replica enforcement。
 - 高風險邊界 fail closed：stale/conflict/unknown data、invalid model output、risk/ledger mismatch、duplicate execution、license drift。
 
 ## 上游與授權

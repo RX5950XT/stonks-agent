@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0–P5 phase gates與P6.1–P6.2 production identity/secrets/redaction已通過，P6.3之後的production hardening依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0–P5 phase gates與P6.1–P6.3 production identity/secrets/API security已通過，P6.4之後的production hardening依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -56,6 +56,8 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 - Production asymmetric OIDC/JWKS、frozen RBAC、central FastAPI auth dependency、owner-scoped IDOR checks與exact-target service identities；local token與DB CLI只限明確loopback development/test，remote worker沒有human/operator/admin或paper authority。
 - Transport-neutral logical secret refs與exact-purpose providers：local/development/test從allowlisted env每次解析，staging/production只接受workload-identity cloud client且無stale/env fallback。OpenAI、Anthropic、Financial Datasets與AI-Trader每個logical request重新resolve，bounded retry固定同version、下一次request取得rotation；provider failure保證0 network/0 artifact。
 - Bounded immutable-copy redaction涵蓋structured error/log/report、nested containers、credential URL/JWT/PEM/provider keys與explicit known values。Canonical run event/job/outbox/last-error在PostgreSQL JSONB bind前拒絕secret-shaped payload並整筆rollback；API egress redaction不是DB洩漏的替代品。
+- 所有FastAPI app共用同一typed security composition：body byte/frame上限、body前edge/credential admission、body後verified-principal rate limit、exact CORS、安全headers、forwarded identity fail-closed與全域structured error。Cookie auth僅能顯式啟用，並要求canonical same-origin與double-submit CSRF；bearer-only模式拒絕ambient auth cookie。
+- Webhook dynamic URL使用exact scheme/host/port/path allowlist、全public DNS答案驗證與TCP pinned transport，拒絕redirect、DNS rebinding及loopback/private/link-local/multicast/unspecified/reserved位址；其他固定provider URL尚未套用此transport。
 - License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
 
 ## Quick start
@@ -68,7 +70,7 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 
 `fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。
 
-P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。Research API目前只建立`research_pipeline` job；P4.7已驗證core-owned durable paper cycle與crash replay，但尚未接成常駐production dispatcher，`stonks-worker claim-once`也不是常駐dispatcher。AI-Trader adapter預設關閉，目前只以固定commit `d03ff6c`的最小runtime shapes與clean-room cassettes驗證；`api.ai4trade.ai`於驗證時DNS無法解析，因此live OpenAPI與真實credential smoke仍是unverified，不宣稱production compatibility。OIDC目前以pinned與CI ephemeral issuer/JWKS integration驗證，尚未宣稱已連接真實外部IdP；cloud secret strategy目前以injected workload client驗證，尚未連接真實cloud secret manager。跨host TLS/mTLS留待P6.7 deployment gate。
+P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未提供production artifact capability signer。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。Research API目前只建立`research_pipeline` job；P4.7已驗證core-owned durable paper cycle與crash replay，但尚未接成常駐production dispatcher，`stonks-worker claim-once`也不是常駐dispatcher。AI-Trader adapter預設關閉，目前只以固定commit `d03ff6c`的最小runtime shapes與clean-room cassettes驗證；`api.ai4trade.ai`於驗證時DNS無法解析，因此live OpenAPI與真實credential smoke仍是unverified，不宣稱production compatibility。OIDC目前以pinned與CI ephemeral issuer/JWKS integration驗證，尚未宣稱已連接真實外部IdP；cloud secret strategy目前以injected workload client驗證，尚未連接真實cloud secret manager。Rate limit預設為單process bounded store，尚未接distributed store；forwarded identity一律拒絕，尚未建立trusted reverse-proxy policy；DNS resolver本身尚無lifetime/timeout pin，HSTS與跨host TLS/mTLS留待P6.7 deployment gate。
 
 ## 核心文件
 

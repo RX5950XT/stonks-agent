@@ -6,8 +6,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
-from fastapi import FastAPI, Path, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi import FastAPI, Path
 from fastapi.responses import JSONResponse
 
 from stonks_agent.adapters.auth.local_token import DenyAllAuthenticator
@@ -16,7 +15,11 @@ from stonks_agent.application.projections.queries import (
     read_portfolio_projection,
     read_risk_projection,
 )
-from stonks_agent.domain.errors import ErrorCode, Failure, Result, StructuredError
+from stonks_agent.domain.errors import Failure, Result
+from stonks_agent.entrypoints.api.api_security import (
+    ApiSecurityOptions,
+    install_api_security,
+)
 from stonks_agent.entrypoints.api.dependencies.auth import (
     ReadPrincipal,
     install_authentication,
@@ -24,7 +27,6 @@ from stonks_agent.entrypoints.api.dependencies.auth import (
 from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
-    unexpected_error_envelope,
 )
 from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.paper_projections import PaperProjectionUnitOfWorkFactory
@@ -33,6 +35,7 @@ type AccountId = Annotated[
     str,
     Path(pattern=r"^[A-Za-z0-9_.:-]{1,128}$"),
 ]
+MAX_PROJECTION_REQUEST_BYTES = 16_384
 
 
 def create_paper_projection_app(
@@ -40,12 +43,16 @@ def create_paper_projection_app(
     authenticator: Authenticator | None = None,
     *,
     clock: Callable[[], datetime] | None = None,
+    api_security: ApiSecurityOptions | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Stonks Agent Paper Projection API", version="0.1.0")
+    install_api_security(
+        app,
+        max_request_bytes=MAX_PROJECTION_REQUEST_BYTES,
+        options=api_security,
+    )
     install_authentication(app, authenticator or DenyAllAuthenticator())
     selected_clock = clock or _utc_now
-    app.add_exception_handler(RequestValidationError, _validation_error)
-    app.add_exception_handler(Exception, _unexpected_error)
     base = "/v1/paper/accounts/{account_id}"
     for view in ("portfolio", "nav", "risk"):
         app.add_api_route(
@@ -102,23 +109,6 @@ def _error_response(result: Failure) -> JSONResponse:
     return JSONResponse(
         status_code=envelope.status, content=envelope.model_dump(mode="json")
     )
-
-
-async def _validation_error(request: Request, error: Exception) -> JSONResponse:
-    del request, error
-    return _error_response(_failure("Request is invalid"))
-
-
-async def _unexpected_error(request: Request, error: Exception) -> JSONResponse:
-    del request
-    envelope = unexpected_error_envelope(error)
-    return JSONResponse(
-        status_code=envelope.status, content=envelope.model_dump(mode="json")
-    )
-
-
-def _failure(message: str) -> Failure:
-    return Failure(StructuredError(code=ErrorCode.INVALID_INPUT, message=message))
 
 
 def _utc_now() -> datetime:

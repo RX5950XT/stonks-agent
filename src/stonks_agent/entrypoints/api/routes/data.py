@@ -5,8 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -14,6 +13,10 @@ from stonks_agent.adapters.auth.local_token import DenyAllAuthenticator
 from stonks_agent.application.data.create_snapshot import request_snapshot
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError
 from stonks_agent.domain.snapshot import CreateSnapshotRequest
+from stonks_agent.entrypoints.api.api_security import (
+    ApiSecurityOptions,
+    install_api_security,
+)
 from stonks_agent.entrypoints.api.dependencies.auth import (
     ResearchPrincipal,
     install_authentication,
@@ -21,9 +24,7 @@ from stonks_agent.entrypoints.api.dependencies.auth import (
 from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
-    unexpected_error_envelope,
 )
-from stonks_agent.entrypoints.api.request_limits import RequestBodyLimitMiddleware
 from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.snapshot_request import SnapshotRequestStore
 from stonks_contracts.common import UTCDateTime
@@ -47,16 +48,16 @@ def create_data_app(
     authenticator: Authenticator | None = None,
     *,
     clock: Callable[[], datetime] | None = None,
+    api_security: ApiSecurityOptions | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Stonks Agent Data API", version="0.1.0")
-    app.add_middleware(
-        RequestBodyLimitMiddleware,
-        max_bytes=MAX_SNAPSHOT_REQUEST_BYTES,
+    install_api_security(
+        app,
+        max_request_bytes=MAX_SNAPSHOT_REQUEST_BYTES,
+        options=api_security,
     )
     identity = authenticator or DenyAllAuthenticator()
     install_authentication(app, identity)
-    app.add_exception_handler(RequestValidationError, _validation_error)
-    app.add_exception_handler(Exception, _unexpected_error)
     app.add_api_route(
         "/v1/data/snapshots",
         _CreateSnapshotEndpoint(store, clock or _utc_now),
@@ -64,33 +65,6 @@ def create_data_app(
         status_code=202,
     )
     return app
-
-
-async def _validation_error(
-    request: Request,
-    error: Exception,
-) -> JSONResponse:
-    del request, error
-    return _error_response(
-        Failure(
-            StructuredError(
-                code=ErrorCode.INVALID_INPUT,
-                message="Request body is invalid",
-            )
-        )
-    )
-
-
-async def _unexpected_error(
-    request: Request,
-    error: Exception,
-) -> JSONResponse:
-    del request
-    envelope = unexpected_error_envelope(error)
-    return JSONResponse(
-        status_code=envelope.status,
-        content=envelope.model_dump(mode="json"),
-    )
 
 
 class _CreateSnapshotEndpoint:

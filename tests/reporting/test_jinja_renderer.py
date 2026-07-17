@@ -157,6 +157,27 @@ def test_markdown_html_escaping_quality_qualifiers_and_long_subject() -> None:
     assert title.endswith("…")
 
 
+def test_email_html_autoescapes_script_and_event_handler_markup() -> None:
+    malicious_subject = "\"><script>alert('subject')</script>"
+    malicious_claim = (
+        report()
+        .claims[0]
+        .model_copy(update={"assertion": "<img src=x onerror=alert('claim')>"})
+    )
+    subject, artifacts = renderer()
+
+    result = subject.render(
+        report(subject=malicious_subject, claims=(malicious_claim,))
+    )
+
+    assert isinstance(result, Success)
+    email_html = rendered_content(result.value, artifacts)["email_html"]
+    assert "<script" not in email_html
+    assert "<img" not in email_html
+    assert "&lt;script&gt;" in email_html
+    assert "&lt;img src=x onerror=alert" in email_html
+
+
 def test_english_labels_and_unsupported_language_fail_closed() -> None:
     subject, store = renderer()
     english = subject.render(report(language="en"))

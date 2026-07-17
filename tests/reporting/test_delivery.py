@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import UUID
 
 import httpx
+import pytest
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
 from stonks_agent.adapters.delivery.console import ConsoleDeliveryAdapter
@@ -30,6 +31,13 @@ REPORT_ID = UUID("35000000-0000-4000-8000-000000000002")
 DELIVERY_ID = UUID("35000000-0000-4000-8000-000000000003")
 NONCE = UUID("35000000-0000-4000-8000-000000000004")
 CONTENT = "研究報告\n" + "x" * 20_000
+
+
+class PublicResolver:
+    def resolve(self, host: str, port: int) -> tuple[str, ...]:
+        assert host == "hooks.example"
+        assert port == 443
+        return ("93.184.216.34",)
 
 
 def request(
@@ -241,6 +249,7 @@ def test_unconfigured_email_and_webhook_return_skipped_receipts() -> None:
         ),
         url=None,
         clock=lambda: NOW,
+        environment="test",
     )
     webhook_result = webhook.deliver(
         DeliveryCommand(
@@ -328,6 +337,8 @@ def test_webhook_uses_fixed_https_no_redirect_idempotency_and_bounded_retry() ->
         client=client,
         url="https://hooks.example/reports",
         clock=lambda: NOW,
+        resolver=PublicResolver(),
+        environment="test",
         max_retries=1,
         sleeper=lambda _: None,
     )
@@ -354,7 +365,13 @@ def test_webhook_rejects_unsafe_url_and_does_not_retry_permanent_error() -> None
         "https://hooks.example/reports?token=secret",
     ):
         try:
-            WebhookDeliveryAdapter(client=httpx.Client(), url=unsafe, clock=lambda: NOW)
+            WebhookDeliveryAdapter(
+                client=httpx.Client(),
+                url=unsafe,
+                clock=lambda: NOW,
+                resolver=PublicResolver(),
+                environment="test",
+            )
         except ValueError:
             pass
         else:
@@ -372,6 +389,8 @@ def test_webhook_rejects_unsafe_url_and_does_not_retry_permanent_error() -> None
             client=client,
             url="https://hooks.example/reports",
             clock=lambda: NOW,
+            resolver=PublicResolver(),
+            environment="test",
             max_retries=2,
             sleeper=lambda _: None,
         ).deliver(
@@ -385,6 +404,62 @@ def test_webhook_rejects_unsafe_url_and_does_not_retry_permanent_error() -> None
     assert isinstance(result, Failure)
     assert result.error.code is ErrorCode.DATA_UNAVAILABLE
     assert calls == 1
+
+
+def test_webhook_denies_private_dns_and_redirect_before_retry() -> None:
+    class PrivateResolver:
+        def resolve(self, host: str, port: int) -> tuple[str, ...]:
+            assert (host, port) == ("hooks.example", 443)
+            return ("169.254.169.254",)
+
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            307,
+            headers={"location": "http://169.254.169.254/latest/meta-data"},
+            request=request,
+        )
+
+    command = DeliveryCommand(
+        request=request(DeliveryChannel.WEBHOOK, content="report"),
+        media_type="text/markdown",
+        chunks=("report",),
+    )
+    private = WebhookDeliveryAdapter(
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        url="https://hooks.example/reports",
+        clock=lambda: NOW,
+        resolver=PrivateResolver(),
+        environment="test",
+        max_retries=2,
+    ).deliver(command)
+    redirected = WebhookDeliveryAdapter(
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        url="https://hooks.example/reports",
+        clock=lambda: NOW,
+        resolver=PublicResolver(),
+        environment="test",
+        max_retries=2,
+    ).deliver(command)
+
+    assert isinstance(private, Failure)
+    assert private.error.code is ErrorCode.EGRESS_DENIED
+    assert isinstance(redirected, Failure)
+    assert redirected.error.code is ErrorCode.EGRESS_DENIED
+    assert calls == 1
+
+
+def test_webhook_rejects_custom_http_client_outside_tests() -> None:
+    with pytest.raises(ValueError, match="test-only"):
+        WebhookDeliveryAdapter(
+            client=httpx.Client(),
+            url="https://hooks.example/reports",
+            clock=lambda: NOW,
+            resolver=PublicResolver(),
+        )
 
 
 def test_delivery_identity_conflict_and_ack_failure_fail_closed() -> None:

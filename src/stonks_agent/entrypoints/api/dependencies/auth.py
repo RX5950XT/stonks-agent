@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from stonks_agent.domain.auth import LocalPrincipal, Permission, authorize
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError
 from stonks_agent.entrypoints.api.envelope import error_envelope
+from stonks_agent.entrypoints.api.rate_limits import cached_authentication
 from stonks_agent.ports.authentication import AuthenticationRequest, Authenticator
 
 type PrincipalDependency = Callable[..., LocalPrincipal]
@@ -68,6 +69,11 @@ def _permission_dependency(permission: Permission) -> PrincipalDependency:
 
 
 def _authenticate(request: Request, authorization: str | None) -> LocalPrincipal:
+    attempted, cached = cached_authentication(request)
+    if attempted:
+        if cached is not None:
+            return cached
+        raise AuthenticationFailure(_unauthorized())
     try:
         incoming = AuthenticationRequest(
             authorization=authorization,

@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.2 已通過，P6.3 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.3 已通過，P6.4 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -516,8 +516,14 @@
   - [x] Structured error/log/report在emit/store/render前sanitize；canonical job/event/outbox/inbox遇secret-shaped payload直接拒絕，不以API egress redaction掩蓋DB洩漏。
   - [x] Focused、full non-PostgreSQL/PostgreSQL、secret/dependency gates與文件同步全通過；未接真實cloud manager時不得宣稱live production integration。
 
-- [ ] **P6.3 API security controls** — 實作request size/rate limit、CORS allowlist、SSRF endpoint allowlist、XSS-safe rendering、cookie模式CSRF與structured error sanitization。（Depends：P6.1、P6.2；Complexity：L；Risk：High）
-  - 建立`tests/security/`涵蓋auth bypass、IDOR、prompt injection、SSRF、XSS、CSRF、secret leakage。
+- [x] **P6.3 API security controls** — 實作request size/rate limit、CORS allowlist、SSRF endpoint allowlist、XSS-safe rendering、cookie模式CSRF與structured error sanitization。（Depends：P6.1、P6.2；Complexity：L；Risk：High）
+  - [x] 建立單一typed API security policy/composition；所有FastAPI app套用streaming request limit、bounded rate limit、exact CORS allowlist、安全response headers與fail-closed proxy identity。
+  - [x] Rate limit key只信任已驗證principal或直接peer；拒絕偽造forwarded header，回傳一致envelope、`429`與bounded `Retry-After`，並提供deterministic clock/storage contract tests。
+  - [x] 建立outbound endpoint allowlist/SSRF guard；只允許exact scheme/host/port/path，拒絕userinfo、fragment、redirect pivot、DNS rebinding、loopback/private/link-local/multicast/unspecified/reserved位址。
+  - [x] HTML/Jinja維持autoescape並加CSP等headers；cookie auth opt-in時強制same-origin與double-submit CSRF，bearer-only模式拒絕ambient auth cookie。
+  - [x] 安裝全域structured exception handlers；validation/HTTP/internal error先sanitize且不得回傳stack、raw body、secret、internal exception或敏感header。
+  - [x] 建立`tests/security/`涵蓋auth bypass、IDOR、prompt injection、SSRF、XSS、CSRF、secret leakage、rate-limit bypass與oversize streaming body。
+  - [x] 完成focused/full non-PostgreSQL/PostgreSQL、security/secret/dependency gates與文件同步；未接distributed rate-limit store或trusted reverse proxy時不得宣稱multi-replica production enforcement。
 
 - [ ] **P6.4 Production OpenTelemetry exporters and metrics** — 將P0 trace/log/metric ports接到`adapters/observability/{logging,tracing,metrics}.py`、`infra/observability/{otel-collector,prometheus,grafana}/`。（Depends：P0.9、P1.6、P4.7；Complexity：L；Risk：Medium）
   - Correlation IDs、provider/queue/worker/LLM/model/signal/risk/execution/reconciliation/delivery metrics完整。
@@ -957,3 +963,10 @@
 - Rotation / consumers：OpenAI、Anthropic、Financial Datasets與AI-Trader constructor只保存provider與logical ref；每個logical request resolve一次，bounded HTTP retry與LLM repair固定同version，下一次request取得rotation。Provider failure在任何network、artifact或quota consumption前停止，保留`CONFIGURATION_INVALID`/`DATA_UNAVAILABLE`語意並使用public-safe訊息。
 - Redaction / persistence：pure bounded sanitizer涵蓋nested mapping/sequence/set、Pydantic/dataclass、bytes/exception、known values、cycle/depth/item/string limits、credential URL/JWT/PEM/provider key；StructuredError、standard logging formatter、canonical report與Jinja artifacts均在sink前sanitize。Run event、job、outbox及last_error使用secret-free JSONB bind guard，偵測時不修改hash-bound payload、以無敏感SQL參數的safe exception整筆rollback；真實PostgreSQL測試證明run/event/outbox均0 writes。
 - Verification / boundary：focused matrix為187 passed；完整non-PostgreSQL gate為1404 passed、3 skipped、244 deselected、coverage 87.66%。完整PostgreSQL gate為1648 passed、3 skipped、coverage 87.46%；582 files format、Ruff、strict mypy 309 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint與locked dependency audit全通過。尚未連接真實cloud secret manager，不宣稱live integration；下一項為P6.3 API security controls。
+
+### P6 Progress Review — P6.3 — 2026-07-17
+
+- Scope completed：五個FastAPI app改用單一typed security composition，統一body byte/frame cap、body前edge/credential admission、body後verified-principal rate limit、exact CORS、security headers、forwarded identity拒絕與structured exception envelope。Cookie auth維持explicit opt-in，要求canonical same-origin與double-submit CSRF；bearer-only模式拒絕ambient auth cookie。
+- SSRF / rendering：新增exact scheme/host/port/path outbound guard、全public DNS集合驗證與httpcore pinned TCP transport；webhook拒絕userinfo/query/fragment、redirect、DNS rebind及所有非public位址。Jinja autoescape、Markdown escaping、CSP與redaction回歸均通過；custom webhook client只允許test注入。
+- Adversarial closure：補上256-frame上限、pre-auth credential/direct-peer admission、principal二段quota、credential SHA-256 key、heap expiry、clock/store safe 503、denied preflight JSON與forwarded header fail-closed。最終唯讀security review未找到可重現blocker/high。
+- Verification / boundary：focused matrix為199 passed；完整non-PostgreSQL gate為1497 passed、3 skipped、244 deselected、coverage 87.42%。完整PostgreSQL gate為1741 passed、3 skipped、coverage 87.26%；593 files format、Ruff、strict mypy 316 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過。Rate limit仍為單process store；trusted proxy/distributed enforcement、DNS resolver lifetime/timeout pin與HSTS未宣稱完成，下一項為P6.4 production observability。

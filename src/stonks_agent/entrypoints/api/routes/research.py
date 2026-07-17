@@ -8,8 +8,7 @@ from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID
 
-from fastapi import FastAPI, Header, Query, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi import FastAPI, Header, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -21,6 +20,10 @@ from stonks_agent.application.research.request_run import (
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError, Success
 from stonks_agent.domain.redaction import redact
 from stonks_agent.domain.research_run import CanonicalRunEvent, ResearchRunRequest
+from stonks_agent.entrypoints.api.api_security import (
+    ApiSecurityOptions,
+    install_api_security,
+)
 from stonks_agent.entrypoints.api.dependencies.auth import (
     ReadPrincipal,
     ResearchPrincipal,
@@ -29,9 +32,7 @@ from stonks_agent.entrypoints.api.dependencies.auth import (
 from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
-    unexpected_error_envelope,
 )
-from stonks_agent.entrypoints.api.request_limits import RequestBodyLimitMiddleware
 from stonks_agent.entrypoints.api.routes.reports import ReportEndpoint
 from stonks_agent.ports.authentication import Authenticator
 from stonks_agent.ports.research_query import (
@@ -64,13 +65,16 @@ def create_research_app(
     authenticator: Authenticator | None = None,
     *,
     clock: Callable[[], datetime] | None = None,
+    api_security: ApiSecurityOptions | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Stonks Agent Research API", version="0.1.0")
-    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_RESEARCH_REQUEST_BYTES)
+    install_api_security(
+        app,
+        max_request_bytes=MAX_RESEARCH_REQUEST_BYTES,
+        options=api_security,
+    )
     identity = authenticator or DenyAllAuthenticator()
     install_authentication(app, identity)
-    app.add_exception_handler(RequestValidationError, _validation_error)
-    app.add_exception_handler(Exception, _unexpected_error)
     app.add_api_route(
         "/v1/research/runs",
         _CreateResearchEndpoint(requests, clock or _utc_now),
@@ -175,19 +179,6 @@ def _sse(events: tuple[CanonicalRunEvent, ...]) -> Iterator[str]:
             sort_keys=True,
         )
         yield f"id: {event.sequence}\nevent: {event.event_type}\ndata: {data}\n\n"
-
-
-async def _validation_error(request: Request, error: Exception) -> JSONResponse:
-    del request, error
-    return _error_response(_failure(ErrorCode.INVALID_INPUT, "Request is invalid"))
-
-
-async def _unexpected_error(request: Request, error: Exception) -> JSONResponse:
-    del request
-    envelope = unexpected_error_envelope(error)
-    return JSONResponse(
-        status_code=envelope.status, content=envelope.model_dump(mode="json")
-    )
 
 
 def _error_response(result: Failure) -> JSONResponse:

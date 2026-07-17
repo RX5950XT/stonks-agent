@@ -145,3 +145,43 @@ def test_excessively_long_digit_content_length_fails_closed_without_parsing() ->
     assert outgoing[0]["status"] == 413
     payload = json.loads(outgoing[1]["body"])
     assert payload["error"]["code"] == "payload_too_large"
+
+
+def test_zero_length_stream_frames_are_bounded_before_downstream() -> None:
+    incoming: deque[Message] = deque(
+        [
+            {"type": "http.request", "body": b"", "more_body": True},
+            {"type": "http.request", "body": b"", "more_body": True},
+            {"type": "http.request", "body": b"", "more_body": True},
+            {"type": "http.request", "body": b"", "more_body": True},
+        ]
+    )
+    outgoing: list[Message] = []
+    receive_calls = 0
+    downstream_called = False
+
+    async def receive() -> Message:
+        nonlocal receive_calls
+        receive_calls += 1
+        return incoming.popleft()
+
+    async def send(message: Message) -> None:
+        outgoing.append(message)
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        nonlocal downstream_called
+        del scope, receive, send
+        downstream_called = True
+
+    asyncio.run(
+        RequestBodyLimitMiddleware(app, max_bytes=5, max_frames=3)(
+            _http_scope(),
+            receive,
+            send,
+        )
+    )
+
+    assert receive_calls == 4
+    assert downstream_called is False
+    assert outgoing[0]["status"] == 413
+    assert json.loads(outgoing[1]["body"])["error"]["code"] == "payload_too_large"

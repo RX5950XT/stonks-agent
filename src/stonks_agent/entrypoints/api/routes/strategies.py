@@ -7,8 +7,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import FastAPI, Path, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi import FastAPI, Path
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -20,6 +19,10 @@ from stonks_agent.application.strategies.manage import (
 )
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, StructuredError
 from stonks_agent.domain.strategy import PromotionState, StrategyTransitionRequest
+from stonks_agent.entrypoints.api.api_security import (
+    ApiSecurityOptions,
+    install_api_security,
+)
 from stonks_agent.entrypoints.api.dependencies.auth import (
     ReadPrincipal,
     StrategyReviewerPrincipal,
@@ -28,9 +31,7 @@ from stonks_agent.entrypoints.api.dependencies.auth import (
 from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     success_envelope,
-    unexpected_error_envelope,
 )
-from stonks_agent.entrypoints.api.request_limits import RequestBodyLimitMiddleware
 from stonks_agent.entrypoints.api.routes.evaluations import EvaluationEndpoint
 from stonks_agent.entrypoints.api.routes.signals import SignalEligibilityEndpoint
 from stonks_agent.ports.authentication import Authenticator
@@ -58,13 +59,16 @@ def create_strategy_app(
     authenticator: Authenticator | None = None,
     *,
     clock: Callable[[], datetime] | None = None,
+    api_security: ApiSecurityOptions | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Stonks Agent Strategy API", version="0.1.0")
-    app.add_middleware(RequestBodyLimitMiddleware, max_bytes=MAX_STRATEGY_REQUEST_BYTES)
+    install_api_security(
+        app,
+        max_request_bytes=MAX_STRATEGY_REQUEST_BYTES,
+        options=api_security,
+    )
     install_authentication(app, authenticator or DenyAllAuthenticator())
     selected_clock = clock or _utc_now
-    app.add_exception_handler(RequestValidationError, _validation_error)
-    app.add_exception_handler(Exception, _unexpected_error)
     base = "/v1/strategies/{strategy_id}/versions/{strategy_version}"
     app.add_api_route(
         base,
@@ -165,19 +169,6 @@ def _result_response(result: Result[object]) -> JSONResponse:
 
 def _error_response(result: Failure) -> JSONResponse:
     envelope = error_envelope(result.error)
-    return JSONResponse(
-        status_code=envelope.status, content=envelope.model_dump(mode="json")
-    )
-
-
-async def _validation_error(request: Request, error: Exception) -> JSONResponse:
-    del request, error
-    return _error_response(_failure("Request is invalid"))
-
-
-async def _unexpected_error(request: Request, error: Exception) -> JSONResponse:
-    del request
-    envelope = unexpected_error_envelope(error)
     return JSONResponse(
         status_code=envelope.status, content=envelope.model_dump(mode="json")
     )

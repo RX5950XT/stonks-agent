@@ -21,3 +21,9 @@
 - Service ingress 不能只驗證共用 bearer secret；必須先驗證短效 asymmetric OIDC service identity，再依解析後 canonical job ID 做 exact-target authorization，health/legal source routes才可明示匿名。
 - Secret provider failure要保留`CONFIGURATION_INVALID`與`DATA_UNAVAILABLE`的語意差異；不可把rotation backend outage誤報為靜態設定錯誤，其他未知錯誤才轉generic internal failure。
 - Security regression需要測PEM/token形狀時，不可把完整credential literal直接寫進source而繞過scanner；應在測試執行期組合fixture，讓runtime redaction與repository secret scan同時維持fail closed。
+
+## 2026-07-17
+
+- `.gitignore`若用negation重新納入被忽略目錄，必須在該目錄層級再次忽略`__pycache__/`與`*.pyc`；commit前同時檢查staged file list，避免生成物被誤納。
+- Request body只限制bytes仍可被無限零長ASGI frames拖住；byte cap與frame cap必須一起做，且昂貴auth必須放在body前的credential/direct-peer admission之後。
+- 應用程式不採信forwarded header不代表direct peer可靠；在trusted proxy拓樸與header清洗契約完成前，必須直接拒絕forwarded identity並避免宣稱multi-replica ingress enforcement。

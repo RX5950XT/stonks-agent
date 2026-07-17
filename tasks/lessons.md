@@ -19,3 +19,5 @@
 
 - 使用者再次提供完整 `AGENTS.md` replacement 時，必須立即以新規範為準，更新執行計畫並把修正模式落到 lessons；複雜工作要平行委派單一職責子代理，但主任務不能等待失效子代理而停住。
 - Service ingress 不能只驗證共用 bearer secret；必須先驗證短效 asymmetric OIDC service identity，再依解析後 canonical job ID 做 exact-target authorization，health/legal source routes才可明示匿名。
+- Secret provider failure要保留`CONFIGURATION_INVALID`與`DATA_UNAVAILABLE`的語意差異；不可把rotation backend outage誤報為靜態設定錯誤，其他未知錯誤才轉generic internal failure。
+- Security regression需要測PEM/token形狀時，不可把完整credential literal直接寫進source而繞過scanner；應在測試執行期組合fixture，讓runtime redaction與repository secret scan同時維持fail closed。

@@ -19,10 +19,20 @@ from stonks_agent.adapters.llm._common import (
 )
 from stonks_agent.adapters.llm._http import request_json, validate_api_key
 from stonks_agent.adapters.llm._messages import provider_messages, schema_name
-from stonks_agent.domain.errors import Result, Success
+from stonks_agent.domain.errors import (
+    ErrorCode,
+    Failure,
+    Result,
+    StructuredError,
+    Success,
+)
 from stonks_agent.domain.model_policy import ModelPolicy, ModelProvider, ModelRoute
 from stonks_agent.domain.research import StructuredLLMRequest, StructuredLLMResponse
+from stonks_agent.domain.secrets import ResolvedSecret, SecretAccessRequest, SecretRef
 from stonks_agent.ports.artifact_store import ArtifactStore
+from stonks_agent.ports.secret_provider import SecretProvider
+
+_SECRET_PURPOSE = "openai_api_key"
 
 
 class _OpenAIMessage(BaseModel):
@@ -76,13 +86,14 @@ class _OpenAIEnvelope(BaseModel):
 
 class OpenAICompatibleAdapter:
     __slots__ = (
-        "_api_key",
         "_artifacts",
         "_client",
         "_clock",
         "_monotonic_clock",
         "_policy",
         "_route",
+        "_secret_provider",
+        "_secret_ref",
         "_sleeper",
     )
 
@@ -92,20 +103,23 @@ class OpenAICompatibleAdapter:
         policy: ModelPolicy,
         request_model: str,
         client: httpx.Client,
-        api_key: str,
+        secret_provider: SecretProvider,
+        secret_ref: SecretRef,
         artifacts: ArtifactStore,
         clock: Callable[[], datetime] | None = None,
         monotonic_clock: Callable[[], float] | None = None,
         sleeper: Callable[[float], None] | None = None,
     ) -> None:
-        validate_api_key(api_key)
         route = policy.resolve(request_model)
         if route.provider is not ModelProvider.OPENAI_COMPATIBLE:
             raise ValueError("OpenAI adapter requires an OpenAI provider route")
+        if route.secret_ref != secret_ref:
+            raise ValueError("OpenAI adapter secret reference does not match policy")
         self._policy = policy
         self._route = route
         self._client = client
-        self._api_key = api_key
+        self._secret_provider = secret_provider
+        self._secret_ref = secret_ref
         self._artifacts = artifacts
         self._clock = clock or _utc_now
         self._monotonic_clock = monotonic_clock or monotonic
@@ -115,12 +129,25 @@ class OpenAICompatibleAdapter:
         self,
         request: StructuredLLMRequest,
     ) -> Result[StructuredLLMResponse]:
+        credential: Result[ResolvedSecret] | None = None
+
+        def provide(
+            request: StructuredLLMRequest,
+            repair: RepairContext | None,
+        ) -> Result[RawProviderResponse]:
+            nonlocal credential
+            if credential is None:
+                credential = self._resolve_credential()
+            if isinstance(credential, Failure):
+                return credential
+            return self._provide(request, repair, credential.value.reveal())
+
         return complete_structured(
             request=request,
             policy=self._policy,
             expected_route=self._route,
             artifacts=self._artifacts,
-            provider=self._provide,
+            provider=provide,
             parser=_parse_openai,
             clock=self._clock,
         )
@@ -129,17 +156,37 @@ class OpenAICompatibleAdapter:
         self,
         request: StructuredLLMRequest,
         repair: RepairContext | None,
+        api_key: str,
     ) -> Result[RawProviderResponse]:
         return request_json(
             client=self._client,
             route=self._route,
             request=request,
             payload=_openai_payload(request, self._route, repair),
-            headers={"Authorization": f"Bearer {self._api_key}"},
+            headers={"Authorization": f"Bearer {api_key}"},
             clock=self._clock,
             monotonic_clock=self._monotonic_clock,
             sleeper=self._sleeper,
         )
+
+    def _resolve_credential(self) -> Result[ResolvedSecret]:
+        try:
+            resolved = self._secret_provider.resolve(
+                SecretAccessRequest(
+                    reference=self._secret_ref,
+                    purpose=_SECRET_PURPOSE,
+                )
+            )
+            if isinstance(resolved, Failure):
+                return _credential_failure(resolved.error.code)
+            api_key = resolved.value.reveal()
+            try:
+                validate_api_key(api_key)
+            except ValueError:
+                return _credential_failure(ErrorCode.CONFIGURATION_INVALID)
+            return resolved
+        except Exception:
+            return _credential_failure(ErrorCode.INTERNAL_ERROR)
 
 
 def _openai_payload(
@@ -194,3 +241,17 @@ def _parse_openai(raw: RawProviderResponse) -> Result[ParsedProviderOutput]:
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+def _credential_failure(source_code: ErrorCode) -> Failure:
+    safe_code = (
+        source_code
+        if source_code in {ErrorCode.CONFIGURATION_INVALID, ErrorCode.DATA_UNAVAILABLE}
+        else ErrorCode.INTERNAL_ERROR
+    )
+    return Failure(
+        StructuredError(
+            code=safe_code,
+            message="Model provider credential is unavailable",
+        )
+    )

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
+
 from pydantic import ValidationError
 
 from stonks_agent.application.reporting.integrity_policy import (
@@ -15,6 +17,7 @@ from stonks_agent.domain.errors import (
     StructuredError,
     Success,
 )
+from stonks_agent.domain.redaction import SecretLeakDetected, ensure_secret_free, redact
 from stonks_agent.domain.report import GenerateReportRequest, ReportDraft
 from stonks_agent.domain.research import (
     LLMMessage,
@@ -33,6 +36,8 @@ PROMPT_VERSION = "analysis-report/1.0.0"
 def generate_report(
     request: GenerateReportRequest,
     llm: LLMPort,
+    *,
+    known_secrets: Collection[str | bytes] = (),
 ) -> Result[AnalysisReport]:
     llm_request = _llm_request(request)
     if isinstance(llm_request, Failure):
@@ -50,6 +55,11 @@ def generate_report(
         draft = ReportDraft.model_validate(response.parsed_output)
     except (ValidationError, ValueError):
         return _invalid("report_schema_invalid")
+    try:
+        draft = ReportDraft.model_validate(redact(draft, known_secrets=known_secrets))
+        ensure_secret_free(draft, known_secrets=known_secrets)
+    except (SecretLeakDetected, TypeError, ValueError):
+        return _invalid("report_secret_sanitization_failed")
     validated = validate_report_draft(request.report_id, request.context, draft)
     if isinstance(validated, Failure):
         return validated

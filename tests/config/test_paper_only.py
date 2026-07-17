@@ -35,21 +35,19 @@ def test_settings_reject_unknown_fields() -> None:
 
 
 def test_secret_refs_are_named_and_never_serialized() -> None:
-    settings = Settings(
-        secret_refs={"llm": SecretRef(environment_variable="OPENAI_API_KEY")}
-    )
+    settings = Settings(secret_refs={"llm": SecretRef(name="openai_api_key")})
 
     rendered = (
         repr(settings) + settings.model_dump_json() + repr(settings.safe_snapshot())
     )
-    assert "OPENAI_API_KEY" not in rendered
+    assert "openai_api_key" not in rendered
     assert "secret_refs" not in settings.model_dump()
 
 
-@pytest.mark.parametrize("value", ["sk-secret-value", "lowercase", "A B", ""])
-def test_secret_ref_accepts_only_environment_variable_names(value: str) -> None:
+@pytest.mark.parametrize("value", ["UPPERCASE", "../secret", "A B", ""])
+def test_secret_ref_accepts_only_transport_neutral_names(value: str) -> None:
     with pytest.raises(ValidationError):
-        SecretRef(environment_variable=value)
+        SecretRef(name=value)
 
 
 def test_committed_defaults_are_valid_and_paper_only() -> None:

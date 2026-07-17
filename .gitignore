@@ -54,6 +54,14 @@ worker_outputs/
 .secrets/
 secret/
 secrets/
+!src/stonks_agent/adapters/secrets/
+!src/stonks_agent/adapters/secrets/**
+!tests/adapters/secrets/
+!tests/adapters/secrets/**
+src/stonks_agent/adapters/secrets/**/__pycache__/
+src/stonks_agent/adapters/secrets/**/*.py[cod]
+tests/adapters/secrets/**/__pycache__/
+tests/adapters/secrets/**/*.py[cod]
 *.key
 *.pem
 *.p12
@@ -67,4 +75,3 @@ secrets/
 Thumbs.db
 .idea/
 .vscode/
-

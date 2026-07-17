@@ -45,8 +45,10 @@ from stonks_agent.domain.errors import (
     StructuredError,
     Success,
 )
+from stonks_agent.domain.secrets import SecretAccessRequest, SecretRef
 from stonks_agent.ports.artifact_store import ArtifactStore
 from stonks_agent.ports.platform import PlatformEventInboxPort
+from stonks_agent.ports.secret_provider import SecretProvider
 from stonks_contracts.evidence import Sensitivity
 from stonks_contracts.platform import (
     ChallengeAction,
@@ -82,13 +84,13 @@ AI_TRADER_ENDPOINT_TEMPLATES: Final = frozenset(
 _SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]{0,18}$")
 _REPLY_CURSOR = re.compile(r"^reply:([1-9][0-9]{0,18})$")
+_SECRET_PURPOSE: Final = "ai_trader_access_token"
 
 
 class AiTraderHttpAdapter:
     """Use a fixed public community API surface with no execution endpoints."""
 
     __slots__ = (
-        "_access_token",
         "_artifacts",
         "_client",
         "_clock",
@@ -98,6 +100,8 @@ class AiTraderHttpAdapter:
         "_max_request_bytes",
         "_max_response_bytes",
         "_monotonic_clock",
+        "_secret_provider",
+        "_secret_ref",
         "_timeout",
         "_timeout_seconds",
     )
@@ -108,7 +112,8 @@ class AiTraderHttpAdapter:
         client: httpx.Client,
         artifacts: ArtifactStore,
         event_inbox: PlatformEventInboxPort,
-        access_token: str,
+        secret_provider: SecretProvider,
+        secret_ref: SecretRef,
         origin: str = AI_TRADER_ORIGIN,
         timeout_seconds: float = 10.0,
         max_request_bytes: int = 65_536,
@@ -118,14 +123,13 @@ class AiTraderHttpAdapter:
     ) -> None:
         if origin != AI_TRADER_ORIGIN:
             raise ValueError("AI-Trader origin is not allowlisted")
-        if not access_token or access_token.strip() != access_token:
-            raise ValueError("AI-Trader access token is invalid")
         if timeout_seconds <= 0 or max_request_bytes <= 0 or max_response_bytes <= 0:
             raise ValueError("AI-Trader HTTP limits must be positive")
         self._client = client
         self._artifacts = artifacts
         self._event_inbox = event_inbox
-        self._access_token = access_token
+        self._secret_provider = secret_provider
+        self._secret_ref = secret_ref
         self._timeout_seconds = float(timeout_seconds)
         self._timeout = httpx.Timeout(timeout_seconds)
         self._max_request_bytes = max_request_bytes
@@ -577,10 +581,13 @@ class AiTraderHttpAdapter:
             return _failure(
                 ErrorCode.PAYLOAD_TOO_LARGE, "Platform request is too large"
             )
+        credential = self._resolve_access_token()
+        if isinstance(credential, Failure):
+            return credential
         headers = {
             "Accept": "application/json",
             "Accept-Encoding": "identity",
-            "Authorization": f"Bearer {self._access_token}",
+            "Authorization": f"Bearer {credential.value}",
             "X-Stonks-Request-ID": str(request_id),
         }
         if idempotency_key is not None:
@@ -624,6 +631,23 @@ class AiTraderHttpAdapter:
             return _failure(ErrorCode.DEADLINE_EXCEEDED, "Platform request timed out")
         except httpx.HTTPError:
             return _failure(ErrorCode.DATA_UNAVAILABLE, "Platform is unavailable")
+
+    def _resolve_access_token(self) -> Result[str]:
+        try:
+            resolved = self._secret_provider.resolve(
+                SecretAccessRequest(
+                    reference=self._secret_ref,
+                    purpose=_SECRET_PURPOSE,
+                )
+            )
+            if isinstance(resolved, Failure):
+                return _credential_failure(resolved.error.code)
+            token = resolved.value.reveal()
+            if not _is_valid_access_token(token):
+                return _credential_failure(ErrorCode.CONFIGURATION_INVALID)
+            return Success(token)
+        except Exception:
+            return _credential_failure(ErrorCode.INTERNAL_ERROR)
 
     def _status_failure(self, status: int) -> Failure | None:
         if status == 401:
@@ -765,3 +789,23 @@ def _utc_now() -> datetime:
 
 def _failure(code: ErrorCode, message: str) -> Failure:
     return Failure(StructuredError(code=code, message=message))
+
+
+def _credential_failure(source_code: ErrorCode) -> Failure:
+    safe_code = (
+        source_code
+        if source_code in {ErrorCode.CONFIGURATION_INVALID, ErrorCode.DATA_UNAVAILABLE}
+        else ErrorCode.INTERNAL_ERROR
+    )
+    return _failure(
+        safe_code,
+        "Platform credential is unavailable",
+    )
+
+
+def _is_valid_access_token(value: str) -> bool:
+    return (
+        1 <= len(value) <= 4096
+        and value.strip() == value
+        and all(33 <= ord(character) <= 126 for character in value)
+    )

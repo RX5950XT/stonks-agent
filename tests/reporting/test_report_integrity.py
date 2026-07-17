@@ -267,6 +267,24 @@ def test_hypothesis_is_explicit_and_never_claims_evidence() -> None:
     assert result.value.claims[0].certainty is ClaimCertainty.HYPOTHESIS
 
 
+def test_canonical_report_redacts_explicit_secrets_before_creation() -> None:
+    secret = "opaque-report-secret"
+    output = valid_output()
+    output["claims"][0]["assertion"] = f"Provider echoed {secret}."  # type: ignore[index]
+    output["risks"] = [f"credential={secret}"]
+
+    result = generate_report(
+        command(),
+        LLM(output),  # type: ignore[arg-type]
+        known_secrets=(secret,),
+    )
+
+    assert isinstance(result, Success)
+    rendered = result.value.model_dump_json()
+    assert secret not in rendered
+    assert "[REDACTED]" in rendered
+
+
 def test_llm_failure_exception_and_identity_mismatch_never_create_report() -> None:
     unavailable = Failure(StructuredError(ErrorCode.DATA_UNAVAILABLE, "model offline"))
     propagated = generate_report(command(), LLM(unavailable))  # type: ignore[arg-type]

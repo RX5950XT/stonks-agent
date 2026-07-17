@@ -21,7 +21,7 @@ def route(**overrides: object) -> ModelRoute:
         "provider_model": "gpt-test-2026-01-01",
         "origin": "https://api.example.test",
         "endpoint": "/v1/chat/completions",
-        "secret_ref": {"environment_variable": "TEST_OPENAI_API_KEY"},
+        "secret_ref": {"name": "test_openai_api_key"},
         "input_cost_per_million": Decimal("1.25"),
         "cached_input_cost_per_million": Decimal("0.625"),
         "cache_write_input_cost_per_million": Decimal("1.25"),
@@ -96,8 +96,8 @@ def test_provider_specific_route_shape_and_secret_repr_are_fail_closed() -> None
         )
 
     value = route()
-    assert "TEST_OPENAI_API_KEY" not in repr(value)
-    assert "TEST_OPENAI_API_KEY" not in str(value.secret_ref)
+    assert "test_openai_api_key" not in repr(value)
+    assert "test_openai_api_key" not in str(value.secret_ref)
 
 
 def test_loader_maps_io_yaml_and_validation_failures_to_safe_value_error(

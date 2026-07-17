@@ -168,6 +168,35 @@ def test_english_labels_and_unsupported_language_fail_closed() -> None:
     assert unsupported.error.code is ErrorCode.INVALID_INPUT
 
 
+def test_renderer_redacts_report_again_before_artifact_write() -> None:
+    secret = "opaque-rendering-secret"
+    unsafe_claim = (
+        report()
+        .claims[0]
+        .model_copy(update={"assertion": f"Provider echoed {secret}."})
+    )
+    artifacts = MemoryArtifactStore()
+    subject = JinjaReportRenderer(
+        template_directory=TEMPLATES,
+        artifacts=artifacts,
+        clock=lambda: NOW,
+        known_secrets=(secret,),
+    )
+
+    result = subject.render(report(claims=(unsafe_claim,)))
+
+    assert isinstance(result, Success)
+    assert secret not in result.value.model_dump_json()
+    assert all(
+        secret not in content
+        for content in rendered_content(result.value, artifacts).values()
+    )
+    assert all(
+        "REDACTED" in content
+        for content in rendered_content(result.value, artifacts).values()
+    )
+
+
 def test_channel_limit_is_checked_before_any_artifact_write() -> None:
     claims = tuple(
         ReportClaim(

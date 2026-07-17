@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +19,7 @@ from stonks_agent.domain.errors import (
     StructuredError,
     Success,
 )
+from stonks_agent.domain.redaction import SecretLeakDetected, ensure_secret_free, redact
 from stonks_agent.ports.artifact_store import ArtifactStore
 from stonks_contracts.evidence import Sensitivity
 from stonks_contracts.report import AnalysisReport, ReportRendering
@@ -61,7 +62,13 @@ _MARKDOWN_SPECIAL = re.compile(r"([\\`*_{}\[\]()<>#+.!|-])")
 
 
 class JinjaReportRenderer:
-    __slots__ = ("_artifacts", "_clock", "_environment", "_templates")
+    __slots__ = (
+        "_artifacts",
+        "_clock",
+        "_environment",
+        "_known_secrets",
+        "_templates",
+    )
 
     def __init__(
         self,
@@ -69,6 +76,7 @@ class JinjaReportRenderer:
         template_directory: Path,
         artifacts: ArtifactStore,
         clock: Callable[[], datetime],
+        known_secrets: Collection[str | bytes] = (),
     ) -> None:
         resolved = template_directory.resolve(strict=True)
         if not resolved.is_dir():
@@ -93,8 +101,16 @@ class JinjaReportRenderer:
         self._templates = templates
         self._artifacts = artifacts
         self._clock = clock
+        self._known_secrets = tuple(known_secrets)
 
     def render(self, report: AnalysisReport) -> Result[AnalysisReport]:
+        try:
+            report = AnalysisReport.model_validate(
+                redact(report, known_secrets=self._known_secrets)
+            )
+            ensure_secret_free(report, known_secrets=self._known_secrets)
+        except (SecretLeakDetected, TypeError, ValueError):
+            return _failure(ErrorCode.INVALID_INPUT, "Report content is invalid")
         language = report.language if report.language in _LABELS else None
         if language is None:
             return _failure(ErrorCode.INVALID_INPUT, "Report language is unsupported")

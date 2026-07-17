@@ -2,7 +2,7 @@ version: 1
 enabled: false
 platform: ai-trader
 origin: https://api.ai4trade.ai
-access_token_ref: AI_TRADER_ACCESS_TOKEN
+access_token_ref: ai_trader_access_token
 upstream_snapshot: d03ff6c056b32ced735adf7c19ed8175adb1c8df
 live_openapi:
   verified: false

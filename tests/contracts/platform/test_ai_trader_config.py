@@ -17,7 +17,7 @@ def test_optional_config_is_default_off_scoped_and_non_retrying() -> None:
 
     assert config["enabled"] is False
     assert config["origin"] == "https://api.ai4trade.ai"
-    assert config["access_token_ref"] == "AI_TRADER_ACCESS_TOKEN"
+    assert config["access_token_ref"] == "ai_trader_access_token"
     assert config["http"]["follow_redirects"] is False
     assert config["http"]["automatic_post_retries"] == 0
     assert (

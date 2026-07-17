@@ -8,6 +8,7 @@ from decimal import Decimal
 
 import httpx
 import pytest
+from fixtures.secret_provider import ScriptedSecretProvider
 from pydantic import ValidationError
 
 from stonks_agent.adapters.market_data.financial_datasets import (
@@ -18,9 +19,13 @@ from stonks_agent.adapters.market_data.financial_datasets import (
 )
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
 from stonks_agent.domain.data_quality import ProviderDataState
+from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError
+from stonks_agent.domain.secrets import SecretRef
+from stonks_agent.ports.secret_provider import SecretProvider
 
 NOW = datetime(2026, 1, 2, 21, tzinfo=UTC)
 API_KEY = "fd-test-key-super-secret"
+SECRET_REF = SecretRef(name="financial_datasets_api_key")
 
 
 def fetch_request(
@@ -64,7 +69,7 @@ def prices_payload(*, ticker: str = "AAPL") -> dict[str, object]:
 def build_adapter(
     handler: Callable[[httpx.Request], httpx.Response],
     *,
-    api_key: str | None = API_KEY,
+    secrets: SecretProvider | None = None,
     request_budget: int = 10,
     timeout_seconds: float = 1.25,
     max_response_bytes: int = 1_048_576,
@@ -75,7 +80,8 @@ def build_adapter(
     )
     adapter = FinancialDatasetsAdapter(
         client=client,
-        api_key=api_key,
+        secret_provider=secrets or ScriptedSecretProvider((API_KEY, "test-version-1")),
+        secret_ref=SECRET_REF,
         request_budget=request_budget,
         timeout_seconds=timeout_seconds,
         max_response_bytes=max_response_bytes,
@@ -155,20 +161,73 @@ def test_common_daily_policy_query_maps_to_financial_datasets_params() -> None:
     assert observation.state is ProviderDataState.AVAILABLE
 
 
-@pytest.mark.parametrize("api_key", [None, "", "   "])
-def test_missing_api_key_is_config_missing_without_network(api_key: str | None) -> None:
+@pytest.mark.parametrize(
+    ("failure_code", "expected_state", "expected_reason"),
+    [
+        (
+            ErrorCode.DATA_UNAVAILABLE,
+            ProviderDataState.FETCH_FAILED,
+            "secret_provider_unavailable",
+        ),
+        (
+            ErrorCode.CONFIGURATION_INVALID,
+            ProviderDataState.CONFIG_MISSING,
+            "api_key_unavailable",
+        ),
+    ],
+)
+def test_secret_provider_failure_has_no_network_or_quota_side_effect(
+    failure_code: ErrorCode,
+    expected_state: ProviderDataState,
+    expected_reason: str,
+) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError(f"network must not be called: {request.url}")
 
-    adapter, client = build_adapter(handler, api_key=api_key)
+    provider = ScriptedSecretProvider(
+        Failure(
+            StructuredError(
+                code=failure_code,
+                message="secret backend failed token=must-not-leak",
+            )
+        )
+    )
+    adapter, client = build_adapter(handler, secrets=provider)
     try:
         observation = adapter.fetch(fetch_request())
     finally:
         client.close()
 
-    assert observation.state is ProviderDataState.CONFIG_MISSING
-    assert observation.reasons == ("api_key_missing",)
+    assert observation.state is expected_state
+    assert observation.reasons == (expected_reason,)
     assert observation.data == ()
+    assert adapter.remaining_requests == 10
+    assert provider.requests[0].reference == SECRET_REF
+    assert provider.requests[0].purpose == "financial_datasets_api_key"
+
+
+def test_secret_rotation_resolves_once_for_each_fetch() -> None:
+    provider = ScriptedSecretProvider(
+        ("financial-key-v1", "version-1"),
+        ("financial-key-v2", "version-2"),
+    )
+    headers: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        headers.append(request.headers["X-API-KEY"])
+        return httpx.Response(200, json=prices_payload(), request=request)
+
+    adapter, client = build_adapter(handler, secrets=provider)
+    try:
+        first = adapter.fetch(fetch_request())
+        second = adapter.fetch(fetch_request())
+    finally:
+        client.close()
+
+    assert first.state is ProviderDataState.AVAILABLE
+    assert second.state is ProviderDataState.AVAILABLE
+    assert headers == ["financial-key-v1", "financial-key-v2"]
+    assert len(provider.requests) == 2
 
 
 def test_empty_prices_is_explicit_legitimate_empty() -> None:
@@ -370,7 +429,8 @@ def test_total_response_deadline_stops_slow_chunk_stream() -> None:
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         adapter = FinancialDatasetsAdapter(
             client=client,
-            api_key=API_KEY,
+            secret_provider=ScriptedSecretProvider((API_KEY, "test-version-1")),
+            secret_ref=SECRET_REF,
             timeout_seconds=1.0,
             clock=lambda: NOW,
             monotonic_clock=monotonic_clock,
@@ -405,7 +465,8 @@ def test_invalid_limits_are_rejected_at_configuration_boundary(
     ):
         FinancialDatasetsAdapter(
             client=client,
-            api_key=API_KEY,
+            secret_provider=ScriptedSecretProvider((API_KEY, "test-version-1")),
+            secret_ref=SECRET_REF,
             **kwargs,  # type: ignore[arg-type]
         )
 

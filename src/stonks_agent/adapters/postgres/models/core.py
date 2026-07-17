@@ -26,6 +26,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from stonks_agent.adapters.postgres.secret_free_json import SecretFreeJSONB
+
 
 class Base(DeclarativeBase):
     pass
@@ -296,7 +298,7 @@ class RunEventRow(Base):
     )
     sequence: Mapped[int] = mapped_column(Integer)
     event_type: Mapped[str] = mapped_column(String(128))
-    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    payload: Mapped[dict[str, object]] = mapped_column(SecretFreeJSONB())
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     previous_hash: Mapped[str | None] = mapped_column(String(64))
     event_hash: Mapped[str] = mapped_column(String(64))
@@ -324,7 +326,7 @@ class JobRow(Base):
         nullable=False,
     )
     job_type: Mapped[str] = mapped_column(String(128), index=True)
-    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    payload: Mapped[dict[str, object]] = mapped_column(SecretFreeJSONB())
     payload_hash: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(32), index=True)
     idempotency_key: Mapped[str] = mapped_column(String(256))
@@ -341,7 +343,7 @@ class JobRow(Base):
     result_artifact_hash: Mapped[str | None] = mapped_column(
         String(64), ForeignKey("artifact_manifest.content_hash", ondelete="RESTRICT")
     )
-    last_error: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    last_error: Mapped[dict[str, object] | None] = mapped_column(SecretFreeJSONB())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -370,7 +372,7 @@ class OutboxRow(Base):
     aggregate_id: Mapped[str] = mapped_column(String(128))
     sequence: Mapped[int] = mapped_column(Integer)
     topic: Mapped[str] = mapped_column(String(128))
-    payload: Mapped[dict[str, object]] = mapped_column(JSONB)
+    payload: Mapped[dict[str, object]] = mapped_column(SecretFreeJSONB())
     idempotency_key: Mapped[str] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     not_before: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -381,7 +383,7 @@ class OutboxRow(Base):
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     lease_generation: Mapped[int] = mapped_column(Integer, server_default=text("0"))
     lease_nonce: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
-    last_error: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    last_error: Mapped[dict[str, object] | None] = mapped_column(SecretFreeJSONB())
 
 
 class InboxRow(Base):

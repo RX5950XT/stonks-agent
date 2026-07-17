@@ -1,14 +1,16 @@
 # Stonks Agent 開發交接
 
-更新日期：2026-07-16
+更新日期：2026-07-17
 
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0–P5 phase gates與P6.1 production OIDC/RBAC/service identities已完成；paper flow維持可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環。下一目標為P6.2 secret provider and redaction。
+- P0–P5 phase gates與P6.1–P6.2 production identity/secrets/redaction已完成；paper flow維持可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環。下一目標為P6.3 API security controls。
 - P1/P3/P4/P6.1目前包含PostgreSQL 0001–0015、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox、strategy registry、paper account/trading ledger、execution receipts、operator action chain、immutable portfolio valuations與owner-scoped research/paper records。
 - Human API principal只由server-side asymmetric OIDC/JWKS與frozen RBAC policy建立；central FastAPI dependency及application ownership checks拒絕forged actor/role與IDOR，local token/DB CLI只限明確loopback local/development/test。
 - Remote worker/sidecar只接受exact issuer/audience/azp/permission/target/generation/nonce/deadline service credential；無DB credential、人類角色、operator/admin或paper authority，舊fence與錯誤target fail closed。
+- Secret config只保存logical refs；local/development/test使用exact env strategy，staging/production只接受workload-identity cloud client且不做stale/env fallback。OpenAI、Anthropic、Financial Datasets與AI-Trader每個logical request重新resolve，retry固定同version、下次request取得rotation。
+- Structured error/log/report在sink前使用bounded immutable-copy sanitizer；canonical run event/job/outbox/last_error在JSONB bind前拒絕secret-shaped payload並整筆rollback，不靠API egress redaction掩蓋DB洩漏。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
 - Financial Datasets與OpenBB已驗證read-only observation contracts與共用daily query；canonical materialization目前只宣稱replay source。`stonks-worker`只提供claim-once，不宣稱常駐dispatcher。
@@ -138,11 +140,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P5.8 focused root為31 passed、獨立worker為28 passed；actual image runtime/Compose、source/license hashes、593-component SBOM、OpenVEX Grype、escape/network/rootfs/socket/CPU/output/reproducibility smoke全通過。完整PostgreSQL gate為1344 passed、coverage 87.41%，529 files format、ruff、mypy 285 source files、106 schemas、Alembic無drift、upstream/license、secret、core與worker locked dependency audit全通過。
 - P5.9 focused catalog/security為14 passed；zero-default與10個explicit Compose profiles逐一render通過。完整non-PostgreSQL gate為1119 passed、239 deselected、coverage 87.64%；完整PostgreSQL P5 gate為1358 passed、coverage 87.43%，532 files format、ruff、mypy 286 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。
 - P6.1完整單程序PostgreSQL gate為1581 passed、3 skipped、coverage 87.45%；564 files format、Ruff、strict mypy 301 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。所有optional manifests可用ephemeral asymmetric issuer/JWKS render；OpenBB hardened live smoke、service ingress matrix與key rotation runbook均已驗證。尚未宣稱連接真實外部IdP，跨host TLS/mTLS留待P6.7 deployment gate。
+- P6.2 focused為187 passed；完整non-PostgreSQL gate為1404 passed、3 skipped、244 deselected、coverage 87.66%。完整PostgreSQL gate為1648 passed、3 skipped、coverage 87.46%；582 files format、Ruff、strict mypy 309 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint與locked dependency audit全通過。Cloud strategy以injected fake workload client驗證rotation/outage，尚未連接真實cloud secret manager，不宣稱live integration。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P6 與架構藍圖。
-2. 保持 TDD；從P6.2 secret provider and redaction開始，以named secret refs取代直接環境secret讀取，production cloud strategy與所有log/event/report/error邊界必須fail closed且可測。
+2. 保持 TDD；從P6.3 API security controls開始，完成request size/rate limit、CORS allowlist、SSRF allowlist、XSS-safe rendering、cookie模式CSRF與structured error sanitization；不得削弱P6.1 identity或P6.2 secret-free sink。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

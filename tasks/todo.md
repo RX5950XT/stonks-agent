@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate 與 P6.1 已通過，P6.2 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.2 已通過，P6.3 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -507,8 +507,14 @@
   - [x] Account、strategy、evaluation、research run/report/snapshot target做application-level ownership/IDOR checks，admin bypass明示且可稽核。
   - [x] Worker/executor service identities不能取得operator/admin/reviewer或非assigned target authority；security matrix、full gate、文件同步全通過。
 
-- [ ] **P6.2 Secret provider and redaction** — 實作`ports/secret_provider.py`、`adapters/secrets/{env,cloud}.py`、structured log/event/report redaction tests。（Depends：P6.1；Complexity：L；Risk：High）
+- [x] **P6.2 Secret provider and redaction** — 實作`ports/secret_provider.py`、`adapters/secrets/{env,cloud}.py`、structured log/event/report redaction tests。（Depends：P6.1；Complexity：L；Risk：High）
   - Local env只存named refs；正式deployment使用secret manager、rotation與scoped identities。
+  - [x] TDD：transport-neutral frozen `SecretRef`、non-serializable `ResolvedSecret`與runtime-checkable provider port；raw value不得出現在repr/str/model dump/error。
+  - [x] Exact-ref/purpose env與cloud strategies：env只限local/development/test；staging/production只接受workload-identity cloud client，missing/blank/disabled/stale/wrong-scope/outage無fallback且fail closed。
+  - [x] OpenAI、Anthropic、Financial Datasets與AI-Trader在每個logical request解析一次secret；bounded retry固定同version，下個request取得rotation，provider failure發生在任何network/artifact write前。
+  - [x] Pure bounded redaction policy涵蓋nested structures、credential URL/JWT/PEM/provider key、known value、exception與cycle/depth/size；原輸入不可修改，金融symbol/hash/UUID不得誤遮罩。
+  - [x] Structured error/log/report在emit/store/render前sanitize；canonical job/event/outbox/inbox遇secret-shaped payload直接拒絕，不以API egress redaction掩蓋DB洩漏。
+  - [x] Focused、full non-PostgreSQL/PostgreSQL、secret/dependency gates與文件同步全通過；未接真實cloud manager時不得宣稱live production integration。
 
 - [ ] **P6.3 API security controls** — 實作request size/rate limit、CORS allowlist、SSRF endpoint allowlist、XSS-safe rendering、cookie模式CSRF與structured error sanitization。（Depends：P6.1、P6.2；Complexity：L；Risk：High）
   - 建立`tests/security/`涵蓋auth bypass、IDOR、prompt injection、SSRF、XSS、CSRF、secret leakage。
@@ -944,3 +950,10 @@
 - Service identity / isolation：core-only RS256 issuer以exact issuer/audience/azp/permission/target/generation/nonce/deadline簽發短效credential；Kronos、TradingAgents、Qlib、Nautilus、LEAN、OpenBB ingress在載入heavy runtime前驗證bounded body與完整fence。Remote service無DB credential、人類角色、operator/admin/reviewer或paper authority；public JWKS與private key分離，rotation/outage/runbook、source identity及OpenBB AGPL corresponding source流程已固定。
 - Verification：完整單程序PostgreSQL gate為1581 passed、3 skipped、coverage 87.45%；564 files format、Ruff、strict mypy 301 source files、106 schemas、Alembic無drift、upstream/license、secret scan與locked dependency audit全通過。Focused auth/service/ownership、ephemeral issuer/JWKS manifests、所有optional Compose profiles及OpenBB hardened live smoke皆通過。
 - 文件同步：`README.md`、`CONTEXT.md`、OIDC rotation runbook與本review已更新；`AGENTS.md`/`CLAUDE.md`同步production identity不變量。尚未宣稱真實外部IdP或跨host TLS/mTLS；P6全域gate仍未完成，下一項為P6.2 secret provider and redaction。
+
+### P6 Progress Review — P6.2 — 2026-07-17
+
+- Scope completed：新增transport-neutral frozen `SecretRef/SecretAccessRequest/ResolvedSecret`、runtime-checkable provider port及env/cloud/factory strategies。Local/development/test只做exact logical ref/purpose→env lookup；staging/production只接受injected workload-identity client與exact resource binding。Missing、blank、control、oversize、disabled、expired、wrong-scope與outage皆無stale/env fallback，secret value不進repr/str/model dump/error。
+- Rotation / consumers：OpenAI、Anthropic、Financial Datasets與AI-Trader constructor只保存provider與logical ref；每個logical request resolve一次，bounded HTTP retry與LLM repair固定同version，下一次request取得rotation。Provider failure在任何network、artifact或quota consumption前停止，保留`CONFIGURATION_INVALID`/`DATA_UNAVAILABLE`語意並使用public-safe訊息。
+- Redaction / persistence：pure bounded sanitizer涵蓋nested mapping/sequence/set、Pydantic/dataclass、bytes/exception、known values、cycle/depth/item/string limits、credential URL/JWT/PEM/provider key；StructuredError、standard logging formatter、canonical report與Jinja artifacts均在sink前sanitize。Run event、job、outbox及last_error使用secret-free JSONB bind guard，偵測時不修改hash-bound payload、以無敏感SQL參數的safe exception整筆rollback；真實PostgreSQL測試證明run/event/outbox均0 writes。
+- Verification / boundary：focused matrix為187 passed；完整non-PostgreSQL gate為1404 passed、3 skipped、244 deselected、coverage 87.66%。完整PostgreSQL gate為1648 passed、3 skipped、coverage 87.46%；582 files format、Ruff、strict mypy 309 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint與locked dependency audit全通過。尚未連接真實cloud secret manager，不宣稱live integration；下一項為P6.3 API security controls。

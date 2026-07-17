@@ -8,6 +8,8 @@ from uuid import UUID
 
 import httpx
 import pytest
+from fixtures.artifact_store import FailOnFinalizeArtifactStore
+from fixtures.secret_provider import ScriptedSecretProvider
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
 from stonks_agent.adapters.platform import (
@@ -17,7 +19,14 @@ from stonks_agent.adapters.platform import (
     AiTraderReplyRequest,
     MemoryPlatformEventInbox,
 )
-from stonks_agent.domain.errors import ErrorCode, Failure, Success
+from stonks_agent.domain.errors import (
+    ErrorCode,
+    Failure,
+    StructuredError,
+    Success,
+)
+from stonks_agent.domain.secrets import SecretRef
+from stonks_agent.ports.secret_provider import SecretProvider
 from stonks_contracts.platform import (
     ChallengeAction,
     ChallengeRequest,
@@ -33,6 +42,7 @@ RUN_ID = UUID("52000000-0000-4000-8000-000000000001")
 REQUEST_ID = UUID("52000000-0000-4000-8000-000000000002")
 EVIDENCE_ID = UUID("52000000-0000-4000-8000-000000000003")
 CONTENT_HASH = "a" * 64
+SECRET_REF = SecretRef(name="ai_trader_access_token")
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "platform" / "ai_trader"
 _FORBIDDEN_AUTHORITY_KEYS = frozenset(
     {"target_agent", "agent_id", "target", "order", "risk", "execution"}
@@ -75,17 +85,21 @@ def adapter_for(
     handler: httpx.MockTransport,
     *,
     inbox: MemoryPlatformEventInbox | None = None,
+    secrets: SecretProvider | None = None,
+    artifacts: MemoryArtifactStore | None = None,
 ) -> tuple[AiTraderHttpAdapter, MemoryArtifactStore, httpx.Client]:
     client = httpx.Client(transport=handler)
-    artifacts = MemoryArtifactStore()
+    artifact_store = artifacts or MemoryArtifactStore()
     adapter = AiTraderHttpAdapter(
         client=client,
-        artifacts=artifacts,
+        artifacts=artifact_store,
         event_inbox=inbox or MemoryPlatformEventInbox(),
-        access_token="test-secret-token",
+        secret_provider=secrets
+        or ScriptedSecretProvider(("test-secret-token", "test-version-1")),
+        secret_ref=SECRET_REF,
         clock=lambda: NOW,
     )
-    return adapter, artifacts, client
+    return adapter, artifact_store, client
 
 
 def test_publish_thesis_uses_exact_safe_route_and_archives_tolerant_response() -> None:
@@ -120,6 +134,69 @@ def test_publish_thesis_uses_exact_safe_route_and_archives_tolerant_response() -
         "team_key": "team-1",
     }
     _assert_no_authority_fields(json.loads(seen[0].content))
+
+
+def test_access_token_rotates_between_logical_requests() -> None:
+    provider = ScriptedSecretProvider(
+        ("ai-trader-token-v1", "version-1"),
+        ("ai-trader-token-v2", "version-2"),
+    )
+    headers: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        headers.append(request.headers["authorization"])
+        return httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            json=cassette("publish_strategy.json"),
+        )
+
+    adapter, _, client = adapter_for(
+        httpx.MockTransport(handler),
+        secrets=provider,
+    )
+    with client:
+        first = adapter.publish_thesis(thesis())
+        second = adapter.publish_thesis(thesis())
+
+    assert isinstance(first, Success)
+    assert isinstance(second, Success)
+    assert headers == ["Bearer ai-trader-token-v1", "Bearer ai-trader-token-v2"]
+    assert len(provider.requests) == 2
+    assert all(value.reference == SECRET_REF for value in provider.requests)
+    assert all(value.purpose == "ai_trader_access_token" for value in provider.requests)
+
+
+def test_secret_provider_failure_has_zero_network_and_public_safe_error() -> None:
+    calls = 0
+    provider = ScriptedSecretProvider(
+        Failure(
+            StructuredError(
+                code=ErrorCode.DATA_UNAVAILABLE,
+                message="vault failed access_token=must-not-leak",
+            )
+        )
+    )
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200)
+
+    adapter, _, client = adapter_for(
+        httpx.MockTransport(handler),
+        secrets=provider,
+        artifacts=FailOnFinalizeArtifactStore(),
+    )
+    with client:
+        result = adapter.publish_thesis(thesis())
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.DATA_UNAVAILABLE
+    assert result.error.message == "Platform credential is unavailable"
+    assert "must-not-leak" not in str(result.error)
+    assert calls == 0
+    assert adapter.is_disabled is False
 
 
 def test_discussion_and_reply_use_only_redacted_public_content() -> None:
@@ -405,7 +482,6 @@ def test_research_submission_vote_and_experiment_outputs_stay_external() -> None
     ("overrides", "match"),
     [
         ({"origin": "http://api.ai4trade.ai"}, "origin"),
-        ({"access_token": " secret"}, "token"),
         ({"timeout_seconds": 0}, "limits"),
     ],
 )
@@ -416,12 +492,34 @@ def test_configuration_fails_closed(overrides: dict[str, object], match: str) ->
         ),
         "artifacts": MemoryArtifactStore(),
         "event_inbox": MemoryPlatformEventInbox(),
-        "access_token": "secret",
+        "secret_provider": ScriptedSecretProvider(("secret", "test-version-1")),
+        "secret_ref": SECRET_REF,
     }
     values.update(overrides)
 
     with pytest.raises(ValueError, match=match):
         AiTraderHttpAdapter(**values)  # type: ignore[arg-type]
+
+
+def test_invalid_resolved_token_fails_before_network_without_echo() -> None:
+    calls = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200)
+
+    adapter, _, client = adapter_for(
+        httpx.MockTransport(handler),
+        secrets=ScriptedSecretProvider(("bad token", "test-version-1")),
+    )
+    with client:
+        result = adapter.publish_thesis(thesis())
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.CONFIGURATION_INVALID
+    assert "bad token" not in str(result.error)
+    assert calls == 0
 
 
 def test_redirect_media_type_and_inbox_conflict_disable_the_adapter() -> None:

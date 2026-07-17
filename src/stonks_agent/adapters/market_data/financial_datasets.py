@@ -30,6 +30,15 @@ from stonks_agent.adapters.market_data._http_response import (
 from stonks_agent.adapters.market_data.regional.base import RegionalProviderCapability
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
 from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
+from stonks_agent.domain.errors import (
+    ErrorCode,
+    Failure,
+    Result,
+    StructuredError,
+    Success,
+)
+from stonks_agent.domain.secrets import SecretAccessRequest, SecretRef
+from stonks_agent.ports.secret_provider import SecretProvider
 
 FINANCIAL_DATASETS_ORIGIN: Final = "https://api.financialdatasets.ai"
 HISTORICAL_PRICES_ENDPOINT: Final = "/prices"
@@ -46,6 +55,7 @@ FINANCIAL_DATASETS_SUPPORT: Final = frozenset(
 _HISTORICAL_PRICES_URL: Final = (
     f"{FINANCIAL_DATASETS_ORIGIN}{HISTORICAL_PRICES_ENDPOINT}"
 )
+_SECRET_PURPOSE: Final = "financial_datasets_api_key"
 
 Ticker = Annotated[
     str,
@@ -148,7 +158,6 @@ class FinancialDatasetsAdapter:
     """Bounded synchronous adapter implementing the provider fetch protocol."""
 
     __slots__ = (
-        "_api_key",
         "_budget_lock",
         "_client",
         "_clock",
@@ -156,6 +165,8 @@ class FinancialDatasetsAdapter:
         "_monotonic_clock",
         "_request_budget",
         "_requests_used",
+        "_secret_provider",
+        "_secret_ref",
         "_timeout",
         "_timeout_seconds",
     )
@@ -164,7 +175,8 @@ class FinancialDatasetsAdapter:
         self,
         *,
         client: httpx.Client,
-        api_key: str | None,
+        secret_provider: SecretProvider,
+        secret_ref: SecretRef,
         request_budget: int = 100,
         timeout_seconds: float = 10.0,
         max_response_bytes: int = 1_048_576,
@@ -173,7 +185,8 @@ class FinancialDatasetsAdapter:
     ) -> None:
         _validate_limits(request_budget, timeout_seconds, max_response_bytes)
         self._client = client
-        self._api_key = api_key.strip() if api_key and api_key.strip() else None
+        self._secret_provider = secret_provider
+        self._secret_ref = secret_ref
         self._request_budget = request_budget
         self._requests_used = 0
         self._timeout = httpx.Timeout(timeout_seconds)
@@ -205,18 +218,19 @@ class FinancialDatasetsAdapter:
                 "capability_not_supported",
                 observed_at,
             )
-        api_key = self._api_key
-        if api_key is None:
-            return _failure(
-                ProviderDataState.CONFIG_MISSING,
-                "api_key_missing",
-                observed_at,
-            )
         query = _parse_query(request)
         if query is None:
             return _failure(
                 ProviderDataState.FETCH_FAILED,
                 "invalid_request",
+                observed_at,
+            )
+        api_key = self._resolve_api_key()
+        if isinstance(api_key, Failure):
+            state, reason = _secret_observation_failure(api_key.error.code)
+            return _failure(
+                state,
+                reason,
                 observed_at,
             )
         if not self._consume_budget():
@@ -225,10 +239,27 @@ class FinancialDatasetsAdapter:
                 "local_rate_budget_exhausted",
                 observed_at,
             )
-        response = self._request(query, api_key, observed_at)
+        response = self._request(query, api_key.value, observed_at)
         if isinstance(response, ProviderObservation):
             return response
         return _parse_response(response, query, request.as_of, observed_at)
+
+    def _resolve_api_key(self) -> Result[str]:
+        try:
+            resolved = self._secret_provider.resolve(
+                SecretAccessRequest(
+                    reference=self._secret_ref,
+                    purpose=_SECRET_PURPOSE,
+                )
+            )
+            if isinstance(resolved, Failure):
+                return _secret_failure(resolved.error.code)
+            value = resolved.value.reveal()
+            if not _is_valid_api_key(value):
+                return _secret_failure(ErrorCode.CONFIGURATION_INVALID)
+            return Success(value)
+        except Exception:
+            return _secret_failure(ErrorCode.INTERNAL_ERROR)
 
     def _consume_budget(self) -> bool:
         with self._budget_lock:
@@ -301,6 +332,38 @@ def _parse_query(request: FetchDataRequest) -> HistoricalPricesQuery | None:
     if query.end_date > request.as_of.date():
         return None
     return query
+
+
+def _is_valid_api_key(value: str) -> bool:
+    return (
+        1 <= len(value) <= 4096
+        and value.strip() == value
+        and all(33 <= ord(character) <= 126 for character in value)
+    )
+
+
+def _secret_failure(source_code: ErrorCode) -> Failure:
+    safe_code = (
+        source_code
+        if source_code in {ErrorCode.CONFIGURATION_INVALID, ErrorCode.DATA_UNAVAILABLE}
+        else ErrorCode.INTERNAL_ERROR
+    )
+    return Failure(
+        StructuredError(
+            code=safe_code,
+            message="Financial data credential is unavailable",
+        )
+    )
+
+
+def _secret_observation_failure(
+    code: ErrorCode,
+) -> tuple[ProviderDataState, str]:
+    if code is ErrorCode.CONFIGURATION_INVALID:
+        return ProviderDataState.CONFIG_MISSING, "api_key_unavailable"
+    if code is ErrorCode.DATA_UNAVAILABLE:
+        return ProviderDataState.FETCH_FAILED, "secret_provider_unavailable"
+    return ProviderDataState.FETCH_FAILED, "secret_provider_failure"
 
 
 def _response_body_failure(

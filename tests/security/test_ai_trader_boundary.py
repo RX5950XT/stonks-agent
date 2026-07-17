@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import get_args
 
 import pytest
+from fixtures.secret_provider import ScriptedSecretProvider
 from pydantic import BaseModel
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
@@ -15,6 +16,7 @@ from stonks_agent.adapters.platform import (
     AiTraderReplyRequest,
     MemoryPlatformEventInbox,
 )
+from stonks_agent.domain.secrets import SecretRef
 from stonks_agent.ports.platform import PlatformPort
 from stonks_contracts.platform import (
     ChallengeRequest,
@@ -73,7 +75,8 @@ def test_ai_trader_adapter_structurally_satisfies_research_only_platform_port() 
         client=object(),  # type: ignore[arg-type]
         artifacts=MemoryArtifactStore(),
         event_inbox=MemoryPlatformEventInbox(),
-        access_token="opaque-token",
+        secret_provider=ScriptedSecretProvider(("opaque-token", "test-version-1")),
+        secret_ref=SecretRef(name="ai_trader_access_token"),
     )
 
     assert isinstance(adapter, PlatformPort)

@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 
+from stonks_agent.domain.redaction import redact, redact_text
+
 
 class ErrorCode(StrEnum):
     """Stable machine-readable error codes safe for boundary mapping."""
@@ -40,7 +42,14 @@ class StructuredError:
     def __post_init__(self) -> None:
         if not self.message.strip():
             raise ValueError("error message must not be blank")
-        object.__setattr__(self, "details", MappingProxyType(dict(self.details)))
+        redacted_details = redact(dict(self.details))
+        safe_details = (
+            dict(redacted_details)
+            if isinstance(redacted_details, Mapping)
+            else {"redaction": redacted_details}
+        )
+        object.__setattr__(self, "message", redact_text(self.message))
+        object.__setattr__(self, "details", MappingProxyType(safe_details))
 
 
 @dataclass(frozen=True, slots=True)

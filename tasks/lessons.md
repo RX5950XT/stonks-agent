@@ -34,3 +34,9 @@
 - Budget usage ratio必須以各scope的soft/degraded threshold正規化，ratio大於1才直接代表degraded；hard threshold可能不是固定倍數，應由typed decision與`outcome=failed`告警表達。
 - Zero-tolerance violation counter必須先建立四個固定series，否則`absent_over_time`會把健康但未發生事件誤判為缺失；zero初始化只證明metric liveness，不能取代canonical validation、DB constraint與immutable audit。
 - Paper cycle的budget exhaustion必須是非重試terminal transition；只在應用層停止當次call仍可能被queue retry成追單，需以真實PostgreSQL狀態測試證明不會重新排程。
+
+## 2026-07-18
+
+- Strict environment allowlist要包含同一entrypoint實際消費的固定鍵；只做unit loader測試可能出現「runtime需要、loader卻拒絕」的自我矛盾，必須用真實Compose migration抓整合漂移。
+- Readiness的client timeout必須大於內部DB connect timeout；否則DB outage雖會正確產生503，外層probe卻只看見timeout，造成不必要的unhealthy與無法辨識故障。
+- PostgreSQL `CREATE/ALTER ROLE ... PASSWORD`不接受bind parameter；不可退回raw password literal。應先用libpq產生SCRAM verifier，再只把verifier寫入DDL，並以真實PostgreSQL登入測試驗證。

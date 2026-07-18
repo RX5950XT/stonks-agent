@@ -1,6 +1,6 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0–P5 phase gates與P6.1–P6.6 production identity、secrets、API security、observability、SLO/budget及S3 artifact boundaries已通過，P6.7之後的production hardening依[實作計畫](./tasks/todo.md)持續開發。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0–P5 phase gates與P6.1–P6.7 production identity、secrets、API security、observability、SLO/budget、S3 artifact及hardened deployment boundaries已通過，P6.8之後的production hardening依[實作計畫](./tasks/todo.md)持續開發。
 
 目前唯一 execution mode 是 `paper`，不支援 real-money trading。
 
@@ -69,11 +69,12 @@ Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper 
 uv sync --frozen
 uv run python scripts/verify.py
 uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotency-key demo
+uv run python scripts/smoke_core_deployment.py
 ```
 
-`fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。
+`fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。Deployment smoke會自行建立temporary secret files、乾淨PostgreSQL volume與hardened containers，驗證完自動清理。
 
-P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未接production artifact capability signer。S3 adapter以digest-pinned SeaweedFS完成真實SigV4/conditional finalize/presigned GET smoke，但emulator不證明真實cloud IAM、SSE-KMS、Object Lock或各vendor完整相容性。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。Research API目前只建立`research_pipeline` job；P4.7已驗證core-owned durable paper cycle與crash replay，但尚未接成常駐production dispatcher，`stonks-worker claim-once`也不是常駐dispatcher。AI-Trader adapter預設關閉，目前只以固定commit `d03ff6c`的最小runtime shapes與clean-room cassettes驗證；`api.ai4trade.ai`於驗證時DNS無法解析，因此live OpenAPI與真實credential smoke仍是unverified，不宣稱production compatibility。OIDC目前以pinned與CI ephemeral issuer/JWKS integration驗證，尚未宣稱已連接真實外部IdP；cloud secret strategy目前以injected workload client驗證，尚未連接真實cloud secret manager。Rate limit預設為單process bounded store，尚未接distributed store；forwarded identity一律拒絕，尚未建立trusted reverse-proxy policy；DNS resolver本身尚無lifetime/timeout pin，HSTS與跨host TLS/mTLS留待P6.7 deployment gate。Observability stack目前只做本機loopback ingress、tmpfs狀態與nop trace sink，未接真實remote backend、持久化trace、跨host TLS或network-policy egress boundary；response/durable carrier的synthetic span ID只保證trace ID關聯，尚未回綁SDK child span ID。SLO routing目前只有policy，未接Alertmanager/paging backend或送達驗證；correctness violation counter即使為0也不能單獨取代canonical validation、DB constraint、immutable audit與phase-gate證據。
+P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未接production artifact capability signer。S3 adapter以digest-pinned SeaweedFS完成真實SigV4/conditional finalize/presigned GET smoke，但emulator不證明真實cloud IAM、SSE-KMS、Object Lock或各vendor完整相容性。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。P6.7 default Compose已驗證clean migration、least-privilege runtime、DB outage、core/DB restart與persisted workflow replay，但core container目前只提供deployment health/readiness surface，尚未組合五組business API；Research API目前只建立`research_pipeline` job，`stonks-worker claim-once`也不是常駐dispatcher。AI-Trader adapter預設關閉，目前只以固定commit `d03ff6c`的最小runtime shapes與clean-room cassettes驗證；`api.ai4trade.ai`於驗證時DNS無法解析，因此live OpenAPI與真實credential smoke仍是unverified，不宣稱production compatibility。OIDC目前以pinned與CI ephemeral issuer/JWKS integration驗證，尚未宣稱已連接真實外部IdP；cloud secret strategy目前以injected workload client驗證，尚未連接真實cloud secret manager。Rate limit預設為單process bounded store，尚未接distributed store；forwarded identity一律拒絕，尚未建立trusted reverse-proxy policy；DNS resolverlifetime/timeout pin、public TLS/HSTS、跨host mTLS、orchestrator與network-policy egress boundary仍未建立。Observability stack目前只做本機loopback ingress、tmpfs狀態與nop trace sink，未接真實remote backend或持久化trace；response/durable carrier的synthetic span ID只保證trace ID關聯，尚未回綁SDK child span ID。SLO routing目前只有policy，未接Alertmanager/paging backend或送達驗證；correctness violation counter即使為0也不能單獨取代canonical validation、DB constraint、immutable audit與phase-gate證據。
 
 ## 核心文件
 
@@ -84,6 +85,7 @@ P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與
 - [Optional integrations 操作手冊](./docs/runbooks/optional-integrations.md)
 - [Observability 操作與限制](./docs/runbooks/observability.md)
 - [SLO、預算與告警操作](./docs/operations/slo.md)
+- [Core deployment 操作與限制](./docs/runbooks/core-deployment.md)
 - [Service OIDC key rotation](./docs/runbooks/service-oidc-key-rotation.md)
 - [開發交接](./CONTEXT.md)
 

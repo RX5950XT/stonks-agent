@@ -37,10 +37,12 @@ dependencies = [
     "structlog>=25.5,<26",
     "typer>=0.21,<1",
     "botocore>=1.43.50,<1.44",
+    "uvicorn>=0.41,<1",
 ]
 
 [project.scripts]
 stonks = "stonks_agent.entrypoints.cli:app"
+stonks-deploy = "stonks_agent.entrypoints.deployment:app"
 stonks-worker = "stonks_agent.entrypoints.worker:app"
 
 [project.urls]

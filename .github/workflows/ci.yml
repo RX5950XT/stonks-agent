@@ -91,6 +91,49 @@ jobs:
       - name: Run PostgreSQL integration and all core gates
         run: uv run python scripts/verify.py --with-postgres
 
+  core-deployment:
+    name: Hardened core Compose / ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: "1"
+      UV_FROZEN: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          version: "0.9.27"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install frozen core verification environment
+        run: uv sync --frozen
+
+      - name: Verify deployment policy and smoke runner
+        run: |
+          uv run python -m pytest -q --no-cov \
+            tests/config/test_deployment.py \
+            tests/entrypoints/test_deployment_health.py \
+            tests/entrypoints/test_deployment_runtime.py \
+            tests/entrypoints/test_deployment_replay_probe.py \
+            tests/policy/test_core_deployment.py \
+            tests/unit/test_smoke_core_deployment.py
+          MYPYPATH="src:packages/contracts/src:packages/service-auth/src" \
+            uv run mypy --strict \
+            scripts/deployment_replay_probe.py \
+            scripts/smoke_core_deployment.py
+
+      - name: Build and exercise clean hardened deployment
+        run: uv run python scripts/smoke_core_deployment.py
+
   s3-artifact:
     name: S3-compatible artifact runtime / ubuntu-latest
     runs-on: ubuntu-latest

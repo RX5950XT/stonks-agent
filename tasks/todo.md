@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.6 已通過，P6.7 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.7 已通過，P6.8 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -558,9 +558,17 @@
   - [x] 完成fake failure matrix、真實digest-pinned S3-compatible integration smoke、PostgreSQL audit/retention integration、security/license/dependency與完整non-PostgreSQL/PostgreSQL gates。
   - [x] 同步artifact operations/runbook、README、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、lessons與本review；明列未連真實cloud KMS/IAM及不同S3 vendor相容範圍。
 
-- [ ] **P6.7 Deployment manifests** — 建立`infra/compose.yaml`、core `Dockerfile`、worker/sidecar profiles、health/readiness probes與non-root/read-only filesystem settings。（Depends：P5.9、P6.1–P6.6；Complexity：XL；Risk：High）
+- [x] **P6.7 Deployment manifests** — 建立`infra/compose.yaml`、core `Dockerfile`、worker/sidecar profiles、health/readiness probes與non-root/read-only filesystem settings。（Depends：P5.9、P6.1–P6.6；Complexity：XL；Risk：High）
   - Default profile只啟動core/PostgreSQL；optional services顯式profile，OpenBB source流程一併發布。
   - `execution_mode=live`在任何manifest/schema都不存在。
+  - [x] 先以policy/contract tests固定deployment settings、secret-file DB composition、liveness/readiness envelope與exact migration-head判定；拒絕raw DB URL/password、unknown environment/mode、unbounded timeout及schema drift。
+  - [x] 建立digest-pinned Python 3.12 multi-stage core `Dockerfile`；只安裝frozen production lock，runtime為UID/GID 65532、read-only-compatible、無compiler/package manager cache、無heavy upstream dependencies，並保存OCI source/revision metadata。
+  - [x] 建立typed `stonks-deploy` migrate/serve/probe commands；migration持有獨立one-shot authority，API只使用runtime credential，liveness不依賴DB、readiness需DB連線且`alembic_version` exact等於packaged single head。
+  - [x] 建立`infra/compose.yaml`：runtime只有core/PostgreSQL，migration為同core image one-shot init job；DB不發布host port，core只綁loopback ingress，服務採non-root/read-only/cap-drop/NNP、tmpfs、resource/PID limits、healthchecks與bounded restart policy。
+  - [x] 所有DB/password/OIDC/provider值只可由external secret file或明確allowlisted environment注入；Compose config/image history/log不得出現secret，core/migrator/worker不得取得不需要的provider、broker或live authority。
+  - [x] 保持P5.9 optional catalog default-off；main與`compose.optional.yaml`合併後所有explicit profiles可render，缺少任何optional service不影響core readiness，OpenBB profile仍帶AGPL corresponding-source surface。
+  - [x] 建立真實Compose smoke：乾淨volume啟動→migration→health/readiness→同image deterministic fake/replay→core restart→PostgreSQL restart→readiness恢復→migration idempotent→graceful shutdown；stale schema、DB outage與secret缺失皆fail closed。
+  - [x] CI加入core image build與deployment smoke；完成focused、full non-PostgreSQL/PostgreSQL、security/license/dependency gates及文件同步，明列單host loopback/Compose與尚未驗證的external IdP、TLS/mTLS、orchestrator/network-policy邊界。
 
 - [ ] **P6.8 Supply-chain release gates** — 建立`.github/workflows/{security,release}.yml`、`scripts/{generate_sbom,verify_release}.py`、container signing與license/CVE policies。（Depends：P0.3、P6.7；Complexity：L；Risk：High）
   - Critical CVE、license drift、missing notice/source、unlocked dependency、secret scan failure阻擋release。
@@ -577,7 +585,7 @@
 ### P6 Verification gate
 
 - [ ] Full CI：frozen builds、lint/type/unit/contract/integration/E2E/security/resilience、SBOM/license/CVE/secret scans全部通過。（Depends：P6.8、P6.9）
-- [ ] Default compose由乾淨環境啟動、migrate、readiness、fake/replay E2E、shutdown/restart/replay全部通過。（Depends：P6.7）
+- [x] Default compose由乾淨環境啟動、migrate、readiness、fake/replay E2E、shutdown/restart/replay全部通過。（Depends：P6.7）
 - [ ] Optional profiles逐一smoke；缺任何optional service時core readiness與paper safety不受影響。（Depends：P5 gate、P6.7）
 - [ ] Kill switch、ledger mismatch、duplicate execution、future evidence與auth bypass drills全部fail closed並告警。（Depends：P6.1–P6.9）
 - [ ] Release bundle含lockfiles、schemas/OpenAPI、SBOM、signatures、notices、OpenBB對應source流程與驗證報告。（Depends：P6.8、P6.11）
@@ -1013,3 +1021,11 @@
 - Safety / durability：production只接受injected atomic credentials，exact HTTPS origin/bucket/prefix/owner、DNS/IP pinning、no redirect及no ambient credential/proxy chain。Versioning/Object Lock無法由provider證明即fail closed；retention/legal hold只增不減，GC遇到任何historical finalized manifest、DB reference、hold/retention/unknown或provider failure均保留，restore只刪exact latest delete marker或驗證指定version，永不覆寫canonical bytes。
 - Runtime / provenance：digest-pinned SeaweedFS 4.34以non-root、read-only、cap-drop/NNP、resource limits、loopback ingress及runtime-generated credentials完成真實SigV4、conditional finalize/retry、SHA-256/checksum/SSE metadata roundtrip、conflict與direct presigned GET smoke；Apache source/license identity與notice已固定。Emulator不證明真實cloud IAM、SSE-KMS、Object Lock或各S3 vendor完整相容性。
 - Verification：focused artifact/config/security/infra為138 passed，PostgreSQL migration/audit為34 passed；完整non-PostgreSQL gate為1817 passed、3 skipped、267 deselected、coverage 87.69%，完整PostgreSQL gate為2084 passed、3 skipped、coverage 87.45%。660 files format、Ruff、strict mypy 343 source files、106 schemas、Alembic無drift、upstream/license、secret scan、frozen lock與locked dependency audit全通過。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、runbook與本review已同步；`tasks/lessons.md`經review無新的使用者修正可新增，下一項為P6.7 deployment manifests。
+
+### P6 Progress Review — P6.7 — 2026-07-18
+
+- Scope completed：新增strict deployment/DB role settings、deployment-only FastAPI control surface與typed `stonks-deploy serve/migrate/probe`。Liveness不依賴DB；readiness以bounded query要求exact single Alembic head。Raw/ambient DSN、password/libpq authority、unknown key、非paper mode、任意deployment root與schema drift皆fail closed，CLI錯誤只輸出public-safe envelope。
+- Image / topology：root multi-stage `Dockerfile`固定uv 0.9.27與Python 3.12.13 digest，只安裝frozen production lock；runtime為UID/GID 65532且無uv/pip/compiler/tests/heavy upstream。Default Compose只有core/PostgreSQL，migration為explicit one-shot profile；PostgreSQL以UID70/SCRAM、private network、named volume執行，core只綁loopback。所有service為read-only、cap-drop/NNP、tmpfs及CPU/RAM/PID/restart bounded。
+- Authority / replay：migrator使用owner secret並以advisory lock升級；runtime login先由libpq產生SCRAM verifier，只取得`stonks_app` membership，無superuser/DDL/role/database/replication authority。Committed smoke由乾淨volume執行migration三次、fake-cycle exact compare、persisted workflow write、core/DB restart、DB outage health200/ready503、full down/up、replay/verify succeeded version3、rootfs/image/secret檢查並必定cleanup；明示不是fresh stochastic re-inference。
+- Optional / CI / honest boundary：main與P5.9 zero-default manifest合併後10個explicit profiles逐一render，core不依賴optional。Linux CI新增real build/deployment smoke。Core container目前只是deployment health/readiness surface，尚未組合五組business API或常駐dispatcher；public TLS/HSTS、trusted proxy/mTLS、external IdP、orchestrator、managed DB TLS/backup與跨主機network policy仍未宣稱完成。
+- Verification：focused deployment/config/entrypoint/policy/smoke為71 passed，真實PostgreSQL role/migration為1 passed；clean image/Compose smoke全通過。完整non-PostgreSQL gate為1888 passed、3 skipped、268 deselected、coverage 87.54%，完整PostgreSQL gate為2156 passed、3 skipped、coverage 87.37%。672 files format、Ruff、strict mypy 346 source files、106 schemas、Alembic無drift、upstream/license、secret scan、frozen lock與locked dependency audit全通過。文件、規範、lessons與本review已同步；下一項為P6.8 supply-chain release gates。

@@ -1,0 +1,119 @@
+name: stonks-core
+
+x-core-image: &core-image
+  image: stonks-agent-core:${STONKS_BUILD_REVISION:?required}
+
+x-core-environment: &core-environment
+  STONKS_ENVIRONMENT: ${STONKS_ENVIRONMENT:-production}
+  STONKS_EXECUTION_MODE: paper
+  STONKS_BUILD_REVISION: ${STONKS_BUILD_REVISION:?required}
+  STONKS_DEPLOYMENT_ROOT: /opt/stonks
+  STONKS_DB_HOST: postgres
+  STONKS_DB_PORT: "5432"
+  STONKS_DB_NAME: stonks
+  STONKS_DB_CONNECT_TIMEOUT_SECONDS: "3"
+  STONKS_DB_POOL_SIZE: "4"
+  STONKS_DB_MAX_OVERFLOW: "2"
+  STONKS_SERVER_HOST: 0.0.0.0
+  STONKS_SERVER_PORT: "8000"
+
+x-hardened-core: &hardened-core
+  user: "65532:65532"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  init: true
+  pids_limit: 64
+  mem_limit: 256m
+  cpus: 0.50
+  tmpfs: [/tmp]
+  stop_grace_period: 30s
+
+services:
+  postgres:
+    image: postgres:17.10-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    user: "70:70"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    restart: "on-failure:5"
+    stop_grace_period: 30s
+    environment:
+      POSTGRES_DB: stonks
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_owner_password
+      POSTGRES_INITDB_ARGS: >-
+        --auth-host=scram-sha-256 --auth-local=scram-sha-256
+      PGDATA: /var/lib/postgresql/data/pgdata
+    secrets: [postgres_owner_password]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    tmpfs: [/var/run/postgresql, /tmp]
+    networks: [core-backend]
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -d, stonks]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  core:
+    <<: [*core-image, *hardened-core]
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        VCS_REF: ${STONKS_BUILD_REVISION:?required}
+    command: [serve]
+    restart: "on-failure:5"
+    environment:
+      <<: *core-environment
+      STONKS_DB_USER: stonks_runtime
+      STONKS_DB_PASSWORD_FILE: /run/secrets/runtime_db_password
+    secrets: [runtime_db_password]
+    ports: ["127.0.0.1:${STONKS_CORE_PORT:-18000}:8000"]
+    networks: [core-backend, core-ingress]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, stonks-deploy, probe, --target, ready]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 5s
+
+  migrate:
+    <<: [*core-image, *hardened-core]
+    profiles: [migration]
+    command: [migrate]
+    restart: "no"
+    environment:
+      <<: *core-environment
+      STONKS_DB_USER: postgres
+      STONKS_DB_PASSWORD_FILE: /run/secrets/postgres_owner_password
+      STONKS_RUNTIME_DB_USER: stonks_runtime
+      STONKS_RUNTIME_DB_PASSWORD_FILE: /run/secrets/runtime_db_password
+    secrets: [postgres_owner_password, runtime_db_password]
+    networks: [core-backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  core-backend:
+    internal: true
+  core-ingress:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+secrets:
+  postgres_owner_password:
+    file: ${STONKS_POSTGRES_PASSWORD_FILE:?required}
+  runtime_db_password:
+    file: ${STONKS_RUNTIME_DB_PASSWORD_FILE:?required}

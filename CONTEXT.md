@@ -1,11 +1,11 @@
 # Stonks Agent 開發交接
 
-更新日期：2026-07-17
+更新日期：2026-07-18
 
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
-- P0–P5 phase gates與P6.1–P6.6 production identity/secrets/API security/observability/SLO/budget/S3 artifact boundaries已完成；paper flow維持可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環。下一目標為P6.7 deployment manifests。
+- P0–P5 phase gates與P6.1–P6.7 production identity/secrets/API security/observability/SLO/budget/S3 artifact/hardened deployment boundaries已完成；paper flow維持可重播的target→risk→reservation/order→fill/journal→NAV/outcome/report閉環。下一目標為P6.8 supply-chain release gates。
 - P1/P3/P4/P6目前包含PostgreSQL 0001–0017、PIT evidence/snapshot、repositories/UoW、content-addressed artifacts、durable job/outbox/inbox與trace propagation、strategy registry、paper account/trading ledger、execution receipts、operator/artifact maintenance audit chains、immutable portfolio valuations與owner-scoped research/paper records。
 - Human API principal只由server-side asymmetric OIDC/JWKS與frozen RBAC policy建立；central FastAPI dependency及application ownership checks拒絕forged actor/role與IDOR，local token/DB CLI只限明確loopback local/development/test。
 - Remote worker/sidecar只接受exact issuer/audience/azp/permission/target/generation/nonce/deadline service credential；無DB credential、人類角色、operator/admin或paper authority，舊fence與錯誤target fail closed。
@@ -151,11 +151,12 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 - P6.4 focused telemetry/API/durable/infra matrix與真實三容器OTLP smoke全通過；完整non-PostgreSQL gate為1620 passed、3 skipped、258 deselected、coverage 87.75%，完整PostgreSQL gate為1878 passed、3 skipped、coverage 87.48%。617 files format、Ruff、strict mypy 323 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過。
 - P6.5 focused budget/SLO/config/canonical flow/Prometheus rules與真實三容器smoke全通過；完整non-PostgreSQL gate為1679 passed、3 skipped、259 deselected、coverage 87.85%，完整PostgreSQL gate為1938 passed、3 skipped、coverage 87.57%。630 files format、Ruff、strict mypy 329 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過。
 - P6.6 focused artifact/config/security/infra matrix為138 passed，PostgreSQL migration/audit為34 passed；digest-pinned SeaweedFS完成真實SigV4、conditional finalize、checksum/SSE metadata roundtrip與presigned GET smoke。完整non-PostgreSQL gate為1817 passed、3 skipped、267 deselected、coverage 87.69%，完整PostgreSQL gate為2084 passed、3 skipped、coverage 87.45%；660 files format、Ruff、strict mypy 343 source files、106 schemas、Alembic無drift、upstream/license、secret scan、frozen lock與locked dependency audit全通過。尚未連真實cloud IAM/KMS/Object Lock，不宣稱各S3 vendor完整相容。
+- P6.7新增digest-pinned/non-root core image、default core/PostgreSQL Compose、explicit migration、strict secret-file DB settings、exact-head health/readiness與Linux CI。真實clean-volume smoke涵蓋migration冪等、least-privilege SCRAM runtime role、deterministic fake、persisted workflow replay、core/DB restart、DB outage、read-only/cap-drop與secret scan。Focused為71 passed、PostgreSQL role/migration為1 passed；完整non-PostgreSQL gate為1888 passed、3 skipped、268 deselected、coverage 87.54%，完整PostgreSQL gate為2156 passed、3 skipped、coverage 87.37%；672 files format、Ruff、strict mypy 346 source files、106 schemas、Alembic無drift、upstream/license、secret與locked dependency audit全通過。Core image目前只提供deployment health/readiness，不宣稱business API composition、常駐dispatcher、public TLS/mTLS、external IdP或跨host orchestration/network policy。
 
 ## 下一個代理的起點
 
 1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P6 與架構藍圖。
-2. 保持 TDD；從P6.7 deployment manifests開始，先固定default core/PostgreSQL topology、non-root/read-only images、health/readiness、migration/restart/replay及zero-live-authority contracts。
+2. 保持 TDD；從P6.8 supply-chain release gates開始，固定SBOM、signing、provenance、license/CVE/secret與release bundle驗證。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。
 5. 每個 phase 完成後同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 todo review。

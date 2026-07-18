@@ -36,6 +36,7 @@ dependencies = [
     "stonks-service-auth",
     "structlog>=25.5,<26",
     "typer>=0.21,<1",
+    "botocore>=1.43.50,<1.44",
 ]
 
 [project.scripts]

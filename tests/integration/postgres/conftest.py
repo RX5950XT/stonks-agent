@@ -49,6 +49,7 @@ def clean_database(migrated_engine: Engine) -> Engine:
             text(
                 """
                 truncate table
+                    artifact_maintenance_event, artifact_maintenance_head,
                     paper_operator_action, paper_operator_audit_head,
                     paper_portfolio_valuation,
                     journal_posting, journal_transaction, paper_execution_receipt,
@@ -67,6 +68,15 @@ def clean_database(migrated_engine: Engine) -> Engine:
                     instrument, trading_calendar_version, provider_health,
                     usage_budget, run, artifact_manifest
                 cascade
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                insert into artifact_maintenance_head
+                    (head_id, sequence, event_hash, created_at, updated_at)
+                values (1, 0, null, clock_timestamp(), clock_timestamp())
                 """
             )
         )

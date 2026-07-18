@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.5 已通過，P6.6 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.6 已通過，P6.7 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -547,8 +547,16 @@
   - [x] 完成SLO定義、error-budget policy、告警路由與runbook；明列目前單機/非持久Prometheus限制，不宣稱production paging backend已完成。
   - [x] 完成focused、full non-PostgreSQL/PostgreSQL、security/license/dependency gates與文件同步。
 
-- [ ] **P6.6 S3-compatible artifact adapter and retention** — 實作`adapters/artifacts/s3.py`、retention/encryption/GC use cases與integration tests。（Depends：P1.5、P6.2；Complexity：L；Risk：High）
+- [x] **P6.6 S3-compatible artifact adapter and retention** — 實作`adapters/artifacts/s3.py`、retention/encryption/GC use cases與integration tests。（Depends：P1.5、P6.2；Complexity：L；Risk：High）
   - Object finalize/hash、signed scoped URLs、orphan GC、legal/data retention與restore測試。
+  - [x] 先以tests固定strict artifact-storage config、frozen encryption/retention/capability/GC/restore contracts與最小S3 dependency；拒絕ambient credentials/config、未知endpoint/prefix、無versioning/object-lock、無界size/TTL/retention與unsafe bypass。
+  - [x] S3 finalize使用content-addressed exact keys、SHA-256 checksum與conditional/idempotent writes；object先驗證才發布immutable manifest，partial upload只成為不可引用orphan，concurrent metadata conflict fail closed。
+  - [x] Read/head需重驗manifest、size、hash、encryption與retention；signed URL只允許單一finalized object、GET、短效TTL與固定bucket/key/origin，capability不得進log/event/DB。
+  - [x] Retention policy依sensitivity套用明確SSE與WORM retain-until；legal hold只能經typed operator use case延長/啟用，不能靜默縮短、解除或使用governance bypass。
+  - [x] Orphan GC只處理超過grace且未finalize／未註冊的exact prefix objects；canonical DB reference、legal hold、retention、unknown state或list/head/delete failure一律保留並留下structured audit。
+  - [x] Restore只在versioned bucket上移除exact delete marker或讀回指定受信version，重驗hash/size/manifest後才成功；不能以覆寫新bytes偽裝restore。
+  - [x] 完成fake failure matrix、真實digest-pinned S3-compatible integration smoke、PostgreSQL audit/retention integration、security/license/dependency與完整non-PostgreSQL/PostgreSQL gates。
+  - [x] 同步artifact operations/runbook、README、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、lessons與本review；明列未連真實cloud KMS/IAM及不同S3 vendor相容範圍。
 
 - [ ] **P6.7 Deployment manifests** — 建立`infra/compose.yaml`、core `Dockerfile`、worker/sidecar profiles、health/readiness probes與non-root/read-only filesystem settings。（Depends：P5.9、P6.1–P6.6；Complexity：XL；Risk：High）
   - Default profile只啟動core/PostgreSQL；optional services顯式profile，OpenBB source流程一併發布。
@@ -998,3 +1006,10 @@
 - Fail-closed / no chase：research與paper cycle在外部及durable canonical stage前重驗budget；soft/hard超限後不再建立target、reservation或order。PostgreSQL將`budget_exhausted`記為非重試terminal，既有canonical commit不受observer改寫且不補追訂單。
 - Alerts / honest boundary：新增correctness、API/worker availability、p95 latency、normalized 5m/1h/30d burn、hard outcome與soft usage rules，通過pinned `promtool`與真實Collector→Prometheus smoke。Correctness series以0初始化以偵測缺失，但counter為0不能單獨證明完整coverage；目前只有policy routing、tmpfs狀態且無Alertmanager/paging送達。
 - Verification / boundary：focused budget/SLO/canonical/rules matrix與真實三容器smoke全通過；完整non-PostgreSQL gate為1679 passed、3 skipped、259 deselected、coverage 87.85%，完整PostgreSQL gate為1938 passed、3 skipped、coverage 87.57%。630 files format、Ruff、strict mypy 329 source files、106 schemas、Alembic無drift、upstream/license、secret scan、actionlint、frozen lock與locked dependency audit全通過。文件已同步；下一項為P6.6 S3-compatible artifact adapter與retention。
+
+### P6 Progress Review — P6.6 — 2026-07-18
+
+- Scope completed：新增strict artifact config、frozen encryption/retention/capability/maintenance contracts、S3 content-addressed adapter、official botocore SigV4/httpx transport、signed preflight、bounded XML parser、retention/legal-hold/orphan-GC/exact-version restore use cases及PostgreSQL 0017 append-only maintenance audit。Finalize固定object-first/manifest-last、SHA-256、conditional PUT、SSE與retain-until；presigned capability只允許單一finalized GET且不進序列化或durable sink。
+- Safety / durability：production只接受injected atomic credentials，exact HTTPS origin/bucket/prefix/owner、DNS/IP pinning、no redirect及no ambient credential/proxy chain。Versioning/Object Lock無法由provider證明即fail closed；retention/legal hold只增不減，GC遇到任何historical finalized manifest、DB reference、hold/retention/unknown或provider failure均保留，restore只刪exact latest delete marker或驗證指定version，永不覆寫canonical bytes。
+- Runtime / provenance：digest-pinned SeaweedFS 4.34以non-root、read-only、cap-drop/NNP、resource limits、loopback ingress及runtime-generated credentials完成真實SigV4、conditional finalize/retry、SHA-256/checksum/SSE metadata roundtrip、conflict與direct presigned GET smoke；Apache source/license identity與notice已固定。Emulator不證明真實cloud IAM、SSE-KMS、Object Lock或各S3 vendor完整相容性。
+- Verification：focused artifact/config/security/infra為138 passed，PostgreSQL migration/audit為34 passed；完整non-PostgreSQL gate為1817 passed、3 skipped、267 deselected、coverage 87.69%，完整PostgreSQL gate為2084 passed、3 skipped、coverage 87.45%。660 files format、Ruff、strict mypy 343 source files、106 schemas、Alembic無drift、upstream/license、secret scan、frozen lock與locked dependency audit全通過。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、runbook與本review已同步；`tasks/lessons.md`經review無新的使用者修正可新增，下一項為P6.7 deployment manifests。

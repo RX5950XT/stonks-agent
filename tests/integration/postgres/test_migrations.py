@@ -18,6 +18,8 @@ EXPECTED_TABLES = {
     "instrument_alias",
     "trading_calendar_version",
     "artifact_manifest",
+    "artifact_maintenance_head",
+    "artifact_maintenance_event",
     "evidence_item",
     "evidence_edge",
     "dataset_snapshot",
@@ -141,6 +143,11 @@ TRADING_UPDATE_COLUMNS = {
     "paper_operator_audit_head": {
         "sequence",
         "action_hash",
+        "updated_at",
+    },
+    "artifact_maintenance_head": {
+        "sequence",
+        "event_hash",
         "updated_at",
     },
 }

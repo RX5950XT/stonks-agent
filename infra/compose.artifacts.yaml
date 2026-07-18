@@ -1,0 +1,46 @@
+name: stonks-artifact-smoke
+
+services:
+  s3-compatible:
+    image: chrislusf/seaweedfs:4.34@sha256:6620371e8af8282056685c652d4637265698c9e2c2d59f9594e6ac333ad6c634
+    command:
+      - mini
+      - -dir=/data
+      - -master.telemetry=false
+      - -admin.ui=false
+      - -webdav=false
+    init: true
+    read_only: true
+    user: "65532:65532"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      AWS_ACCESS_KEY_ID: ${STONKS_S3_TEST_ACCESS_KEY:?required}
+      AWS_SECRET_ACCESS_KEY: ${STONKS_S3_TEST_SECRET_KEY:?required}
+      S3_BUCKET: stonks-artifacts
+    ports:
+      - "127.0.0.1:${STONKS_S3_TEST_PORT:-18333}:8333"
+    tmpfs:
+      - /data:rw,noexec,nosuid,nodev,size=256m,uid=65532,gid=65532,mode=0700
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,uid=65532,gid=65532,mode=0700
+    pids_limit: 128
+    mem_limit: 384m
+    cpus: 1.0
+    stop_grace_period: 10s
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          test "$$(curl -sS -o /dev/null -w '%{http_code}'
+          http://127.0.0.1:8333/)" = "403"
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      start_period: 3s
+    networks: [artifact_ingress]
+
+networks:
+  artifact_ingress:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.host_binding_ipv4: 127.0.0.1

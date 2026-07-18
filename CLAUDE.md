@@ -15,6 +15,8 @@
 - Canonical flow：`Evidence/ResearchArtifact -> AgentOpinion/AlphaSignal/ForecastSignal -> deterministic PortfolioTarget -> RiskDecision -> AccountReservation -> OrderIntent -> ExecutionReceipt/Fill -> balanced Journal`。
 - LLM、TradingAgents、Kronos、community feedback 都不能直接建立 target/order，不能 override risk。
 - Stochastic inference 先封存 immutable output artifact；replay 從 artifact 開始，不宣稱 fresh re-inference bit-identical。
+- S3 production transport只接受injected atomic credentials與official SigV4，固定origin/bucket/prefix、DNS/IP pinning且禁止redirect/default credential chain；versioning/Object Lock preflight不確定即fail closed。
+- Finalized artifact的current/history versions永不由GC實體刪除；retention/legal hold只增不減，restore只處理exact delete marker或受信version。
 - Core job runner 是 DB/event/outbox transaction owner；remote worker 無 DB credentials，舊 generation/nonce 或過期 lease 的 result 不得 commit。
 - 同帳戶 mutation 必須 serialized 並先 reservation；journal 每種 currency/commodity 的 debit/credit 必須平衡。
 - `execution_mode=paper` 是唯一允許模式；live trading 必須另立 RFC，不能用設定值偷偷啟用。

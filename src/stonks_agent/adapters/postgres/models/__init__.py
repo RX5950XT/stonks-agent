@@ -1,6 +1,8 @@
 """SQLAlchemy mappings for canonical PostgreSQL state."""
 
 from stonks_agent.adapters.postgres.models.core import (
+    ArtifactMaintenanceEventRow,
+    ArtifactMaintenanceHeadRow,
     ArtifactManifestRow,
     Base,
     DatasetSnapshotEvidenceRow,
@@ -47,6 +49,8 @@ from stonks_agent.adapters.postgres.models.trading import (
 
 __all__ = [
     "AccountReservationRow",
+    "ArtifactMaintenanceEventRow",
+    "ArtifactMaintenanceHeadRow",
     "ArtifactManifestRow",
     "Base",
     "DatasetSnapshotEvidenceRow",

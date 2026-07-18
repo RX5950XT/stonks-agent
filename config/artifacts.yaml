@@ -1,0 +1,28 @@
+schema_version: 1.0.0
+backend: s3
+endpoint_url: https://s3.example.invalid
+region: ap-northeast-1
+bucket: stonks-artifacts
+expected_bucket_owner: "123456789012"
+prefix: stonks/v1
+addressing_style: path
+auth_mode: workload_identity
+max_size_bytes: 67108864
+request_timeout_seconds: 30
+presign_ttl_seconds: 300
+versioning_required: true
+object_lock_required: true
+allow_insecure_loopback: false
+encryption:
+  algorithm: AES256
+  kms_key_id: null
+retention:
+  public:
+    mode: governance
+    days: 30
+  internal:
+    mode: governance
+    days: 365
+  restricted:
+    mode: compliance
+    days: 2555

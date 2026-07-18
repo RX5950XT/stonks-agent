@@ -17,6 +17,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     PrimaryKeyConstraint,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -127,6 +128,94 @@ class ArtifactManifestRow(Base):
     finalized_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     storage_uri: Mapped[str] = mapped_column(Text)
     metadata_payload: Mapped[dict[str, object]] = mapped_column("metadata", JSONB)
+
+
+class ArtifactMaintenanceHeadRow(Base):
+    __tablename__ = "artifact_maintenance_head"
+    __table_args__ = (
+        CheckConstraint("head_id = 1", name="artifact_maintenance_head_singleton"),
+        CheckConstraint("sequence >= 0", name="artifact_maintenance_head_sequence"),
+        CheckConstraint(
+            "(sequence = 0 and event_hash is null) or "
+            "(sequence > 0 and event_hash is not null)",
+            name="artifact_maintenance_head_hash_shape",
+        ),
+    )
+
+    head_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    sequence: Mapped[int] = mapped_column(BigInteger)
+    event_hash: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ArtifactMaintenanceEventRow(Base):
+    __tablename__ = "artifact_maintenance_event"
+    __table_args__ = (
+        CheckConstraint("sequence > 0", name="artifact_maintenance_event_sequence"),
+        CheckConstraint(
+            "action in ('extend_retention', 'enable_legal_hold', "
+            "'collect_orphans', 'restore')",
+            name="artifact_maintenance_event_action",
+        ),
+        CheckConstraint(
+            "phase in ('requested', 'completed', 'failed')",
+            name="artifact_maintenance_event_phase",
+        ),
+        CheckConstraint(
+            "(phase = 'requested' and outcome is null) or "
+            "(phase in ('completed', 'failed') and outcome is not null)",
+            name="artifact_maintenance_event_outcome_shape",
+        ),
+        CheckConstraint(
+            "command_hash ~ '^[0-9a-f]{64}$' and "
+            "((phase = 'requested' and result_hash is null) or "
+            "(phase in ('completed', 'failed') and "
+            "result_hash ~ '^[0-9a-f]{64}$'))",
+            name="artifact_maintenance_event_binding_shape",
+        ),
+        CheckConstraint(
+            "(action = 'collect_orphans' and content_hash is null) or "
+            "(action <> 'collect_orphans' and "
+            "content_hash ~ '^[0-9a-f]{64}$')",
+            name="artifact_maintenance_event_target_shape",
+        ),
+        CheckConstraint(
+            "(sequence = 1 and previous_event_hash is null) or "
+            "(sequence > 1 and previous_event_hash is not null)",
+            name="artifact_maintenance_event_chain_shape",
+        ),
+        Index(
+            "uq_artifact_maintenance_requested_operation",
+            "operation_id",
+            unique=True,
+            postgresql_where=text("phase = 'requested'"),
+        ),
+        Index(
+            "uq_artifact_maintenance_terminal_operation",
+            "operation_id",
+            unique=True,
+            postgresql_where=text("phase in ('completed', 'failed')"),
+        ),
+        UniqueConstraint("sequence", name="uq_artifact_maintenance_event_sequence"),
+        UniqueConstraint("event_hash", name="uq_artifact_maintenance_event_hash"),
+    )
+
+    event_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    operation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
+    sequence: Mapped[int] = mapped_column(BigInteger)
+    action: Mapped[str] = mapped_column(String(32))
+    phase: Mapped[str] = mapped_column(String(16))
+    content_hash: Mapped[str | None] = mapped_column(String(64))
+    actor: Mapped[str] = mapped_column(String(128))
+    reason: Mapped[str] = mapped_column(String(128))
+    command_hash: Mapped[str] = mapped_column(String(64))
+    result_hash: Mapped[str | None] = mapped_column(String(64))
+    outcome: Mapped[str | None] = mapped_column(String(128))
+    previous_event_hash: Mapped[str | None] = mapped_column(String(64))
+    event_hash: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, object]] = mapped_column(SecretFreeJSONB)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class EvidenceItemRow(Base):

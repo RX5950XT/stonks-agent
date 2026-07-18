@@ -9,6 +9,15 @@ Python runtime 與開發依賴依各自套件中附帶的授權散布；exact ve
 依 `docs/legal/license-policy.md` 登錄 notice id、來源 commit、copyright 與
 完整授權義務。
 
+## SEAWEEDFS-APACHE-2.0-S3-TEST
+
+P6.6 integration smoke 使用未修改、digest-pinned 的 SeaweedFS 4.34
+Apache-2.0 image，來源 commit 為
+`c6cf5a5bd7c87694c8d71ab41571f1412170ab2a`。該 runtime 只驗證本專案的
+S3-compatible SigV4/HTTP adapter，不進 core dependency graph，也不作為
+production backend 發布。Exact image/source/license identity與相容性限制見
+`docs/legal/notices/SEAWEEDFS-APACHE-2.0-S3-TEST.md`。
+
 ## TRADINGAGENTS-APACHE-2.0-WORKER
 
 Optional `workers/tradingagents/` 是與core lock隔離的Apache-2.0 research worker，

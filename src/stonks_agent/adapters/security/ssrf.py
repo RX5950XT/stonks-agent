@@ -42,6 +42,23 @@ class HostResolver(Protocol):
     def resolve(self, host: str, port: int) -> tuple[str, ...]: ...
 
 
+class PinnedEndpointGuard(Protocol):
+    """Network transport contract for exact URL and connected-IP authority."""
+
+    def authorize(self, value: str) -> None: ...
+
+    def authorize_connected_address(self, value: str) -> None: ...
+
+    def authorize_response(
+        self,
+        *,
+        status_code: int,
+        location: str | None,
+    ) -> None: ...
+
+    def connection_addresses(self, host: str, port: int) -> tuple[str, ...]: ...
+
+
 class ExactEndpoint(BaseModel):
     """One normalized scheme/host/port/path allowlist entry."""
 
@@ -199,7 +216,7 @@ class PinnedNetworkBackend(httpcore.NetworkBackend):
 
     def __init__(
         self,
-        guard: OutboundEndpointGuard,
+        guard: PinnedEndpointGuard,
         *,
         backend: httpcore.NetworkBackend | None = None,
     ) -> None:
@@ -266,7 +283,7 @@ class PinnedHTTPTransport(httpx.BaseTransport):
 
     def __init__(
         self,
-        guard: OutboundEndpointGuard,
+        guard: PinnedEndpointGuard,
         *,
         network_backend: httpcore.NetworkBackend | None = None,
     ) -> None:

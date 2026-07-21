@@ -1,0 +1,351 @@
+{
+  "schema_version": "stonks-agent/core-runtime-legal/v1",
+  "base_image": "python:3.12.13-alpine3.23@sha256:601d3d3797e90e2534782e69c85fafb7971b43f24c7b1b079b7e48dd435e458d",
+  "python": {
+    "component": "CPython",
+    "version": "3.12.13",
+    "overall_license_expression": "Python-2.0",
+    "primary_license_expression": "PSF-2.0",
+    "runtime_license_path": "/usr/local/lib/python3.12/LICENSE.txt",
+    "runtime_license_sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf",
+    "release_source_url": "https://github.com/python/cpython/tree/v3.12.13",
+    "release_license_url": "https://github.com/python/cpython/blob/v3.12.13/LICENSE"
+  },
+  "security_backport": {
+    "cve": "CVE-2026-3644",
+    "kind": "selective-source-backport",
+    "target_path": "/usr/local/lib/python3.12/http/cookies.py",
+    "patch_script": "payload/scripts/patch_cpython_stdlib.py",
+    "upstream_repository": "https://github.com/python/cpython",
+    "upstream_commit": "57e88c1cf95e1481b94ae57abe1010469d47a6b4",
+    "upstream_commit_url": "https://github.com/python/cpython/commit/57e88c1cf95e1481b94ae57abe1010469d47a6b4",
+    "upstream_license_url": "https://github.com/python/cpython/blob/57e88c1cf95e1481b94ae57abe1010469d47a6b4/LICENSE",
+    "upstream_license_sha256": "b0e25a78cffb43f4d92de8b61ccfa1f1f98ecbc22330b54b5251e7b6ba010231",
+    "base_source_url": "https://github.com/python/cpython/blob/v3.12.13/Lib/http/cookies.py",
+    "base_source_sha256": "e79e3858e22266a709c3cac3b0c0b14b9a3f074621145d67e1abc01fb6613ae3",
+    "upstream_file_url": "https://github.com/python/cpython/blob/57e88c1cf95e1481b94ae57abe1010469d47a6b4/Lib/http/cookies.py",
+    "upstream_file_sha256": "407579d026cb4ba7bba7952c97e52e8d3a270a92679e896d601cd13a9a06260e",
+    "installed_file_sha256": "6387f676095ae5374943eff99fbcd2d9c681172c00209fadf54c311cf7228149",
+    "license_expression": "Python-2.0",
+    "official_cpython_release": false,
+    "whole_file_copy": false,
+    "changes": [
+      "Morsel.update control-character rejection",
+      "Morsel.__ior__ delegates to validated update",
+      "Morsel.__setstate__ control-character rejection",
+      "BaseCookie.js_output control-character rejection"
+    ]
+  },
+  "alpine": {
+    "release": "3.23",
+    "platform": "linux/amd64",
+    "package_database_path": "/lib/apk/db/installed",
+    "package_inventory_sha256": "917518f3b3ff2fc4359d0810a1824e05f0f0530c7a6f70969119f9775bc83af8",
+    "inventory_source": "payload/release/core.inventory.json",
+    "packages": [
+      {
+        "aports_commit": "15b3b78187b3808104f98f765e9632e0b09281a7",
+        "license": "GPL-2.0-only",
+        "name": "alpine-baselayout",
+        "origin": "alpine-baselayout",
+        "version": "3.7.2-r0"
+      },
+      {
+        "aports_commit": "15b3b78187b3808104f98f765e9632e0b09281a7",
+        "license": "GPL-2.0-only",
+        "name": "alpine-baselayout-data",
+        "origin": "alpine-baselayout",
+        "version": "3.7.2-r0"
+      },
+      {
+        "aports_commit": "b9f23becced4d7b3ccc0fa0f28530243ccd314a0",
+        "license": "MIT",
+        "name": "alpine-keys",
+        "origin": "alpine-keys",
+        "version": "2.6-r0"
+      },
+      {
+        "aports_commit": "1fa9ca1a79c5fd52c46a70b2199059c41ead572a",
+        "license": "MIT",
+        "name": "alpine-release",
+        "origin": "alpine-base",
+        "version": "3.23.5-r0"
+      },
+      {
+        "aports_commit": "3812c9da974bef8b28f995490ca8233f1472ccc4",
+        "license": "GPL-2.0-only",
+        "name": "apk-tools",
+        "origin": "apk-tools",
+        "version": "3.0.6-r0"
+      },
+      {
+        "aports_commit": "1e823a60eb85606954b3a5af5f8e5bbd1ea680cf",
+        "license": "GPL-2.0-only",
+        "name": "busybox",
+        "origin": "busybox",
+        "version": "1.37.0-r30"
+      },
+      {
+        "aports_commit": "1e823a60eb85606954b3a5af5f8e5bbd1ea680cf",
+        "license": "GPL-2.0-only",
+        "name": "busybox-binsh",
+        "origin": "busybox",
+        "version": "1.37.0-r30"
+      },
+      {
+        "aports_commit": "6e30aafe4fa807ba70797509731f1e7d644dc8f3",
+        "license": "MPL-2.0 AND MIT",
+        "name": "ca-certificates",
+        "origin": "ca-certificates",
+        "version": "20260611-r0"
+      },
+      {
+        "aports_commit": "6e30aafe4fa807ba70797509731f1e7d644dc8f3",
+        "license": "MPL-2.0 AND MIT",
+        "name": "ca-certificates-bundle",
+        "origin": "ca-certificates",
+        "version": "20260611-r0"
+      },
+      {
+        "aports_commit": "1ea03990396db618edfcc8a9a0bc6b72662bac8f",
+        "license": "GPL-3.0-or-later",
+        "name": "gdbm",
+        "origin": "gdbm",
+        "version": "1.26-r0"
+      },
+      {
+        "aports_commit": "8bac74716d06c84627ab02d101fd9d2bafd0a34c",
+        "license": "GPL-2.0-or-later AND LGPL-2.0-or-later",
+        "name": "keyutils-libs",
+        "origin": "keyutils",
+        "version": "1.6.3-r4"
+      },
+      {
+        "aports_commit": "4a46b2cb955e25fd6d6f913794d35bc6d876aea9",
+        "license": "MIT",
+        "name": "krb5-conf",
+        "origin": "krb5-conf",
+        "version": "1.0-r2"
+      },
+      {
+        "aports_commit": "e288ae4f87111c9c3f43ae2a1ae18f72960c24e8",
+        "license": "MIT",
+        "name": "krb5-libs",
+        "origin": "krb5",
+        "version": "1.22.1-r0"
+      },
+      {
+        "aports_commit": "3812c9da974bef8b28f995490ca8233f1472ccc4",
+        "license": "GPL-2.0-only",
+        "name": "libapk",
+        "origin": "apk-tools",
+        "version": "3.0.6-r0"
+      },
+      {
+        "aports_commit": "33283848034c9885d984c8e8697c645c57324938",
+        "license": "bzip2-1.0.6",
+        "name": "libbz2",
+        "origin": "bzip2",
+        "version": "1.0.8-r6"
+      },
+      {
+        "aports_commit": "00f1c5f4b16e16ff5dc6ac6dc97e8445e842fecb",
+        "license": "GPL-2.0-or-later AND LGPL-2.0-or-later AND BSD-3-Clause AND MIT",
+        "name": "libcom_err",
+        "origin": "e2fsprogs",
+        "version": "1.47.3-r0"
+      },
+      {
+        "aports_commit": "0ca3c59c63240aaf5e762174f8d93109f9cabd8d",
+        "license": "Apache-2.0",
+        "name": "libcrypto3",
+        "origin": "openssl",
+        "version": "3.5.7-r0"
+      },
+      {
+        "aports_commit": "23e88e3bbd62064573a028ed8f6acef216a829b6",
+        "license": "MIT",
+        "name": "libffi",
+        "origin": "libffi",
+        "version": "3.5.2-r0"
+      },
+      {
+        "aports_commit": "c82bd9e35f215c0e39ee43d1aa8c55c230bfbeec",
+        "license": "LGPL-2.1-or-later",
+        "name": "libintl",
+        "origin": "gettext",
+        "version": "0.24.1-r1"
+      },
+      {
+        "aports_commit": "f7479f62dcb52ace52d99650c80de275010ec3ac",
+        "license": "X11",
+        "name": "libncursesw",
+        "origin": "ncurses",
+        "version": "6.5_p20251123-r0"
+      },
+      {
+        "aports_commit": "79af4a786b7acb5968a4ed25105d4919ed9fa396",
+        "license": "LGPL-2.0-or-later",
+        "name": "libnsl",
+        "origin": "libnsl",
+        "version": "2.0.1-r1"
+      },
+      {
+        "aports_commit": "f7479f62dcb52ace52d99650c80de275010ec3ac",
+        "license": "X11",
+        "name": "libpanelw",
+        "origin": "ncurses",
+        "version": "6.5_p20251123-r0"
+      },
+      {
+        "aports_commit": "74b32db14293fe3e1dfda20e1cbe442bb732bf5b",
+        "license": "PostgreSQL",
+        "name": "libpq",
+        "origin": "postgresql18",
+        "version": "18.4-r0"
+      },
+      {
+        "aports_commit": "0ca3c59c63240aaf5e762174f8d93109f9cabd8d",
+        "license": "Apache-2.0",
+        "name": "libssl3",
+        "origin": "openssl",
+        "version": "3.5.7-r0"
+      },
+      {
+        "aports_commit": "4519a8c0bafdd843397d13a9146c906ff64a6c2f",
+        "license": "BSD-3-Clause",
+        "name": "libtirpc",
+        "origin": "libtirpc",
+        "version": "1.3.5-r1"
+      },
+      {
+        "aports_commit": "4519a8c0bafdd843397d13a9146c906ff64a6c2f",
+        "license": "BSD-3-Clause",
+        "name": "libtirpc-conf",
+        "origin": "libtirpc",
+        "version": "1.3.5-r1"
+      },
+      {
+        "aports_commit": "72faf2158c94887ddc5acb476cd0fd33f185253a",
+        "license": "BSD-3-Clause",
+        "name": "libuuid",
+        "origin": "util-linux",
+        "version": "2.41.4-r0"
+      },
+      {
+        "aports_commit": "84a227baf001b6e0208e3352b294e4d7a40e93de",
+        "license": "MIT",
+        "name": "libverto",
+        "origin": "libverto",
+        "version": "0.3.2-r2"
+      },
+      {
+        "aports_commit": "8aef0c37b0ad23dc4137f0e4755b97a59dc698b8",
+        "license": "MIT",
+        "name": "musl",
+        "origin": "musl",
+        "version": "1.2.5-r23"
+      },
+      {
+        "aports_commit": "8aef0c37b0ad23dc4137f0e4755b97a59dc698b8",
+        "license": "MIT AND BSD-2-Clause AND GPL-2.0-or-later",
+        "name": "musl-utils",
+        "origin": "musl",
+        "version": "1.2.5-r23"
+      },
+      {
+        "aports_commit": "f7479f62dcb52ace52d99650c80de275010ec3ac",
+        "license": "X11",
+        "name": "ncurses-terminfo-base",
+        "origin": "ncurses",
+        "version": "6.5_p20251123-r0"
+      },
+      {
+        "aports_commit": "1d76ecdcac4abea004f7946038405cdb8b214522",
+        "license": "GPL-3.0-or-later",
+        "name": "readline",
+        "origin": "readline",
+        "version": "8.3.1-r0"
+      },
+      {
+        "aports_commit": "3912b4fa83437852312ad3c37a00229ff59fab1c",
+        "license": "GPL-2.0-only",
+        "name": "scanelf",
+        "origin": "pax-utils",
+        "version": "1.3.8-r2"
+      },
+      {
+        "aports_commit": "1e823a60eb85606954b3a5af5f8e5bbd1ea680cf",
+        "license": "GPL-2.0-only",
+        "name": "ssl_client",
+        "origin": "busybox",
+        "version": "1.37.0-r30"
+      },
+      {
+        "aports_commit": "34152ede16276edfc511056b542a768679e485a9",
+        "license": "Public-Domain",
+        "name": "tzdata",
+        "origin": "tzdata",
+        "version": "2026b-r0"
+      },
+      {
+        "aports_commit": "98143392db0a1030bbb505e5e5a9c06b6c2883e5",
+        "license": "GPL-2.0-or-later AND 0BSD AND Public-Domain AND LGPL-2.1-or-later",
+        "name": "xz-libs",
+        "origin": "xz",
+        "version": "5.8.3-r0"
+      },
+      {
+        "aports_commit": "f8c94d2e1d318ab29eb4ac5f00225341c877ed65",
+        "license": "Zlib",
+        "name": "zlib",
+        "origin": "zlib",
+        "version": "1.3.2-r0"
+      }
+    ],
+    "corresponding_source": {
+      "required_for_distribution": true,
+      "status": "verified",
+      "release_decision": "allow",
+      "required_archive_path": "payload/release/alpine-corresponding-source.tar.gz",
+      "claim": "exact APK recipes, patches, and checksum-verified distfiles are closed in the signed release payload",
+      "archive_sha256": "1429ba82117d330bc93bd685916ff1f832f25eee8b62137590f321c308c55e25",
+      "manifest_sha256": "79538d2549a1c71a008ef5bfaf47dfafed65a9382be6bfdd4e3a4e8962ad5ddf",
+      "package_database_sha256": "612931b65186067b4631019419b45f25053d8edd3f498a039d808856eb41edc1",
+      "package_count": 37,
+      "origin_count": 27,
+      "file_count": 244,
+      "total_source_bytes": 133074248,
+      "sandbox_image": "docker.io/library/alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40",
+      "origin_paths": {
+        "alpine-base": "main/alpine-base",
+        "alpine-baselayout": "main/alpine-baselayout",
+        "alpine-keys": "main/alpine-keys",
+        "apk-tools": "main/apk-tools",
+        "busybox": "main/busybox",
+        "bzip2": "main/bzip2",
+        "ca-certificates": "main/ca-certificates",
+        "e2fsprogs": "main/e2fsprogs",
+        "gdbm": "main/gdbm",
+        "gettext": "main/gettext",
+        "keyutils": "main/keyutils",
+        "krb5": "main/krb5",
+        "krb5-conf": "main/krb5-conf",
+        "libffi": "main/libffi",
+        "libnsl": "community/libnsl",
+        "libtirpc": "main/libtirpc",
+        "libverto": "main/libverto",
+        "musl": "main/musl",
+        "ncurses": "main/ncurses",
+        "openssl": "main/openssl",
+        "pax-utils": "main/pax-utils",
+        "postgresql18": "main/postgresql18",
+        "readline": "main/readline",
+        "tzdata": "main/tzdata",
+        "util-linux": "main/util-linux",
+        "xz": "main/xz",
+        "zlib": "main/zlib"
+      }
+    }
+  }
+}

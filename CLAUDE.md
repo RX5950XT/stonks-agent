@@ -42,6 +42,8 @@
 - OpenBB 是 `AGPL-3.0-only`；只能依核准的 optional sidecar policy 接入，process boundary 不代表自動免除 AGPL 義務。
 - MIT/Apache 程式碼若移植，保留 copyright/license/NOTICE 與來源 commit；資料與模型權利另行追蹤。
 - Heavy upstream 各自使用獨立 lock/image；OpenBB、PyTorch、TradingAgents、Qlib、RD-Agent、Nautilus、LEAN 不得進 core lock。
+- Linux core只能使用source-built `psycopg-c`與system `libpq`；不得以bundled `psycopg-binary`隱藏native dependency。正式bundle必含並重驗OpenBB、Alpine與Python exact corresponding source、canonical SBOM/Grype/VEX與所有locks/notices。
+- Release必須先在registry publication前通過unsigned candidate，再只對registry exact digest做GitHub OIDC keyless signing/attestation；本機unsigned結果不得宣稱signature或provenance。
 
 ## 程式與驗證標準
 

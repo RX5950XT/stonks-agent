@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.7 已通過，P6.8 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.8 已通過，P6.9 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -570,8 +570,16 @@
   - [x] 建立真實Compose smoke：乾淨volume啟動→migration→health/readiness→同image deterministic fake/replay→core restart→PostgreSQL restart→readiness恢復→migration idempotent→graceful shutdown；stale schema、DB outage與secret缺失皆fail closed。
   - [x] CI加入core image build與deployment smoke；完成focused、full non-PostgreSQL/PostgreSQL、security/license/dependency gates及文件同步，明列單host loopback/Compose與尚未驗證的external IdP、TLS/mTLS、orchestrator/network-policy邊界。
 
-- [ ] **P6.8 Supply-chain release gates** — 建立`.github/workflows/{security,release}.yml`、`scripts/{generate_sbom,verify_release}.py`、container signing與license/CVE policies。（Depends：P0.3、P6.7；Complexity：L；Risk：High）
+- [x] **P6.8 Supply-chain release gates** — 建立`.github/workflows/{security,release}.yml`、`scripts/{generate_sbom,verify_release}.py`、container signing與license/CVE policies。（Depends：P0.3、P6.7；Complexity：L；Risk：High）
   - Critical CVE、license drift、missing notice/source、unlocked dependency、secret scan failure阻擋release。
+  - [x] 先以policy/contract tests固定versioned release policy、deterministic manifest、allowlisted bundle paths與bounded file/count/size limits；path traversal、symlink、case collision、unknown/duplicate entry及hash/size drift皆fail closed。
+  - [x] Release bundle必須包含core與獨立runtime lockfiles、schemas/OpenAPI snapshots、SBOM、CVE/license/secret/upstream reports、`LICENSE`/`THIRD_PARTY_NOTICES.md`、OpenBB exact corresponding source/offer/manifests與verification report；缺件或未鎖依賴不得發布。
+  - [x] `generate_sbom.py`只接受exact image digest與digest-pinned Syft，產生CycloneDX SBOM及deterministic normalized inventory；mutable tag、invalid/oversized output、identity mismatch與unknown license皆拒絕。
+  - [x] `verify_release.py`重算所有hash/size、重驗CycloneDX、CVE severity、license/source/notice、lock與paper-only boundary；High/Critical CVE、secret finding、license drift或OpenBB source不完整皆fail closed。
+  - [x] Security workflow以least privilege執行frozen lock、secret/upstream/license、dependency與digest-pinned image SBOM/CVE gates；actions與scanner images固定immutable SHA/digest。
+  - [x] Release workflow只簽署registry回傳的exact image digest，使用GitHub OIDC keyless Cosign與build provenance/SBOM attestations；驗證固定issuer與repository workflow identity，PR/fork不得取得signing或package write authority。
+  - [x] 本機unsigned candidate只能證明結構、內容與policy gates，不宣稱signature/provenance；正式release缺少可驗證signature/attestation bundle即失敗。
+  - [x] 完成focused、真實core image SBOM/CVE/license/secret/release smoke、完整non-PostgreSQL/PostgreSQL gates與文件同步。
 
 - [ ] **P6.9 Failure-injection and disaster drills** — 建立`tests/resilience/`、`docs/runbooks/{provider-outage,worker-crash,db-restore,ledger-mismatch,kill-switch,dead-letter}.md`。（Depends：P6.4–P6.7；Complexity：XL；Risk：High）
   - 演練provider/LLM/model/sidecar outage、DB restart、lease expiry、duplicate event、artifact corruption、ledger mismatch與restore/replay。
@@ -1029,3 +1037,11 @@
 - Authority / replay：migrator使用owner secret並以advisory lock升級；runtime login先由libpq產生SCRAM verifier，只取得`stonks_app` membership，無superuser/DDL/role/database/replication authority。Committed smoke由乾淨volume執行migration三次、fake-cycle exact compare、persisted workflow write、core/DB restart、DB outage health200/ready503、full down/up、replay/verify succeeded version3、rootfs/image/secret檢查並必定cleanup；明示不是fresh stochastic re-inference。
 - Optional / CI / honest boundary：main與P5.9 zero-default manifest合併後10個explicit profiles逐一render，core不依賴optional。Linux CI新增real build/deployment smoke。Core container目前只是deployment health/readiness surface，尚未組合五組business API或常駐dispatcher；public TLS/HSTS、trusted proxy/mTLS、external IdP、orchestrator、managed DB TLS/backup與跨主機network policy仍未宣稱完成。
 - Verification：focused deployment/config/entrypoint/policy/smoke為71 passed，真實PostgreSQL role/migration為1 passed；clean image/Compose smoke全通過。完整non-PostgreSQL gate為1888 passed、3 skipped、268 deselected、coverage 87.54%，完整PostgreSQL gate為2156 passed、3 skipped、coverage 87.37%。672 files format、Ruff、strict mypy 346 source files、106 schemas、Alembic無drift、upstream/license、secret scan、frozen lock與locked dependency audit全通過。文件、規範、lessons與本review已同步；下一項為P6.8 supply-chain release gates。
+
+### P6 Progress Review — P6.8 — 2026-07-22
+
+- Scope completed：新增versioned paper-only release policy、closed manifest/bundle verifier、canonical CycloneDX SBOM/license inventory、exact Grype DB/OpenVEX、OpenAPI snapshots，以及least-privilege security/tag-only release workflows。所有GitHub Actions、Syft/Grype/Cosign versions皆immutable；release在registry publish前先驗unsigned candidate，再只簽registry exact digest並重驗GitHub OIDC workflow identity、manifest/report signatures與provenance/SBOM attestations。
+- Source / legal closure：Linux core由bundled `psycopg-binary`改為source-built `psycopg-c`＋Alpine `libpq 18.4-r0`。OpenBB archive為26 members/421,673 bytes；Python archive封存certifi、psycopg、psycopg-c三個exact sdists；Alpine archive由實際37-package DB封存27 origins、244 files、133,074,248 source bytes。三者都以canonical tar/gzip、closed manifest及member hash/size/path重驗；OpenBB/Alpine兩次、Python三次獨立產生bytes相同。
+- Image / vulnerability evidence：clean core image runtime證明`psycopg.pq`為C implementation、無`psycopg_binary`、system `libpq`與CPython license存在。Canonical inventory為97 packages、865 components，reviewed hash `b1584f2a...6bd4`；Grype DB v6.1.9掃描為17 Medium、2 Low、1 Negligible、0個未抑制High/Critical，10個Python High只由exact OpenVEX抑制。
+- Bundle / verification：本機unsigned candidate含192 artifacts、136,809,165 bytes，manifest、paper identity、image report、locks、reports、SBOM/license、Grype DB/VEX、notices及三組source closure全部通過。Formal keyless path只由protected tag/release environment執行；本機沒有偽造OIDC、發布registry或宣稱signature/provenance已產生。
+- Verification：focused release/source/policy matrix為99 passed，actionlint、Ruff、strict mypy與actual archive verification全通過。完整non-PostgreSQL gate為2004 passed、6 skipped、268 deselected、coverage 87.52%；完整PostgreSQL gate為2272 passed、6 skipped、coverage 87.36%，699 files format、Ruff、mypy 346 source files、106 schemas、Alembic無drift、upstream/license、secret、frozen lock與dependency audit全綠。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、legal/security/runbook與本review已同步；下一項為P6.9 failure injection與disaster drills。

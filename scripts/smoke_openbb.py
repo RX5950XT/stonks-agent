@@ -8,11 +8,12 @@ import hashlib
 import io
 import json
 import os
+import re
 import sys
 import tarfile
 import time
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Final
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -38,11 +39,14 @@ SIDECAR = ROOT / "sidecars" / "openbb"
 MANIFEST = SIDECAR / "provider-manifest.yaml"
 MAX_SOURCE_BYTES = 100 * 1024 * 1024
 MAX_SOURCE_MEMBER_BYTES = 64 * 1024 * 1024
+MAX_SOURCE_EXPANDED_BYTES = 256 * 1024 * 1024
 MAX_SOURCE_MEMBERS = 64
+_SAFE_MEMBER_PATTERN: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 SOURCE_MEMBER_PATHS: Final = {
     name: SIDECAR / name
     for name in (
         "Dockerfile",
+        "Dockerfile.dockerignore",
         "NOTICE.md",
         "README.md",
         "SOURCE_OFFER.md",
@@ -142,12 +146,60 @@ def _archive_members(bundle: tarfile.TarFile) -> dict[str, tarfile.TarInfo]:
     if len(items) > MAX_SOURCE_MEMBERS:
         raise ValueError("source archive has too many members")
     members: dict[str, tarfile.TarInfo] = {}
+    casefolded: set[str] = set()
+    ordered_names: list[str] = []
+    expanded_size = 0
     for item in items:
-        name = item.name.removeprefix("./")
-        if name.startswith("/") or ".." in Path(name).parts or name in members:
+        name = _safe_member_name(item.name)
+        folded = name.casefold()
+        if (
+            not item.isfile()
+            or name in members
+            or folded in casefolded
+            or item.size < 0
+            or item.size > MAX_SOURCE_MEMBER_BYTES
+        ):
             raise ValueError("source archive contains an unsafe member")
+        if (
+            item.mtime != 0
+            or item.uid != 0
+            or item.gid != 0
+            or item.mode & 0o7777 != 0o644
+        ):
+            raise ValueError("source archive has nondeterministic metadata")
+        expanded_size += item.size
+        if expanded_size > MAX_SOURCE_EXPANDED_BYTES:
+            raise ValueError("source archive expanded size exceeds limit")
         members[name] = item
+        casefolded.add(folded)
+        ordered_names.append(name)
+    if ordered_names != sorted(ordered_names):
+        raise ValueError("source archive member order is nondeterministic")
     return members
+
+
+def _safe_member_name(raw_name: str) -> str:
+    name = raw_name.removeprefix("./")
+    path = PurePosixPath(name)
+    if (
+        not name
+        or not name.isascii()
+        or _SAFE_MEMBER_PATTERN.fullmatch(name) is None
+        or path.is_absolute()
+        or any(part in {"", ".", ".."} for part in name.split("/"))
+    ):
+        raise ValueError("source archive contains an unsafe member")
+    return name
+
+
+def _validate_gzip_header(archive: bytes) -> None:
+    if (
+        len(archive) < 10
+        or archive[:3] != b"\x1f\x8b\x08"
+        or archive[3] != 0
+        or archive[4:8] != b"\0\0\0\0"
+    ):
+        raise ValueError("source archive has nondeterministic gzip header")
 
 
 def _member_sha256(
@@ -196,10 +248,10 @@ def _verify_local_sources(
             raise ValueError(f"source hash mismatch for {name}")
 
 
-def _verify_source_archive(timeout: float) -> dict[str, str]:
-    archive, headers = _get("/source", timeout=timeout)
-    if "/source" not in headers.get("link", ""):
-        raise ValueError("source response omitted source link")
+def verify_source_archive_bytes(archive: bytes) -> dict[str, str]:
+    """Verify one bounded deterministic corresponding-source archive."""
+
+    _validate_gzip_header(archive)
     manifest = _load_manifest()
     verified: dict[str, str] = {}
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as bundle:
@@ -220,6 +272,13 @@ def _verify_source_archive(timeout: float) -> dict[str, str]:
             raise ValueError("upstream license hash mismatch")
         verified[license_name] = actual_license
     return verified
+
+
+def _verify_source_archive(timeout: float) -> dict[str, str]:
+    archive, headers = _get("/source", timeout=timeout)
+    if "/source" not in headers.get("link", ""):
+        raise ValueError("source response omitted source link")
+    return verify_source_archive_bytes(archive)
 
 
 def _verify_adapter(timeout: float, token: str) -> int:

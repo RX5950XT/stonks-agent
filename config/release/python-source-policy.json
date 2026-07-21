@@ -1,0 +1,23 @@
+{
+  "allowed_hosts": [
+    "files.pythonhosted.org"
+  ],
+  "max_archive_bytes": 4194304,
+  "max_source_bytes": 1048576,
+  "max_total_source_bytes": 2097152,
+  "packages": [
+    {
+      "name": "certifi",
+      "version": "2026.6.17"
+    },
+    {
+      "name": "psycopg",
+      "version": "3.3.4"
+    },
+    {
+      "name": "psycopg-c",
+      "version": "3.3.4"
+    }
+  ],
+  "schema_version": "stonks-agent/python-source-policy/v1"
+}

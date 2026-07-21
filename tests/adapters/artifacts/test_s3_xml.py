@@ -141,3 +141,32 @@ def test_error_code_and_datetime_parsing_never_accept_unsafe_declarations() -> N
     assert s3_xml.parse_error_code(b"<Error><Code>bad-code</Code></Error>") is None
     assert s3_xml.parse_datetime("not-a-time") is None
     assert s3_xml.normalize_datetime(datetime(2026, 7, 18, 10)) is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    (
+        xml(
+            "Retention",
+            '<Mode attacker="1">GOVERNANCE</Mode>'
+            "<RetainUntilDate>2027-07-18T10:00:00Z</RetainUntilDate>",
+        ),
+        xml(
+            "Retention",
+            "<Unknown>value</Unknown>"
+            "<Mode>GOVERNANCE</Mode>"
+            "<RetainUntilDate>2027-07-18T10:00:00Z</RetainUntilDate>",
+        ),
+        xml(
+            "Retention",
+            ("<Mode>" * 9) + "GOVERNANCE" + ("</Mode>" * 9),
+        ),
+        b"<?xml version='1.0'?><Retention><Mode>GOVERNANCE</Mode></Retention>",
+        b"<Retention><!-- comment --><Mode>GOVERNANCE</Mode></Retention>",
+    ),
+)
+def test_xml_preflight_rejects_attribute_name_and_depth_hash_flood_surfaces(
+    body: bytes,
+) -> None:
+    with pytest.raises(s3_xml.S3DocumentError):
+        s3_xml.parse_retention(body)

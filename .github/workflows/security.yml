@@ -1,0 +1,195 @@
+name: Supply-chain security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  supply-chain:
+    name: Frozen source and exact core image
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      PYTHONUTF8: "1"
+      UV_FROZEN: "1"
+    steps:
+      - name: Checkout untrusted source without persisted credentials
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up frozen uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.9.27"
+          enable-cache: false
+
+      - name: Install and verify frozen source
+        run: |
+          uv sync --frozen
+          uv run python scripts/verify.py
+          uv run python scripts/export_openapi.py
+          git diff --exit-code -- schemas/openapi
+          uv run python scripts/check_secrets.py > "$RUNNER_TEMP/secrets.json"
+          uv run python scripts/check_upstream_policy.py > "$RUNNER_TEMP/upstream.json"
+          uv run python scripts/verify_release.py audit-locks \
+            --root . --report "$RUNNER_TEMP/lock-report.json"
+
+      - name: Audit exact core dependency closure
+        run: |
+          uv export --quiet --frozen --no-dev --no-emit-project \
+            --no-emit-local --format requirements.txt \
+            --output-file "$RUNNER_TEMP/core-requirements.txt"
+          uv run pip-audit --strict --format json \
+            --requirement "$RUNNER_TEMP/core-requirements.txt" \
+            --output "$RUNNER_TEMP/dependency-audit.json"
+
+      - name: Build exact core and deterministic OpenBB source
+        env:
+          SOURCE_URL: https://github.com/${{ github.repository }}
+        run: |
+          docker build -f Dockerfile \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --build-arg SOURCE_URL="$SOURCE_URL" \
+            --build-arg RELEASE_VERSION=0.1.0 \
+            -t stonks-agent-core:security .
+          docker build -f sidecars/openbb/Dockerfile \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --build-arg SOURCE_URL="$SOURCE_URL" \
+            --build-arg RELEASE_VERSION=0.1.0 \
+            -t stonks-openbb-sidecar:security .
+
+      - name: Generate canonical SBOM and block High or Critical CVEs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/scan"
+          mkdir -p "$RUNNER_TEMP/grype-cache"
+          docker save --output "$RUNNER_TEMP/scan/core-image.tar" \
+            stonks-agent-core:security
+          image_id="$(docker image inspect stonks-agent-core:security --format '{{.Id}}')"
+          sandbox_image="$(python -c 'import json; print(json.load(open("config/release/core-runtime-legal.json"))["alpine"]["corresponding_source"]["sandbox_image"])')"
+          uv run python scripts/generate_alpine_source.py \
+            --image "$image_id" \
+            --legal config/release/core-runtime-legal.json \
+            --sandbox-image "$sandbox_image" \
+            --output "$RUNNER_TEMP/scan/alpine-corresponding-source.tar.gz"
+          uv run python scripts/generate_python_source.py \
+            --policy config/release/python-source-policy.json \
+            --uv-lock uv.lock \
+            --output "$RUNNER_TEMP/scan/python-corresponding-source.tar.gz"
+          docker run --rm --network none \
+            -e SYFT_CHECK_FOR_APP_UPDATE=false \
+            -v "$RUNNER_TEMP/scan:/out" \
+            anchore/syft:v1.44.0@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6 \
+            docker-archive:/out/core-image.tar \
+            -o cyclonedx-json=/out/core.raw.cdx.json
+          repository="$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          subject="ghcr.io/$repository@${image_id}"
+          uv run python scripts/generate_sbom.py \
+            --image "$subject" \
+            --raw-sbom "$RUNNER_TEMP/scan/core.raw.cdx.json" \
+            --output "$RUNNER_TEMP/scan/core.cdx.json" \
+            --inventory "$RUNNER_TEMP/scan/core.inventory.json"
+          uv run python scripts/generate_image_report.py \
+            --local-reference stonks-agent-core:security \
+            --subject "$subject" --repository "$GITHUB_REPOSITORY" \
+            --commit "$GITHUB_SHA" --version 0.1.0 \
+            --allow-local-candidate \
+            --output "$RUNNER_TEMP/scan/core-image.json"
+          docker run --rm \
+            -e GRYPE_DB_CACHE_DIR=/grype-db \
+            -e GRYPE_CHECK_FOR_APP_UPDATE=false \
+            --mount \
+              "type=bind,source=$RUNNER_TEMP/grype-cache,target=/grype-db" \
+            anchore/grype:v0.112.0@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d \
+            db update
+          docker run --rm --network none \
+            -e GRYPE_DB_CACHE_DIR=/grype-db \
+            -e GRYPE_DB_AUTO_UPDATE=false \
+            -e GRYPE_CHECK_FOR_APP_UPDATE=false \
+            --mount \
+              "type=bind,source=$RUNNER_TEMP/grype-cache,target=/grype-db,readonly" \
+            -v "$RUNNER_TEMP/scan:/out" \
+            -v "$PWD/config/release:/config:ro" \
+            anchore/grype:v0.112.0@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d \
+            sbom:/out/core.raw.cdx.json --vex /config/core.openvex.json \
+            --show-suppressed --fail-on high \
+            --output json --file /out/core.grype.json
+          docker run --rm --network none \
+            -e GRYPE_DB_CACHE_DIR=/grype-db \
+            -e GRYPE_DB_AUTO_UPDATE=false \
+            -e GRYPE_CHECK_FOR_APP_UPDATE=false \
+            --mount \
+              "type=bind,source=$RUNNER_TEMP/grype-cache,target=/grype-db,readonly" \
+            anchore/grype:v0.112.0@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d \
+            db status --output json > "$RUNNER_TEMP/scan/grype-db.json"
+
+      - name: Assemble and verify unsigned release candidate
+        shell: bash
+        run: |
+          bundle="$RUNNER_TEMP/release-candidate"
+          uv run python scripts/verify_release.py stage \
+            --root . --bundle "$bundle"
+          mkdir -p "$bundle/payload/release"
+          cp "$RUNNER_TEMP/scan/core.cdx.json" \
+            "$bundle/payload/release/core.cdx.json"
+          cp "$RUNNER_TEMP/scan/core.inventory.json" \
+            "$bundle/payload/release/core.inventory.json"
+          cp "$RUNNER_TEMP/scan/core.grype.json" \
+            "$bundle/payload/release/core.grype.json"
+          cp "$RUNNER_TEMP/scan/grype-db.json" \
+            "$bundle/payload/release/grype-db.json"
+          cp "$RUNNER_TEMP/scan/core-image.json" \
+            "$bundle/payload/release/core-image.json"
+          cp "$RUNNER_TEMP/scan/alpine-corresponding-source.tar.gz" \
+            "$bundle/payload/release/alpine-corresponding-source.tar.gz"
+          cp "$RUNNER_TEMP/scan/python-corresponding-source.tar.gz" \
+            "$bundle/payload/release/python-corresponding-source.tar.gz"
+          cp "$RUNNER_TEMP/secrets.json" "$bundle/payload/release/secrets.json"
+          cp "$RUNNER_TEMP/upstream.json" "$bundle/payload/release/upstream.json"
+          cp "$RUNNER_TEMP/lock-report.json" \
+            "$bundle/payload/release/lock-report.json"
+          cp "$RUNNER_TEMP/dependency-audit.json" \
+            "$bundle/payload/release/dependency-audit.json"
+          image_id="$(docker image inspect stonks-agent-core:security --format '{{.Id}}')"
+          repository="$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          subject="ghcr.io/$repository@${image_id}"
+          container="$(docker create stonks-openbb-sidecar:security)"
+          docker cp "$container:/srv/stonks-openbb-sidecar-source.tar.gz" \
+            "$bundle/payload/release/openbb-corresponding-source.tar.gz"
+          docker rm "$container"
+          uv run python scripts/verify_release.py create \
+            --bundle "$bundle" --version 0.1.0 --tag v0.1.0 \
+            --repository "$GITHUB_REPOSITORY" --commit "$GITHUB_SHA" \
+            --image "$subject" --signing-mode unsigned-candidate
+          uv run python scripts/verify_release.py verify \
+            --bundle "$bundle" --expected-repository "$GITHUB_REPOSITORY" \
+            --expected-tag v0.1.0 --expected-commit "$GITHUB_SHA" \
+            --report "$bundle/verification-report.json"
+
+      - name: Preserve verified candidate evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: unsigned-supply-chain-candidate
+          path: ${{ runner.temp }}/release-candidate
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7

@@ -36,6 +36,29 @@ Apache-2.0；每次引入上游程式碼、模型或資料前，仍須個別確�
 缺 manifest、未知或衝突授權、缺 required notice、研究證據漂移、禁用 vendor
 路徑、core heavy dependency 或禁用 import，全部視為 release blocker。
 
+## Runtime image 授權與 source closure
+
+Container 的 `org.opencontainers.image.licenses` 只描述 Stonks Agent application，
+不能代表整個 image 只有 Apache-2.0。正式 release 必須從實際 image digest
+產生 package/SBOM inventory，並對每個 runtime component 保存 exact
+version、license expression 與 source provenance；unknown license 或 inventory
+drift 一律阻擋。
+
+Core image 另遵守 `config/release/core-runtime-legal.json`：
+
+- CPython 必須是 exact 3.12.13 base，並保留完整
+  `/usr/local/lib/python3.12/LICENSE.txt` 與固定 SHA-256。完整 Python distribution
+  使用 `Python-2.0`；`PSF-2.0` 只代表其中主要條款，不能取代歷史授權全文。
+- 修改 CPython stdlib 時必須保存 base/upstream/installed hashes、exact upstream
+  commit、source URL、授權與修改摘要。Selective backport 不得宣稱為官方 CPython
+  release，也不得宣稱未移植的 upstream 變更或其他 CVE 已涵蓋。
+- Alpine `/lib/apk/db/installed` 的 license 欄位只是資訊性 metadata。含
+  GPL/LGPL/MPL 等元件時，必須另行完成 applicable notice、source、patch 與 build
+  recipe 義務；SBOM 或 aports commit 本身不等於 corresponding source。
+- 缺 exact Alpine corresponding-source archive 或 archive 未納入同一 signed
+  release manifest 時，正式 release 必須 fail closed。本政策不以外部網站仍可用
+  作為已完成散布義務的宣稱。
+
 ## 自動化 gate
 
 執行 `uv run python scripts/check_upstream_policy.py`。它固定執行：
@@ -48,4 +71,3 @@ Apache-2.0；每次引入上游程式碼、模型或資料前，仍須個別確�
 
 CI 另執行 frozen install、dependency audit 與 secret scan。不能用移除 manifest
 欄位、略過 research drift 或改名 dependency 的方式繞過 gate。
-

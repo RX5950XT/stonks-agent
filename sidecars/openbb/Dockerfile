@@ -1,9 +1,16 @@
 # syntax=docker/dockerfile:1.7
 FROM ghcr.io/astral-sh/uv:0.9.27-python3.12-bookworm-slim@sha256:a0cb65a2dada255d392fe0426d04ed50911f0b78b3295de0c3286c1c86148b15
 
+ARG VCS_REF
+ARG SOURCE_URL=https://github.com/stonks-agent/stonks-agent
+ARG RELEASE_VERSION=0.1.0
 LABEL org.opencontainers.image.title="Stonks Agent OpenBB sidecar" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
-      org.opencontainers.image.vendor="Stonks Agent contributors"
+      org.opencontainers.image.vendor="Stonks Agent contributors" \
+      org.opencontainers.image.source="${SOURCE_URL}" \
+      org.opencontainers.image.url="${SOURCE_URL}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.version="${RELEASE_VERSION}"
 
 ENV HOME=/tmp/openbb \
     PATH=/workspace/sidecars/openbb/.venv/bin:$PATH \
@@ -20,7 +27,8 @@ RUN uv sync --frozen --no-dev --no-install-project \
     && uv run --frozen openbb-build
 
 COPY sidecars/openbb/app.py sidecars/openbb/surface.py ./
-COPY sidecars/openbb/Dockerfile sidecars/openbb/README.md \
+COPY sidecars/openbb/Dockerfile sidecars/openbb/Dockerfile.dockerignore \
+    sidecars/openbb/README.md \
     sidecars/openbb/NOTICE.md sidecars/openbb/SOURCE_OFFER.md \
     sidecars/openbb/provider-manifest.yaml \
     sidecars/openbb/license-policy.yaml sidecars/openbb/sbom.cdx.json \
@@ -50,9 +58,17 @@ ADD --checksum=sha256:442baa7865ddf53ba04808a29e4810ac1fd9c83383d4ac76297cec4569
     /srv/source-tree/OPENBB_LICENSE.txt
 
 RUN mkdir -p /usr/share/licenses/openbb \
+    && test "${#VCS_REF}" -eq 40 \
     && cp /srv/source-tree/OPENBB_LICENSE.txt \
         /usr/share/licenses/openbb/AGPL-3.0.txt \
-    && tar -czf /srv/stonks-openbb-sidecar-source.tar.gz -C /srv/source-tree . \
+    && (cd /srv/source-tree \
+        && find . -type f -print0 \
+            | sort -z \
+            | tar --sort=name --no-recursion \
+                --mtime=@0 --owner=0 --group=0 --numeric-owner \
+                --mode=u=rw,go=r --null \
+                -czf /srv/stonks-openbb-sidecar-source.tar.gz \
+                --files-from=-) \
     && chmod -R a-w /workspace /srv /usr/share/licenses/openbb \
     && mkdir -p /tmp/openbb \
     && chown -R 65532:65532 /tmp/openbb

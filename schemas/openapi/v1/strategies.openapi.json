@@ -1,0 +1,658 @@
+{
+  "components": {
+    "schemas": {
+      "AlphaSignal": {
+        "additionalProperties": false,
+        "description": "Research signal with exact provenance; it has no target/order authority.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "calibration": {
+            "$ref": "#/components/schemas/ConfidenceCalibration"
+          },
+          "confidence": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "title": "Confidence",
+            "type": "string"
+          },
+          "data_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Data Hash",
+            "type": "string"
+          },
+          "dataset_snapshot_id": {
+            "format": "uuid",
+            "title": "Dataset Snapshot Id",
+            "type": "string"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/SignalDirection"
+          },
+          "evaluation_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Hash"
+          },
+          "evaluation_policy_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Evaluation Policy Hash",
+            "type": "string"
+          },
+          "evaluation_report_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Report Id"
+          },
+          "evidence_refs": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 256,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "forecast_refs": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 256,
+            "title": "Forecast Refs",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "horizon": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Horizon",
+            "type": "string"
+          },
+          "instrument_id": {
+            "format": "uuid",
+            "title": "Instrument Id",
+            "type": "string"
+          },
+          "raw_output_artifact_ref": {
+            "pattern": "^sha256:[a-f0-9]{64}$",
+            "title": "Raw Output Artifact Ref",
+            "type": "string"
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "runtime_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Runtime Hash",
+            "type": "string"
+          },
+          "signal_id": {
+            "format": "uuid",
+            "title": "Signal Id",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SignalSource"
+          },
+          "stale_at": {
+            "format": "date-time",
+            "title": "Stale At",
+            "type": "string"
+          },
+          "strategy_id": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+            "title": "Strategy Id",
+            "type": "string"
+          },
+          "strategy_manifest_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Strategy Manifest Hash",
+            "type": "string"
+          },
+          "strategy_version": {
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+            "title": "Strategy Version",
+            "type": "string"
+          },
+          "value": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signal_id",
+          "strategy_id",
+          "strategy_version",
+          "instrument_id",
+          "as_of",
+          "generated_at",
+          "stale_at",
+          "expires_at",
+          "horizon",
+          "value",
+          "confidence",
+          "calibration",
+          "direction",
+          "source",
+          "strategy_manifest_hash",
+          "dataset_snapshot_id",
+          "data_hash",
+          "runtime_hash",
+          "evaluation_policy_hash",
+          "raw_output_artifact_ref"
+        ],
+        "title": "AlphaSignal",
+        "type": "object"
+      },
+      "ConfidenceCalibration": {
+        "enum": [
+          "uncalibrated",
+          "calibrated"
+        ],
+        "title": "ConfidenceCalibration",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "PromotionState": {
+        "enum": [
+          "draft",
+          "evaluating",
+          "rejected",
+          "shadow",
+          "paper_eligible",
+          "suspended",
+          "retired"
+        ],
+        "title": "PromotionState",
+        "type": "string"
+      },
+      "SignalDirection": {
+        "enum": [
+          "long",
+          "short",
+          "neutral"
+        ],
+        "title": "SignalDirection",
+        "type": "string"
+      },
+      "SignalEligibilityBody": {
+        "additionalProperties": false,
+        "properties": {
+          "signal": {
+            "$ref": "#/components/schemas/AlphaSignal"
+          }
+        },
+        "required": [
+          "signal"
+        ],
+        "title": "SignalEligibilityBody",
+        "type": "object"
+      },
+      "SignalSource": {
+        "enum": [
+          "deterministic",
+          "forecast",
+          "opinion"
+        ],
+        "title": "SignalSource",
+        "type": "string"
+      },
+      "TransitionStrategyBody": {
+        "additionalProperties": false,
+        "properties": {
+          "current_state": {
+            "$ref": "#/components/schemas/PromotionState"
+          },
+          "evaluation_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Hash"
+          },
+          "evaluation_report_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Report Id"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "reason_code": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "target_state": {
+            "$ref": "#/components/schemas/PromotionState"
+          }
+        },
+        "required": [
+          "expected_version",
+          "current_state",
+          "target_state",
+          "reason_code"
+        ],
+        "title": "TransitionStrategyBody",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Stonks Agent Strategy API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/evaluations/{report_id}": {
+      "get": {
+        "operationId": "EvaluationEndpoint_v1_evaluations__report_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Evaluationendpoint"
+      }
+    },
+    "/v1/signals/eligibility": {
+      "post": {
+        "operationId": "SignalEligibilityEndpoint_v1_signals_eligibility_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalEligibilityBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Signaleligibilityendpoint"
+      }
+    },
+    "/v1/strategies/{strategy_id}/versions/{strategy_version}": {
+      "get": {
+        "operationId": "_StrategyEndpoint_v1_strategies__strategy_id__versions__strategy_version__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "strategy_version",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+              "title": "Strategy Version",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": " Strategyendpoint"
+      }
+    },
+    "/v1/strategies/{strategy_id}/versions/{strategy_version}/events": {
+      "get": {
+        "operationId": "_StrategyEventsEndpoint_v1_strategies__strategy_id__versions__strategy_version__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "strategy_version",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+              "title": "Strategy Version",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": " Strategyeventsendpoint"
+      }
+    },
+    "/v1/strategies/{strategy_id}/versions/{strategy_version}/transitions": {
+      "post": {
+        "operationId": "_StrategyTransitionEndpoint_v1_strategies__strategy_id__versions__strategy_version__transitions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "strategy_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+              "title": "Strategy Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "strategy_version",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+              "title": "Strategy Version",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionStrategyBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": " Strategytransitionendpoint"
+      }
+    }
+  },
+  "x-stonks-execution-mode": "paper",
+  "x-stonks-surface": "reference-contract-only"
+}

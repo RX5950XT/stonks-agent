@@ -189,10 +189,30 @@ def _check_embedded_source(inputs: Inputs) -> list[Violation]:
     remote_sdists = [item for item in adds if "files.pythonhosted.org" in item]
     if len(valid_urls) != 4 or len(remote_sdists) != 4:
         violations.append(Violation("SOURCE_ARCHIVE_SET_DRIFT", "expected four sdists"))
-    joined = "\n".join(_docker_instructions(inputs.dockerfile))
-    bundle = "tar -czf /srv/stonks-openbb-sidecar-source.tar.gz -C /srv/source-tree ."
-    if bundle not in joined:
+    output = "/srv/stonks-openbb-sidecar-source.tar.gz"
+    bundle_instructions = [
+        item for item in _docker_instructions(inputs.dockerfile) if output in item
+    ]
+    if len(bundle_instructions) != 1:
         violations.append(Violation("MISSING_SOURCE_BUNDLE_BUILD", "tar step missing"))
+    elif any(
+        token not in bundle_instructions[0]
+        for token in (
+            "find . -type f -print0",
+            "sort -z",
+            "tar --sort=name --no-recursion",
+            "--mtime=@0 --owner=0 --group=0 --numeric-owner",
+            "--mode=u=rw,go=r --null",
+            f"-czf {output}",
+            "--files-from=-",
+        )
+    ):
+        violations.append(
+            Violation(
+                "NONDETERMINISTIC_SOURCE_BUNDLE",
+                "source bundle recipe is not canonical",
+            )
+        )
     return violations
 
 

@@ -295,6 +295,11 @@ def test_policy_rejects_missing_us_openbb_route(tmp_path: Path) -> None:
             "SOURCE_ARCHIVE_NOT_EMBEDDED",
         ),
         (
+            "sidecars/openbb/Dockerfile",
+            lambda value: value.replace("--mtime=@0", "--mtime=@1"),
+            "NONDETERMINISTIC_SOURCE_BUNDLE",
+        ),
+        (
             "sidecars/openbb/app.py",
             lambda value: value.replace('"/source"', '"/source-disabled"'),
             "MISSING_SOURCE_ROUTE",

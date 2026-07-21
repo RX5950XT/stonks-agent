@@ -1,0 +1,200 @@
+{
+  "schema_version": "stonks-agent/release-policy/v1",
+  "release": {
+    "execution_mode": "paper",
+    "formal_signing_mode": "keyless-release",
+    "local_signing_mode": "unsigned-candidate",
+    "platforms": [
+      "linux/amd64"
+    ]
+  },
+  "tools": {
+    "syft_image": "anchore/syft:v1.44.0@sha256:86fde6445b483d902fe011dd9f68c4987dd94e07da1e9edc004e3c2422650de6",
+    "grype_image": "anchore/grype:v0.112.0@sha256:391bfda62888fb4e98ff5c4c81598f7431a3c1eac3f8519d69d1ff00df247c1d"
+  },
+  "bundle": {
+    "max_files": 4096,
+    "max_file_bytes": 536870912,
+    "max_total_bytes": 2147483648,
+    "required_payload_files": [
+      "payload/.python-version",
+      "payload/Dockerfile",
+      "payload/LICENSE",
+      "payload/THIRD_PARTY_NOTICES.md",
+      "payload/config/defaults.toml",
+      "payload/config/release/core.openvex.json",
+      "payload/config/release/core-runtime-legal.json",
+      "payload/config/release/python-source-policy.json",
+      "payload/config/release-policy.json",
+      "payload/docs/legal/license-policy.md",
+      "payload/docs/legal/notices/ALPINE-3.23-CORE-RUNTIME.md",
+      "payload/docs/legal/notices/CPYTHON-PYTHON-2.0-COOKIE-SECURITY-BACKPORT.md",
+      "payload/docs/legal/upstream-manifest.yaml",
+      "payload/docs/security/core-cve-review.md",
+      "payload/pyproject.toml",
+      "payload/release/alpine-corresponding-source.tar.gz",
+      "payload/release/core-image.json",
+      "payload/release/core.cdx.json",
+      "payload/release/core.grype.json",
+      "payload/release/core.inventory.json",
+      "payload/release/dependency-audit.json",
+      "payload/release/grype-db.json",
+      "payload/release/lock-report.json",
+      "payload/release/openbb-corresponding-source.tar.gz",
+      "payload/release/python-corresponding-source.tar.gz",
+      "payload/release/secrets.json",
+      "payload/release/upstream.json",
+      "payload/schemas/README.md",
+      "payload/schemas/openapi/v1/data.openapi.json",
+      "payload/schemas/openapi/v1/deployment.openapi.json",
+      "payload/schemas/openapi/v1/paper-operations.openapi.json",
+      "payload/schemas/openapi/v1/paper-projections.openapi.json",
+      "payload/schemas/openapi/v1/research.openapi.json",
+      "payload/schemas/openapi/v1/strategies.openapi.json",
+      "payload/scripts/generate_sbom.py",
+      "payload/scripts/generate_image_report.py",
+      "payload/scripts/alpine_source_contract.py",
+      "payload/scripts/generate_alpine_source.py",
+      "payload/scripts/generate_python_source.py",
+      "payload/scripts/patch_cpython_stdlib.py",
+      "payload/scripts/python_source_contract.py",
+      "payload/scripts/release_source_contracts.py",
+      "payload/scripts/release_verifier_bundle.py",
+      "payload/scripts/release_verifier_common.py",
+      "payload/scripts/release_verifier_reports.py",
+      "payload/scripts/release_verifier_signatures.py",
+      "payload/scripts/verify_release.py",
+      "payload/sidecars/lean/pyproject.toml",
+      "payload/sidecars/lean/uv.lock",
+      "payload/sidecars/nautilus/pyproject.toml",
+      "payload/sidecars/nautilus/uv.lock",
+      "payload/sidecars/openbb/Dockerfile",
+      "payload/sidecars/openbb/NOTICE.md",
+      "payload/sidecars/openbb/SOURCE_OFFER.md",
+      "payload/sidecars/openbb/license-policy.yaml",
+      "payload/sidecars/openbb/provider-manifest.yaml",
+      "payload/sidecars/openbb/pyproject.toml",
+      "payload/sidecars/openbb/sbom.cdx.json",
+      "payload/sidecars/openbb/uv.lock",
+      "payload/uv.lock",
+      "payload/workers/kronos/profiles/cuda/pyproject.toml",
+      "payload/workers/kronos/profiles/cuda/uv.lock",
+      "payload/workers/kronos/pyproject.toml",
+      "payload/workers/kronos/uv.lock",
+      "payload/workers/quant_lab/pyproject.toml",
+      "payload/workers/quant_lab/rd_agent/pyproject.toml",
+      "payload/workers/quant_lab/rd_agent/uv.lock",
+      "payload/workers/quant_lab/uv.lock",
+      "payload/workers/tradingagents/pyproject.toml",
+      "payload/workers/tradingagents/uv.lock"
+    ],
+    "required_trees": [
+      {
+        "path": "payload/schemas/v1",
+        "suffix": ".json",
+        "file_count": 106
+      },
+      {
+        "path": "payload/sidecars/lean/dotnet-locks",
+        "suffix": "packages.lock.json",
+        "file_count": 16
+      }
+    ]
+  },
+  "reports": {
+    "core_image": "payload/release/core-image.json",
+    "secret": "payload/release/secrets.json",
+    "upstream": "payload/release/upstream.json",
+    "grype": "payload/release/core.grype.json",
+    "dependency_audit": "payload/release/dependency-audit.json",
+    "lock": "payload/release/lock-report.json",
+    "grype_database": "payload/release/grype-db.json"
+  },
+  "sbom": {
+    "path": "payload/release/core.cdx.json",
+    "inventory_path": "payload/release/core.inventory.json",
+    "expected_components_sha256": "b1584f2aa0b10fca2d330972d73fa0255d1e94dd627c0c5da6700fb2d6ca6bd4",
+    "license_overrides": {
+      "pkg:generic/python@3.12.13": "Python-2.0",
+      "pkg:pypi/annotated-types@0.7.0": "MIT",
+      "pkg:pypi/jinja2@3.1.6": "BSD-3-Clause",
+      "pkg:pypi/markdown-it-py@4.2.0": "MIT"
+    }
+  },
+  "vulnerabilities": {
+    "blocked_severities": [
+      "High",
+      "Critical"
+    ],
+    "vex_path": "payload/config/release/core.openvex.json",
+    "review_path": "payload/docs/security/core-cve-review.md"
+  },
+  "legal": {
+    "notices_path": "payload/THIRD_PARTY_NOTICES.md",
+    "core_runtime_policy_path": "payload/config/release/core-runtime-legal.json",
+    "required_notice_ids": [
+      "AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY",
+      "ALPINE-3.23-CORE-RUNTIME",
+      "CPYTHON-PYTHON-2.0-COOKIE-SECURITY-BACKPORT",
+      "KRONOS-MIT-WORKER",
+      "NAUTILUS-TRADER-LGPL-3.0-SIDECAR",
+      "OPENBB-AGPL-3.0-SIDECAR",
+      "QUANTCONNECT-LEAN-APACHE-2.0-SIDECAR",
+      "TRADINGAGENTS-APACHE-2.0-WORKER"
+    ]
+  },
+  "openbb": {
+    "archive": "payload/release/openbb-corresponding-source.tar.gz",
+    "max_members": 256,
+    "max_member_bytes": 67108864,
+    "max_expanded_bytes": 268435456,
+    "required_members": {
+      "Dockerfile": null,
+      "Dockerfile.dockerignore": null,
+      "NOTICE.md": null,
+      "OPENBB_LICENSE.txt": "442baa7865ddf53ba04808a29e4810ac1fd9c83383d4ac76297cec4569e19222",
+      "SOURCE_OFFER.md": null,
+      "app.py": null,
+      "license-policy.yaml": null,
+      "provider-manifest.yaml": null,
+      "pyproject.toml": null,
+      "surface.py": null,
+      "upstream/openbb_core-1.6.13.tar.gz": "c26cfc2ae37c1700e01db9ca0fd2cd02118715cec2097ea870f47a70186402bb",
+      "upstream/openbb_equity-1.6.2.tar.gz": "143bfcc2766227af14e804312645e3e77762b2954d0750ead0a1c7f8ec2e64dc",
+      "upstream/openbb_platform_api-1.3.6.tar.gz": "4a23a6ca542a1bbe309a1b9c1246d9e905ec03ab28c3da8e9a8f9a0db6ff8659",
+      "upstream/openbb_yfinance-1.6.3.tar.gz": "b25bc0fe17552f2331c771f9f91ab66c138e7bb54b07af282381dec2c273bd5b",
+      "uv.lock": null
+    }
+  },
+  "python_source": {
+    "archive": "payload/release/python-corresponding-source.tar.gz",
+    "policy": "payload/config/release/python-source-policy.json",
+    "uv_lock": "payload/uv.lock",
+    "archive_sha256": "2d1fd3e5b14b0d33c49aa25a649aaf8089fa5186ca06ec96713d80d1c120a7d8",
+    "manifest_sha256": "56baa04803cd64469cc446ccb21f8aa1b523d441795cdb51314c944ccf6d7ea6",
+    "source_count": 3,
+    "total_source_bytes": 947504
+  },
+  "locks": {
+    "uv_projects": [
+      ".",
+      "sidecars/lean",
+      "sidecars/nautilus",
+      "sidecars/openbb",
+      "workers/kronos",
+      "workers/kronos/profiles/cuda",
+      "workers/quant_lab",
+      "workers/quant_lab/rd_agent",
+      "workers/tradingagents"
+    ],
+    "nuget_tree": "sidecars/lean/dotnet-locks",
+    "nuget_lock_count": 16
+  },
+  "signing": {
+    "issuer": "https://token.actions.githubusercontent.com",
+    "workflow": ".github/workflows/release.yml",
+    "image_bundle": "signatures/core-image.sigstore.json",
+    "manifest_bundle": "signatures/release-manifest.sigstore.json",
+    "verification_report_bundle": "signatures/verification-report.sigstore.json"
+  }
+}

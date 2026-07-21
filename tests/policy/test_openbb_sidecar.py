@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import io
 import json
@@ -49,6 +50,7 @@ def _manifest() -> dict[str, object]:
 
 
 def test_openbb_packages_are_exact_and_have_embedded_source() -> None:
+    smoke_openbb = _load_smoke_module()
     manifest = _manifest()
     packages = manifest["packages"]
     assert isinstance(packages, list)
@@ -78,6 +80,57 @@ def test_openbb_packages_are_exact_and_have_embedded_source() -> None:
     }
     assert "COPY packages/service-auth" in dockerfile
     assert "/srv/source-tree/packages/service-auth" in dockerfile
+    assert "Dockerfile.dockerignore" in smoke_openbb.REQUIRED_SOURCE_MEMBERS
+    assert (
+        "COPY sidecars/openbb/Dockerfile sidecars/openbb/Dockerfile.dockerignore"
+        in dockerfile
+    )
+    for token in (
+        "find . -type f -print0",
+        "sort -z",
+        "tar --sort=name --no-recursion",
+        "--mtime=@0 --owner=0 --group=0 --numeric-owner",
+        "--mode=u=rw,go=r --null",
+    ):
+        assert token in dockerfile
+
+
+def test_openbb_build_context_has_a_dedicated_allowlist() -> None:
+    content = (SIDECAR / "Dockerfile.dockerignore").read_text(encoding="utf-8")
+
+    assert set(content.splitlines()) == {
+        "**",
+        "!LICENSE",
+        "!sidecars/",
+        "!sidecars/openbb/",
+        "!sidecars/openbb/Dockerfile",
+        "!sidecars/openbb/Dockerfile.dockerignore",
+        "!sidecars/openbb/NOTICE.md",
+        "!sidecars/openbb/README.md",
+        "!sidecars/openbb/SOURCE_OFFER.md",
+        "!sidecars/openbb/app.py",
+        "!sidecars/openbb/license-policy.yaml",
+        "!sidecars/openbb/provider-manifest.yaml",
+        "!sidecars/openbb/pyproject.toml",
+        "!sidecars/openbb/sbom.cdx.json",
+        "!sidecars/openbb/surface.py",
+        "!sidecars/openbb/uv.lock",
+        "!packages/",
+        "!packages/service-auth/",
+        "!packages/service-auth/pyproject.toml",
+        "!packages/service-auth/src/",
+        "!packages/service-auth/src/stonks_service_auth/",
+        "!packages/service-auth/src/stonks_service_auth/__init__.py",
+        "!packages/service-auth/src/stonks_service_auth/authorization.py",
+        "!packages/service-auth/src/stonks_service_auth/environment.py",
+        "!packages/service-auth/src/stonks_service_auth/headers.py",
+        "!packages/service-auth/src/stonks_service_auth/oidc.py",
+        "!packages/service-auth/src/stonks_service_auth/py.typed",
+        "!packages/service-auth/src/stonks_service_auth/source_identity.py",
+        "**/__pycache__/",
+        "**/__pycache__/**",
+        "**/*.py[cod]",
+    }
 
 
 def test_lock_and_sbom_match_source_manifest() -> None:
@@ -277,7 +330,7 @@ def _source_archive(
     omit: str | None = None,
     license_body: bytes = b"upstream license",
 ) -> bytes:
-    buffer = io.BytesIO()
+    tar_buffer = io.BytesIO()
     package_bodies = {
         package["source_archive_member"]: f"source:{index}".encode()
         for index, package in enumerate(packages)
@@ -289,12 +342,123 @@ def _source_archive(
     }
     if omit is not None:
         bodies.pop(omit)
-    with tarfile.open(fileobj=buffer, mode="w:gz") as bundle:
-        for name, body in bodies.items():
+    with tarfile.open(fileobj=tar_buffer, mode="w:") as bundle:
+        for name, body in sorted(bodies.items()):
             info = tarfile.TarInfo(name=name)
             info.size = len(body)
             bundle.addfile(info, io.BytesIO(body))
-    return buffer.getvalue()
+    return gzip.compress(tar_buffer.getvalue(), mtime=0)
+
+
+def _tar_with_members(
+    members: list[tuple[tarfile.TarInfo, bytes]],
+) -> tarfile.TarFile:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:") as bundle:
+        for info, body in members:
+            info.size = len(body)
+            bundle.addfile(info, io.BytesIO(body) if info.isfile() else None)
+    return tarfile.open(fileobj=io.BytesIO(buffer.getvalue()), mode="r:")
+
+
+@pytest.mark.parametrize(
+    "unsafe",
+    [
+        tarfile.TarInfo("../escape"),
+        tarfile.TarInfo("folder\\escape"),
+        tarfile.TarInfo("/absolute"),
+        tarfile.TarInfo("NOTICE.md"),
+    ],
+)
+def test_source_archive_rejects_unsafe_or_case_colliding_members(
+    unsafe: tarfile.TarInfo,
+) -> None:
+    smoke_openbb = _load_smoke_module()
+    safe = tarfile.TarInfo("notice.md")
+    with (
+        _tar_with_members([(safe, b"safe"), (unsafe, b"unsafe")]) as bundle,
+        pytest.raises(ValueError, match="unsafe member"),
+    ):
+        smoke_openbb._archive_members(bundle)  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("member_type", [tarfile.SYMTYPE, tarfile.LNKTYPE])
+def test_source_archive_rejects_links(member_type: bytes) -> None:
+    smoke_openbb = _load_smoke_module()
+    linked = tarfile.TarInfo("linked")
+    linked.type = member_type
+    linked.linkname = "NOTICE.md"
+    with (
+        _tar_with_members([(linked, b"")]) as bundle,
+        pytest.raises(ValueError, match="unsafe member"),
+    ):
+        smoke_openbb._archive_members(bundle)  # type: ignore[attr-defined]
+
+
+def test_source_archive_rejects_total_expanded_size(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    smoke_openbb = _load_smoke_module()
+    monkeypatch.setattr(smoke_openbb, "MAX_SOURCE_EXPANDED_BYTES", 7)
+    first = tarfile.TarInfo("a")
+    second = tarfile.TarInfo("b")
+    with (
+        _tar_with_members([(first, b"1234"), (second, b"5678")]) as bundle,
+        pytest.raises(ValueError, match="expanded size"),
+    ):
+        smoke_openbb._archive_members(bundle)  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("mtime", 1),
+        ("uid", 1),
+        ("gid", 1),
+        ("mode", 0o755),
+    ],
+)
+def test_source_archive_rejects_nondeterministic_metadata(
+    field: str,
+    value: int,
+) -> None:
+    smoke_openbb = _load_smoke_module()
+    info = tarfile.TarInfo("source.txt")
+    setattr(info, field, value)
+    with (
+        _tar_with_members([(info, b"source")]) as bundle,
+        pytest.raises(ValueError, match="nondeterministic metadata"),
+    ):
+        smoke_openbb._archive_members(bundle)  # type: ignore[attr-defined]
+
+
+def test_source_archive_rejects_nondeterministic_member_order() -> None:
+    smoke_openbb = _load_smoke_module()
+    later = tarfile.TarInfo("z")
+    earlier = tarfile.TarInfo("a")
+    with (
+        _tar_with_members([(later, b"later"), (earlier, b"earlier")]) as bundle,
+        pytest.raises(ValueError, match="member order"),
+    ):
+        smoke_openbb._archive_members(bundle)  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("flag", [0x02, 0x04, 0x08, 0x10, 0x20])
+def test_source_archive_rejects_nondeterministic_gzip_header(flag: int) -> None:
+    smoke_openbb = _load_smoke_module()
+    archive = bytearray(gzip.compress(b"payload", mtime=0))
+    archive[3] = flag
+
+    with pytest.raises(ValueError, match="gzip header"):
+        smoke_openbb._validate_gzip_header(bytes(archive))  # type: ignore[attr-defined]
+
+
+def test_source_archive_rejects_nondeterministic_gzip_timestamp() -> None:
+    smoke_openbb = _load_smoke_module()
+    archive = gzip.compress(b"payload", mtime=1)
+
+    with pytest.raises(ValueError, match="gzip header"):
+        smoke_openbb._validate_gzip_header(archive)  # type: ignore[attr-defined]
 
 
 def test_smoke_verifies_all_source_and_license_hashes(

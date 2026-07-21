@@ -9,6 +9,35 @@ from xml.etree import ElementTree
 
 MAX_CONTROL_BODY = 4_194_304
 _KEY_PATTERN = re.compile(r"^[a-z0-9][A-Za-z0-9._/-]{0,1023}$")
+_TAG_PATTERN = re.compile(rb"<(/?)([A-Za-z][A-Za-z0-9]{0,63})([^<>]*)>")
+_ENTITY_PATTERN = re.compile(
+    rb"&(?:amp|lt|gt|quot|apos|#[0-9]{1,7}|#x[0-9A-Fa-f]{1,6});"
+)
+_S3_NAMESPACE = b' xmlns="http://s3.amazonaws.com/doc/2006-03-01/"'
+_ALLOWED_TAGS = frozenset(
+    {
+        "Code",
+        "DeleteMarker",
+        "Error",
+        "IsLatest",
+        "IsTruncated",
+        "Key",
+        "LastModified",
+        "LegalHold",
+        "ListVersionsResult",
+        "Mode",
+        "NextKeyMarker",
+        "NextVersionIdMarker",
+        "ObjectLockConfiguration",
+        "ObjectLockEnabled",
+        "Retention",
+        "RetainUntilDate",
+        "Status",
+        "Version",
+        "VersionId",
+        "VersioningConfiguration",
+    }
+)
 
 
 class S3DocumentError(ValueError):
@@ -73,7 +102,12 @@ def parse_legal_hold(body: bytes) -> dict[str, str]:
 
 
 def parse_error_code(body: bytes) -> str | None:
-    if not body or len(body) > 8_192 or _unsafe_declaration(body):
+    if (
+        not body
+        or len(body) > 8_192
+        or _unsafe_declaration(body)
+        or not _safe_xml_subset(body)
+    ):
         return None
     try:
         root = ElementTree.fromstring(body)
@@ -170,7 +204,12 @@ def _parse_version_node(node: ElementTree.Element) -> dict[str, object] | None:
 
 
 def _xml_root(body: bytes, expected: str) -> ElementTree.Element:
-    if not body or len(body) > MAX_CONTROL_BODY or _unsafe_declaration(body):
+    if (
+        not body
+        or len(body) > MAX_CONTROL_BODY
+        or _unsafe_declaration(body)
+        or not _safe_xml_subset(body)
+    ):
         raise S3DocumentError
     try:
         root = ElementTree.fromstring(body)
@@ -220,3 +259,47 @@ def _valid_key(value: str) -> bool:
 def _unsafe_declaration(body: bytes) -> bool:
     lowered = body.lower()
     return b"<!doctype" in lowered or b"<!entity" in lowered
+
+
+def _safe_xml_subset(body: bytes) -> bool:
+    if not body.isascii():
+        return False
+    stack: list[str] = []
+    position = 0
+    count = 0
+    for match in _TAG_PATTERN.finditer(body):
+        if not _safe_text(body[position : match.start()]):
+            return False
+        closing, raw_name, raw_suffix = match.groups()
+        name = raw_name.decode("ascii")
+        if name not in _ALLOWED_TAGS or not _safe_tag(stack, closing, raw_suffix):
+            return False
+        self_closing = raw_suffix == b"/"
+        if closing:
+            if not stack or stack.pop() != name:
+                return False
+        elif not self_closing:
+            stack.append(name)
+            if len(stack) > 8:
+                return False
+        position = match.end()
+        count += 1
+        if count > 8_192:
+            return False
+    return count > 0 and not stack and _safe_text(body[position:])
+
+
+def _safe_tag(stack: list[str], closing: bytes, suffix: bytes) -> bool:
+    if closing:
+        return suffix == b""
+    if suffix in {b"", b"/"}:
+        return True
+    return not stack and suffix == _S3_NAMESPACE
+
+
+def _safe_text(value: bytes) -> bool:
+    if b"<" in value or b">" in value:
+        return False
+    if any(byte < 0x20 and byte not in {0x09, 0x0A, 0x0D} for byte in value):
+        return False
+    return b"&" not in _ENTITY_PATTERN.sub(b"", value)

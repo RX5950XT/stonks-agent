@@ -1,13 +1,39 @@
 # Third-Party Notices
 
-目前 Stonks Agent core 沒有複製、修改、vendor 或散布研究快照中的上游程式碼。
 `.research/upstreams/` 僅是被 `.gitignore` 排除的本機研究資料，不屬於本專案
-發行內容。
+發行內容。Core 與 optional runtimes 只使用下列明確登錄的上游元件或衍生部分；
+未登錄的研究 snapshot 不得被 import、vendor 或散布。
 
-Python runtime 與開發依賴依各自套件中附帶的授權散布；exact versions 固定於
-`uv.lock`，CI 會執行 dependency audit。若未來移植或散布上游程式碼，必須先
-依 `docs/legal/license-policy.md` 登錄 notice id、來源 commit、copyright 與
-完整授權義務。
+Python runtime、Alpine packages 與開發依賴各自適用不同授權；exact Python/APK
+runtime 證據固定於 `config/release/core-runtime-legal.json`，Python dependencies
+固定於 `uv.lock`，正式 release 必須通過 dependency、license、source 與 notice
+gates。後續移植或散布其他上游程式碼時，仍須先依
+`docs/legal/license-policy.md` 登錄 notice id、來源 commit、copyright 與完整
+授權義務。
+
+## CPYTHON-PYTHON-2.0-COOKIE-SECURITY-BACKPORT
+
+Core 使用 CPython 3.12.13，完整 Python license（`Python-2.0`，含
+`PSF-2.0` 與歷史條款）保留於
+`/usr/local/lib/python3.12/LICENSE.txt`。`http/cookies.py` 只 selective
+backport CPython commit `57e88c1cf95e1481b94ae57abe1010469d47a6b4`
+中與 CVE-2026-3644 相關的 validated update、in-place update、unpickle 與
+`js_output` 防護；這不是 CPython 官方 3.12.x release。
+
+Exact source/installed hashes、修改摘要、copyright 與完整授權位置見
+`docs/legal/notices/CPYTHON-PYTHON-2.0-COOKIE-SECURITY-BACKPORT.md`。
+
+## ALPINE-3.23-CORE-RUNTIME
+
+Core base 固定為 Python 3.12.13 / Alpine 3.23 exact digest。Final runtime 的
+`/lib/apk/db/installed` 有 37 個 packages，包含 GPL、LGPL、MPL 與其他授權；
+SBOM/license metadata 不能取代對應的散布義務。
+
+Exact Alpine corresponding-source archive 已封存 27 個 origins 的 recipe、patch、
+build scripts 與 checksum-verified distfiles；正式 release 必須將它納入同一 signed
+manifest，任何 archive 或 inventory drift 都會阻擋。完整 package/version/license/
+origin/build-commit inventory 與限制見
+`docs/legal/notices/ALPINE-3.23-CORE-RUNTIME.md`。
 
 ## SEAWEEDFS-APACHE-2.0-S3-TEST
 

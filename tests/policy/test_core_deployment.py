@@ -22,8 +22,8 @@ UV_IMAGE = (
     "sha256:143b40f4ab56a780f43377604702107b5a35f83a4453daf1e4be691358718a6a"
 )
 PYTHON_IMAGE = (
-    "python:3.12.13-slim-bookworm@"
-    "sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b"
+    "python:3.12.13-alpine3.23@"
+    "sha256:601d3d3797e90e2534782e69c85fafb7971b43f24c7b1b079b7e48dd435e458d"
 )
 POSTGRES_IMAGE = (
     "postgres:17.10-alpine@"
@@ -214,7 +214,10 @@ def test_core_runtime_image_is_nonroot_and_excludes_build_tooling() -> None:
     assert users == ["65532:65532"]
     assert entrypoints and "stonks-deploy" in json.loads(entrypoints[-1])
     assert not any("apt-get install" in command for command in runtime_runs)
-    assert not any("apk add" in command for command in runtime_runs)
+    assert sum(command.count("apk add") for command in runtime_runs) == 1
+    assert any(
+        "/sbin/apk add --no-cache libpq=18.4-r0" in command for command in runtime_runs
+    )
     assert not any("uv sync" in command for command in runtime_runs)
     assert not any("from=uv" in source for source in runtime_copies)
     assert not any(

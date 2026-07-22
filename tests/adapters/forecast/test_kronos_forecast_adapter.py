@@ -306,6 +306,7 @@ def subject(
     worker_policy: KronosHttpPolicy | None = None,
     clock: object = lambda: NOW + timedelta(minutes=2),
     credentials: RecordingServiceCredentialProvider | None = None,
+    sleeper: object = lambda _delay: None,
 ) -> tuple[KronosHttpAdapter, httpx.Client, RecordingStore]:
     artifacts = store or RecordingStore()
     client = httpx.Client(transport=httpx.MockTransport(handler))  # type: ignore[arg-type]
@@ -316,6 +317,7 @@ def subject(
         credentials=credentials or RecordingServiceCredentialProvider(),
         clock=clock,  # type: ignore[arg-type]
         monotonic_clock=lambda: 1.0,
+        sleeper=sleeper,  # type: ignore[arg-type]
     )
     return adapter, client, artifacts
 
@@ -470,6 +472,50 @@ def test_http_archives_raw_then_paths_before_mapping_signal() -> None:
     assert artifacts.is_finalized(
         output.value.sampled_paths_artifact_ref.removeprefix("sha256:")
     )
+
+
+def test_worker_busy_is_rate_limited_without_retry() -> None:
+    calls: list[int] = []
+    adapter, client, _ = subject(
+        lambda incoming: (
+            calls.append(1),
+            httpx.Response(429, request=incoming),
+        )[1],
+        worker_policy=policy(max_transient_retries=5),
+    )
+
+    with client:
+        result = adapter.forecast(worker_request(), request())
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.RATE_LIMITED
+    assert calls == [1]
+
+
+def test_service_unavailable_retains_bounded_retry() -> None:
+    calls: list[int] = []
+    incoming = worker_request()
+
+    def handler(sent: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(503, request=sent)
+        return httpx.Response(
+            200,
+            json=envelope(worker_response(incoming)),
+            request=sent,
+        )
+
+    adapter, client, _ = subject(
+        handler,
+        worker_policy=policy(max_transient_retries=1),
+    )
+
+    with client:
+        result = adapter.forecast(incoming, request())
+
+    assert isinstance(result, Success)
+    assert calls == [1, 1]
 
 
 def test_http_fails_before_network_when_target_credential_is_unavailable() -> None:

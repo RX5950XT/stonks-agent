@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ class RuntimeSettings(BaseModel):
 
     max_rows: int = Field(ge=2, le=1_000_000)
     max_request_bytes: int = Field(ge=1, le=16_777_216)
+    max_concurrency: int = Field(strict=True, ge=1, le=1)
     runtime: QuantRuntimeIdentity
 
 
@@ -38,6 +40,17 @@ def load_settings(path: Path) -> RuntimeSettings:
     if settings.runtime.runtime_hash != calculated:
         raise RuntimeError("quant-lab runtime hash does not match configuration")
     return settings
+
+
+def _execution_concurrency(
+    environment: Mapping[str, str], settings: RuntimeSettings
+) -> int:
+    configured = environment.get(
+        "STONKS_QUANT_LAB_MAX_CONCURRENCY", str(settings.max_concurrency)
+    )
+    if configured != str(settings.max_concurrency):
+        raise RuntimeError("quant-lab execution concurrency does not match policy")
+    return settings.max_concurrency
 
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -52,5 +65,6 @@ _worker = QuantLabWorker(
 app = create_app(
     worker=_worker,
     authenticator=_authenticator,
+    max_concurrency=_execution_concurrency(os.environ, _settings),
     max_request_bytes=_settings.max_request_bytes,
 )

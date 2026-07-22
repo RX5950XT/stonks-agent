@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -32,9 +34,13 @@ def create_app(
     worker: TradingAgentsWorker,
     authenticator: ServiceAuthenticator,
     max_request_bytes: int = 1_048_576,
+    max_concurrency: int = 1,
 ) -> FastAPI:
     if not 1 <= max_request_bytes <= 16_777_216:
         raise ValueError("max_request_bytes is outside the supported range")
+    if max_concurrency != 1:
+        raise ValueError("max_concurrency must be exactly one")
+    capacity = asyncio.Semaphore(max_concurrency)
     app = FastAPI(
         title="Stonks TradingAgents Worker",
         docs_url=None,
@@ -93,7 +99,12 @@ def create_app(
             deadline=request.deadline,
         ):
             return _error(403, "forbidden", "Service target access denied")
-        result = worker.analyze(request)
+        if not await _try_acquire(capacity):
+            return _error(429, "worker_busy", "Worker is at capacity")
+        try:
+            result = await run_in_threadpool(worker.analyze, request)
+        finally:
+            capacity.release()
         if isinstance(result, WorkerFailure):
             return _error(
                 _status_for(result.error.code), result.error.code, result.error.message
@@ -101,6 +112,13 @@ def create_app(
         return _envelope(200, data=result.value.model_dump(mode="json"))
 
     return app
+
+
+async def _try_acquire(capacity: asyncio.Semaphore) -> bool:
+    if capacity.locked():
+        return False
+    await capacity.acquire()
+    return True
 
 
 async def _read_bounded(incoming: Request, maximum: int) -> bytes | None:

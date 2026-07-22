@@ -6,6 +6,7 @@ policy:
   timeout_seconds: 120
   max_response_bytes: 4194304
   max_request_bytes: 1048576
+  max_concurrency: 1
   max_transient_retries: 1
   max_absolute_step_return: "0.5"
 runtime:
@@ -18,7 +19,7 @@ runtime:
   tokenizer_revision: 0e0117387f39004a9016484a186a908917e22426
   tokenizer_artifact_hash: 59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee
   manifest_hash: 08da84cbd5cfe0ca9f9dec300589651e77d9ee36f8ee4c1b9047bc62c6f79fc3
-  runtime_hash: c9d1d26144d19ad9219e50fda6e5527f8a6b3d4a4df7d4cd6020a0b0579aca25
+  runtime_hash: f7b227c4b156d3859d55b20495d46126ff0b32ccd08f2ebfd94d404a84c84c02
   device: cuda
   torch_version: 2.12.1+cu129
   inference_code_version: kronos-path-retention/1.0.0

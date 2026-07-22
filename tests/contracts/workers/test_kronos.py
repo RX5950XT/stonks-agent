@@ -31,6 +31,7 @@ from fixtures.service_auth import (  # noqa: E402
     authorization_headers,
 )
 
+from workers.kronos import model_loader as model_loader_module  # noqa: E402
 from workers.kronos.adapter import (  # noqa: E402
     KronosPreflightRequest,
     KronosWorker,
@@ -457,12 +458,9 @@ def test_native_runtime_forces_single_sample_and_exact_seed(
 
     modules = {"torch": FakeTorch(), "numpy": FakeNumpy(), "pandas": FakePandas()}
     monkeypatch.setattr(
-        "workers.kronos.model_loader.importlib.import_module",
-        lambda name: modules[name],
+        model_loader_module.importlib, "import_module", lambda name: modules[name]
     )
-    monkeypatch.setattr(
-        "workers.kronos.model_loader.random.seed", lambda value: seeded.append(value)
-    )
+    monkeypatch.setattr(model_loader_module.random, "seed", seeded.append)
     runtime = NativeKronosRuntime(
         model=object(),
         tokenizer=object(),

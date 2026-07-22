@@ -947,3 +947,81 @@ jobs:
           path: ${{ runner.temp }}/resilience-report.json
           if-no-files-found: error
           retention-days: 30
+
+  capacity:
+    name: Bounded core capacity / ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      PYTHONUTF8: "1"
+      UV_FROZEN: "1"
+      STONKS_CAPACITY_DATABASE_URL: postgresql+psycopg://postgres@127.0.0.1:5432/stonks_capacity
+    services:
+      postgres:
+        image: postgres:17.10-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+        env:
+          POSTGRES_DB: stonks_capacity
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d stonks_capacity"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.9.27"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Install frozen verification environment
+        run: uv sync --frozen
+
+      - name: Verify heavy-worker frozen locks
+        run: |
+          uv lock --check --project workers/tradingagents
+          uv lock --check --project workers/kronos
+          uv lock --check --project workers/kronos/profiles/cuda
+          uv lock --check --project workers/quant_lab
+
+      - name: Migrate dedicated capacity database
+        env:
+          STONKS_DATABASE_URL: ${{ env.STONKS_CAPACITY_DATABASE_URL }}
+        run: uv run alembic upgrade head
+
+      - name: Verify capacity contracts, saturation and actual PostgreSQL probes
+        run: >-
+          uv run python -m pytest -q --no-cov
+          tests/config/test_capacity_config.py
+          tests/domain/test_capacity.py
+          tests/contracts/workers/test_heavy_worker_saturation.py
+          tests/performance/test_capacity_probe_unit.py
+          tests/performance/test_capacity_probe_cli.py
+          tests/policy/test_capacity_assets.py
+
+      - name: Measure bounded single-host capacity
+        run: >-
+          uv run python scripts/run_capacity_probe.py
+          --output "${{ runner.temp }}/capacity-report.json"
+
+      - name: Preserve bounded capacity evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: capacity-report-${{ github.run_id }}
+          path: ${{ runner.temp }}/capacity-report.json
+          if-no-files-found: error
+          retention-days: 30

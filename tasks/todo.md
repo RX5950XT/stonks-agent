@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.9 已通過，P6.10 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.10 已通過，P6.11 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -591,8 +591,15 @@
   - [x] 建立六份operator runbook與machine-readable drill report；記錄RTO/RPO measurement但不在未完成P6.10負載基準前宣稱production SLA。
   - [x] 將resilience/restore smoke接入least-privilege CI，完成focused、完整non-PostgreSQL/PostgreSQL/security gates與文件同步。
 
-- [ ] **P6.10 Performance and resource budgets** — 建立`tests/performance/`與`docs/operations/capacity.md`，量測API、queue、snapshot、research、forecast、paper cycle；設定per-process CPU/RAM/concurrency budget。（Depends：P6.4、P6.7；Complexity：L；Risk：Medium）
+- [x] **P6.10 Performance and resource budgets** — 建立`tests/performance/`與`docs/operations/capacity.md`，量測API、queue、snapshot、research、forecast、paper cycle；設定per-process CPU/RAM/concurrency budget。（Depends：P6.4、P6.7；Complexity：L；Risk：Medium）
   - 重型workers不能飢餓risk/execution；LLM/forecast queues獨立限流。
+  - [x] 先以frozen `stonks-capacity/1` policy固定workload scope、bounded sample/concurrency、nearest-rank p95與wall-time ceiling、CPU/RAM/PID/in-flight budget及`production_sla_claim=false`；缺樣本、NaN、caller自稱pass、duplicate/unknown workload皆fail closed。
+  - [x] TradingAgents、Kronos與Quant lab同步重工作不得阻塞async event loop；使用bounded execution gate，容量不足立即回structured `429 worker_busy`，不做無界等待、自動retry或追單。
+  - [x] 補齊TradingAgents/Kronos/Quant lab的per-process CPU/RAM/PID/concurrency manifests；heavy worker與risk/execution資源隔離，CUDA只記錄GPU/VRAM evidence而不宣稱Compose可限制VRAM。
+  - [x] 建立bounded machine-readable capacity probe，量測API/security、actual PostgreSQL queue/snapshot/research transaction、forecast contract及deterministic full paper cycle；每筆樣本重驗唯一性、binding、balanced journal與replay hash。
+  - [x] 報告只保存bounded integer timing/resource/count evidence與opaque identity，不含DSN、credential、raw payload或高基數label；shared CI/local結果標示`single_host_ci_baseline`且不得宣稱production SLA或production business API throughput。
+  - [x] 將actual PostgreSQL capacity matrix接入least-privilege CI，固定digest、test-only DB name、15分鐘timeout與bounded report artifact；完成focused、完整non-PostgreSQL/PostgreSQL/security gates。
+  - [x] 完成`docs/operations/capacity.md`、README、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`與本review同步，明列business API/dispatcher/model hardware尚未完成的測量邊界。
 
 - [ ] **P6.11 Final docs and handoff sync** — 完成`README.md`、`docs/architecture/` ADRs、`docs/api/`、`docs/runbooks/`、`THIRD_PARTY_NOTICES.md`，同步精簡`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`、`tasks/todo.md`、`tasks/lessons.md`。（Depends：P6.1–P6.10；Complexity：L；Risk：Medium）
   - 文件只列實際驗證能力與限制；所有command由CI/本機重跑確認。
@@ -1059,3 +1066,10 @@
 - Failure matrix：`tests/resilience/`證明provider/LLM/model/sidecar outage在target/order前停止；artifact hash corruption不可重播；duplicate result只commit一組event/outbox，payload drift拒絕；expired lease/stale generation+nonce結果進quarantine，current lease只commit一次；retry exhaustion進dead-letter且不得追單；ledger mismatch先rollback、另transaction啟global kill switch，projection修復後仍維持execution closed。
 - Actual restore / security：digest-pinned PostgreSQL `17.10-alpine` drill使用fresh source/target、random loopback ports、temporary 0600 secret file、bounded custom dump與stdin restore。Preflight與exact labels確保只cleanup本次owned資源；source/target system IDs、Alembic `0017`、2-event canonical digest/replay、source marker、append-only update/delete及invalid-chain probes全通過，且無container/network殘留。本次獨立量測RTO 0.719秒、RPO 0秒/0 lost events，明示只為single-host drill measurement、不是production SLA，且restore永不自動promote。
 - Verification：focused resilience/restore matrix為55 passed，actionlint、Ruff、format與strict mypy全通過；完整non-PostgreSQL gate為2059 passed、6 skipped、268 deselected、coverage 87.65%，完整PostgreSQL gate為2327 passed、6 skipped、coverage 87.47%。713 files format、Ruff、mypy 348 source files、106 schemas、Alembic無drift、upstream/license、secret、frozen lock與dependency audit全綠。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、runbooks與本review已同步；`tasks/lessons.md`無新的使用者修正可新增，下一項為P6.10 performance與resource budgets。
+
+### P6 Progress Review — P6.10 — 2026-07-22
+
+- Scope completed：新增frozen `stonks-capacity/1` policy、獨立report verifier、六種workload×20 samples、actual PostgreSQL queue/snapshot/research transaction probe、ASGI security/forecast contract/deterministic full paper cycle、resource manifests與least-privilege CI artifact。缺/重複/亂序樣本、claim drift、threshold超限、unknown resource與caller自稱pass皆fail closed。
+- Resource honesty / saturation：runtime CPU/RAM/PID/process/in-flight只量單一Python `probe_process`，使用獨立4000m/2048MiB/PID1/process1/in-flight16 budget；core/PostgreSQL/TradingAgents/Kronos CPU/CUDA/Quant六組budget只與static manifests交叉驗證，CUDA CI未量GPU/VRAM。三個heavy workers將同步推論offload threadpool，gate固定1，飽和立即`429 worker_busy`；core對429不retry，503仍bounded retry。
+- Actual evidence / isolation：fresh exact `stonks_capacity`、Alembic `0017`與database-lifetime disposable isolation下，120 samples由domain重新驗證全通過；本次root報告24,439 bytes，p95為API 24,711µs、queue 22,993µs、snapshot 8,930µs、research 11,826µs、forecast 477µs、paper cycle 743µs，且DSN/credential/raw payload掃描為0。這只代表single-host synthetic baseline與probe process，不是production SLA或external model/provider throughput。
+- Verification：focused capacity/worker/policy為119 passed，獨立actual PostgreSQL performance test為1 passed；TradingAgents/Kronos/Quant isolated tests、四組frozen lock與dependency audits全綠。完整non-PostgreSQL gate為2145 passed、6 skipped、269 deselected、coverage 87.85%；完整PostgreSQL gate為2413 passed、7 skipped、coverage 87.64%。727 files format、Ruff、strict mypy 350 source files＋probe scripts、106 schemas、Alembic無drift、upstream/license、secret、actionlint、frozen lock與dependency audit全通過。文件與規範已同步；`tasks/lessons.md`無新的使用者修正可新增，下一項為P6.11 final docs與handoff gate。

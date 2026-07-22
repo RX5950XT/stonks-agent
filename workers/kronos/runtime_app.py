@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from importlib.metadata import version
 from pathlib import Path
 
@@ -24,6 +25,14 @@ from workers.kronos.model_loader import (
 )
 
 _WORKER_ROOT = Path(__file__).resolve().parent
+
+
+def _execution_concurrency(environment: Mapping[str, str]) -> int:
+    if environment.get("STONKS_KRONOS_MAX_CONCURRENCY", "1") != "1":
+        raise RuntimeError("Kronos execution concurrency must be exactly one")
+    return 1
+
+
 validate_isolated_runtime_environment(os.environ)
 _authenticator = load_static_oidc_service_authenticator(os.environ)
 _environment = validate_worker_environment(os.environ)
@@ -65,4 +74,5 @@ _worker = KronosWorker(
 app = create_app(
     worker=_worker,
     authenticator=_authenticator,
+    max_concurrency=_execution_concurrency(os.environ),
 )

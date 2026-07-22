@@ -15,6 +15,7 @@ services:
     environment:
       <<: *service-oidc-environment
       STONKS_WORKER_PROFILE: paper
+      STONKS_TRADINGAGENTS_MAX_CONCURRENCY: "1"
     volumes:
       - "${STONKS_SERVICE_OIDC_JWKS_HOST_FILE:?required}:/run/secrets/stonks-service-jwks.json:ro"
     read_only: true
@@ -22,18 +23,23 @@ services:
     security_opt: [no-new-privileges:true]
     networks: [tradingagents-internal]
     tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    pids_limit: 256
+    mem_limit: 4g
+    cpus: 2.0
 
   tradingagents-backtest:
     <<: *worker
     environment:
       <<: *service-oidc-environment
       STONKS_WORKER_PROFILE: backtest
+      STONKS_TRADINGAGENTS_MAX_CONCURRENCY: "1"
 
   tradingagents-production:
     <<: *worker
     environment:
       <<: *service-oidc-environment
       STONKS_WORKER_PROFILE: production
+      STONKS_TRADINGAGENTS_MAX_CONCURRENCY: "1"
 
 networks:
   tradingagents-internal:

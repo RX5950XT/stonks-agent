@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 
 import httpx
 
@@ -18,6 +19,13 @@ from workers.tradingagents.adapter import (
 from workers.tradingagents.app import create_app
 from workers.tradingagents.artifacts import FixedOriginArtifactResolver
 from workers.tradingagents.runtime import PinnedTradingAgentsRuntime
+
+
+def _execution_concurrency(environment: Mapping[str, str]) -> int:
+    if environment.get("STONKS_TRADINGAGENTS_MAX_CONCURRENCY", "1") != "1":
+        raise RuntimeError("TradingAgents execution concurrency must be exactly one")
+    return 1
+
 
 validate_isolated_runtime_environment(os.environ)
 authenticator = load_static_oidc_service_authenticator(os.environ)
@@ -39,4 +47,5 @@ artifacts = FixedOriginArtifactResolver(
 app = create_app(
     worker=TradingAgentsWorker(policy=policy, runtime=runtime, artifacts=artifacts),
     authenticator=authenticator,
+    max_concurrency=_execution_concurrency(os.environ),
 )

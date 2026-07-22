@@ -325,6 +325,24 @@ def test_transient_retry_is_bounded_and_permanent_failure_is_not_retried() -> No
     assert len(calls) == 1
 
 
+def test_worker_busy_is_rate_limited_without_retry() -> None:
+    calls: list[int] = []
+    subject, client, _ = adapter(
+        lambda incoming: (
+            calls.append(1),
+            httpx.Response(429, request=incoming),
+        )[1],
+        worker_policy=policy(max_transient_retries=5),
+    )
+
+    with client:
+        result = subject.analyze(request())
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.RATE_LIMITED
+    assert calls == [1]
+
+
 @pytest.mark.parametrize(
     ("headers", "body", "expected"),
     [

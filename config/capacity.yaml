@@ -1,0 +1,147 @@
+schema_version: 1
+policy_id: stonks-capacity/1
+execution_mode: paper
+
+scope:
+  environment: test
+  topology: single_host
+  dataset: synthetic_bounded
+  hardware_profile: ci_reference_v1
+  evidence_class: single_host_ci_baseline
+
+resource_observation_scope: probe_process
+process_budget_contract: static_manifest_only
+probe_runtime_budget:
+  cpu_millicores_ceiling: 4000
+  ram_mebibytes_ceiling: 2048
+  pid_ceiling: 1
+  process_ceiling: 1
+  in_flight_ceiling: 16
+
+measurement:
+  duration_unit: microseconds
+  percentile: 95
+  percentile_method: nearest_rank
+  minimum_sample_count: 20
+  maximum_sample_count: 1000
+  maximum_concurrency: 16
+  wall_clock_ceiling_microseconds: 600000000
+  production_sla_claim: false
+
+process_budgets:
+  - process_id: core
+    cpu_millicores_ceiling: 500
+    ram_mebibytes_ceiling: 256
+    pid_ceiling: 64
+    process_ceiling: 1
+    in_flight_ceiling: 128
+  - process_id: postgres
+    cpu_millicores_ceiling: 1000
+    ram_mebibytes_ceiling: 512
+    pid_ceiling: 128
+    process_ceiling: 64
+    in_flight_ceiling: 16
+  - process_id: tradingagents
+    cpu_millicores_ceiling: 2000
+    ram_mebibytes_ceiling: 4096
+    pid_ceiling: 256
+    process_ceiling: 1
+    in_flight_ceiling: 1
+  - process_id: kronos_cpu
+    cpu_millicores_ceiling: 4000
+    ram_mebibytes_ceiling: 8192
+    pid_ceiling: 256
+    process_ceiling: 1
+    in_flight_ceiling: 1
+  - process_id: kronos_cuda
+    cpu_millicores_ceiling: 4000
+    ram_mebibytes_ceiling: 12288
+    pid_ceiling: 256
+    process_ceiling: 1
+    in_flight_ceiling: 1
+    gpu_vram_enforced: false
+  - process_id: quant_lab
+    cpu_millicores_ceiling: 2000
+    ram_mebibytes_ceiling: 2048
+    pid_ceiling: 128
+    process_ceiling: 1
+    in_flight_ceiling: 1
+
+workloads:
+  - workload: api
+    sample_count: 20
+    concurrency: 4
+    p95_ceiling_microseconds: 2000000
+    wall_ceiling_microseconds: 60000000
+    metric:
+      name: stonks_operation_duration_seconds
+      labels:
+        - {name: component, value: api}
+        - {name: operation, value: http_request}
+        - {name: status, value: success}
+        - {name: environment, value: test}
+
+  - workload: queue
+    sample_count: 20
+    concurrency: 4
+    p95_ceiling_microseconds: 5000000
+    wall_ceiling_microseconds: 120000000
+    metric:
+      name: stonks_operation_duration_seconds
+      labels:
+        - {name: component, value: queue}
+        - {name: operation, value: claim}
+        - {name: status, value: success}
+        - {name: environment, value: test}
+
+  - workload: snapshot
+    sample_count: 20
+    concurrency: 2
+    p95_ceiling_microseconds: 10000000
+    wall_ceiling_microseconds: 240000000
+    metric:
+      name: stonks_operation_duration_seconds
+      labels:
+        - {name: component, value: provider}
+        - {name: operation, value: fetch}
+        - {name: status, value: success}
+        - {name: environment, value: test}
+
+  - workload: research
+    sample_count: 20
+    concurrency: 1
+    p95_ceiling_microseconds: 30000000
+    wall_ceiling_microseconds: 600000000
+    metric:
+      name: stonks_operation_duration_seconds
+      labels:
+        - {name: component, value: llm}
+        - {name: operation, value: generate}
+        - {name: status, value: success}
+        - {name: environment, value: test}
+
+  - workload: forecast
+    sample_count: 20
+    concurrency: 1
+    p95_ceiling_microseconds: 30000000
+    wall_ceiling_microseconds: 600000000
+    metric:
+      name: stonks_operation_duration_seconds
+      labels:
+        - {name: component, value: model}
+        - {name: operation, value: infer}
+        - {name: status, value: success}
+        - {name: environment, value: test}
+
+  - workload: paper_cycle
+    sample_count: 20
+    concurrency: 1
+    p95_ceiling_microseconds: 30000000
+    wall_ceiling_microseconds: 600000000
+    metric:
+      name: stonks_operation_duration_seconds
+      labels:
+        - {name: component, value: worker}
+        - {name: operation, value: process}
+        - {name: status, value: success}
+        - {name: environment, value: test}

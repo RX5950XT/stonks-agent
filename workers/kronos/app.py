@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -28,9 +30,13 @@ def create_app(
     worker: KronosWorker,
     authenticator: ServiceAuthenticator,
     max_request_bytes: int = 65_536,
+    max_concurrency: int = 1,
 ) -> FastAPI:
     if not 1 <= max_request_bytes <= 1_048_576:
         raise ValueError("max_request_bytes is outside the supported range")
+    if max_concurrency != 1:
+        raise ValueError("max_concurrency must be exactly one")
+    capacity = asyncio.Semaphore(max_concurrency)
     app = FastAPI(
         title="Stonks Kronos Worker",
         docs_url=None,
@@ -122,7 +128,12 @@ def create_app(
             deadline=request.deadline,
         ):
             return _error(403, "forbidden", "Service target access denied")
-        outcome = worker.forecast(request)
+        if not await _try_acquire(capacity):
+            return _error(429, "worker_busy", "Worker is at capacity")
+        try:
+            outcome = await run_in_threadpool(worker.forecast, request)
+        finally:
+            capacity.release()
         if outcome.error is not None:
             status = _worker_error_status(outcome.error.code)
             return _error(status, outcome.error.code, outcome.error.message)
@@ -130,6 +141,13 @@ def create_app(
         return _envelope(200, data=outcome.value.model_dump(mode="json"))
 
     return app
+
+
+async def _try_acquire(capacity: asyncio.Semaphore) -> bool:
+    if capacity.locked():
+        return False
+    await capacity.acquire()
+    return True
 
 
 def _validate_headers(incoming: Request, maximum: int) -> JSONResponse | None:

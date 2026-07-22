@@ -92,6 +92,7 @@ markers = [
     "contract: wire-contract tests",
     "e2e: end-to-end workflow tests",
     "integration: tests crossing infrastructure boundaries",
+    "performance: bounded performance and capacity verification tests",
     "postgres: tests requiring a real PostgreSQL server",
     "policy: repository and security policy tests",
     "unit: isolated unit tests",

@@ -31,6 +31,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx2>=2,<3",
     "mypy>=1.19,<2",
     "pip-audit>=2.9,<3",
     "pytest>=9,<10",

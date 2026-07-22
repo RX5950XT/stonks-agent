@@ -622,6 +622,7 @@ def test_profiles_are_separate_fail_closed_processes_with_internal_network() -> 
         "STONKS_SERVICE_OIDC_ALGORITHMS": "RS256",
         "STONKS_SERVICE_OIDC_RECEIVER": "tradingagents",
         "STONKS_SERVICE_OIDC_JWKS_FILE": "/run/secrets/stonks-service-jwks.json",
+        "STONKS_TRADINGAGENTS_MAX_CONCURRENCY": "1",
     }
     for profile in ("paper", "backtest", "production"):
         service = services[f"tradingagents-{profile}"]

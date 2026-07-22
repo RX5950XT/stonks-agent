@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
@@ -28,9 +30,13 @@ def create_app(
     worker: QuantLabWorker,
     authenticator: ServiceAuthenticator,
     max_request_bytes: int = 16_777_216,
+    max_concurrency: int = 1,
 ) -> FastAPI:
     if not 1 <= max_request_bytes <= 16_777_216:
         raise ValueError("max_request_bytes is outside the supported range")
+    if max_concurrency != 1:
+        raise ValueError("max_concurrency must be exactly one")
+    capacity = asyncio.Semaphore(max_concurrency)
     app = FastAPI(
         title="Stonks Quant Lab Worker",
         docs_url=None,
@@ -81,7 +87,12 @@ def create_app(
             deadline=job.deadline,
         ):
             return _error(403, "forbidden", "Service target access denied")
-        outcome = worker.research(job)
+        if not await _try_acquire(capacity):
+            return _error(429, "worker_busy", "Worker is at capacity")
+        try:
+            outcome = await run_in_threadpool(worker.research, job)
+        finally:
+            capacity.release()
         if isinstance(outcome, WorkerFailure):
             return _error(
                 _status_for(outcome.error.code),
@@ -91,6 +102,13 @@ def create_app(
         return _envelope(200, data=outcome.value.model_dump(mode="json"))
 
     return app
+
+
+async def _try_acquire(capacity: asyncio.Semaphore) -> bool:
+    if capacity.locked():
+        return False
+    await capacity.acquire()
+    return True
 
 
 def _validate_headers(incoming: Request, maximum: int) -> JSONResponse | None:

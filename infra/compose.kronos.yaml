@@ -7,6 +7,7 @@ services:
     environment:
       STONKS_KRONOS_MODEL_ROOT: /models
       STONKS_KRONOS_PROFILE: cpu
+      STONKS_KRONOS_MAX_CONCURRENCY: "1"
       STONKS_SERVICE_OIDC_ISSUER: ${STONKS_SERVICE_OIDC_ISSUER:?required}
       STONKS_SERVICE_OIDC_AUDIENCE: ${STONKS_KRONOS_SERVICE_OIDC_AUDIENCE:?required}
       STONKS_SERVICE_OIDC_CORE_SUBJECT: ${STONKS_SERVICE_OIDC_CORE_SUBJECT:?required}
@@ -22,6 +23,9 @@ services:
     security_opt: [no-new-privileges:true]
     networks: [kronos-internal]
     tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    pids_limit: 256
+    mem_limit: 8g
+    cpus: 4.0
 
   kronos-cuda:
     build:
@@ -31,6 +35,7 @@ services:
     environment:
       STONKS_KRONOS_MODEL_ROOT: /models
       STONKS_KRONOS_PROFILE: cuda
+      STONKS_KRONOS_MAX_CONCURRENCY: "1"
       STONKS_SERVICE_OIDC_ISSUER: ${STONKS_SERVICE_OIDC_ISSUER:?required}
       STONKS_SERVICE_OIDC_AUDIENCE: ${STONKS_KRONOS_SERVICE_OIDC_AUDIENCE:?required}
       STONKS_SERVICE_OIDC_CORE_SUBJECT: ${STONKS_SERVICE_OIDC_CORE_SUBJECT:?required}
@@ -46,6 +51,9 @@ services:
     security_opt: [no-new-privileges:true]
     networks: [kronos-internal]
     tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    pids_limit: 256
+    mem_limit: 12g
+    cpus: 4.0
     gpus: all
 
 networks:

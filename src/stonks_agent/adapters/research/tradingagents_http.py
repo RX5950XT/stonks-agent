@@ -39,7 +39,7 @@ from stonks_contracts.tradingagents import (
     TradingAgentsWorkerResponse,
 )
 
-_TRANSIENT_STATUSES = frozenset({408, 429, 500, 502, 503, 504})
+_TRANSIENT_STATUSES = frozenset({408, 500, 502, 503, 504})
 
 
 def _sha256_text(value: str) -> str:
@@ -57,6 +57,7 @@ class TradingAgentsWorkerPolicy(BaseModel):
     timeout_seconds: float = Field(gt=0, le=300)
     max_response_bytes: int = Field(ge=1, le=16_777_216)
     max_request_bytes: int = Field(ge=1, le=16_777_216)
+    max_concurrency: int = Field(default=1, strict=True, ge=1, le=1)
     max_transient_retries: int = Field(ge=0, le=5)
 
     @model_validator(mode="after")

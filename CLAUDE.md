@@ -20,6 +20,8 @@
 - Default deployment只有core/PostgreSQL；migration必須explicit one-shot並使用獨立owner credential，runtime只用`stonks_app` login。Core image固定non-root/read-only、structured secret-file DB config與exact schema readiness。
 - Core job runner 是 DB/event/outbox transaction owner；remote worker 無 DB credentials，舊 generation/nonce 或過期 lease 的 result 不得 commit。
 - 同帳戶 mutation 必須 serialized 並先 reservation；journal 每種 currency/commodity 的 debit/credit 必須平衡。
+- Resilience drill 必須符合 frozen failure/telemetry catalog；unknown、partial、forbidden side effect、缺 evidence 或 unsafe recovery 一律不得算通過。Database restore只能使用digest-pinned image與fresh target，重驗Alembic head、hash-chain、replay、append-only及source/target isolation，通過後也不得自動promote。
+- Worker crash、lease expiry、duplicate/stale result、dead-letter及ledger mismatch必須fail closed；dead-letter不得自動追單，ledger drift先rollback再啟動kill switch，resume只能在完整audited reconciliation/replay後人工執行。
 - `execution_mode=paper` 是唯一允許模式；live trading 必須另立 RFC，不能用設定值偷偷啟用。
 
 ## 資料、研究與安全

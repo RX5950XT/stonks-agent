@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.8 已通過，P6.9 進行中）
+> 狀態：執行中（P0–P5 gate、P6.1–P6.9 已通過，P6.10 進行中）
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -581,8 +581,15 @@
   - [x] 本機unsigned candidate只能證明結構、內容與policy gates，不宣稱signature/provenance；正式release缺少可驗證signature/attestation bundle即失敗。
   - [x] 完成focused、真實core image SBOM/CVE/license/secret/release smoke、完整non-PostgreSQL/PostgreSQL gates與文件同步。
 
-- [ ] **P6.9 Failure-injection and disaster drills** — 建立`tests/resilience/`、`docs/runbooks/{provider-outage,worker-crash,db-restore,ledger-mismatch,kill-switch,dead-letter}.md`。（Depends：P6.4–P6.7；Complexity：XL；Risk：High）
+- [x] **P6.9 Failure-injection and disaster drills** — 建立`tests/resilience/`、`docs/runbooks/{provider-outage,worker-crash,db-restore,ledger-mismatch,kill-switch,dead-letter}.md`。（Depends：P6.4–P6.7；Complexity：XL；Risk：High）
   - 演練provider/LLM/model/sidecar outage、DB restart、lease expiry、duplicate event、artifact corruption、ledger mismatch與restore/replay。
+  - [x] 先以frozen drill matrix與policy tests固定failure class、injection point、expected terminal/degraded state、forbidden side effect、audit/metric evidence與recovery precondition；unknown/partial result不得算通過。
+  - [x] 建立`tests/resilience/`跨層fault fixtures，證明provider/LLM/model/sidecar outage不建立錯誤target/order，artifact corruption不能重播，duplicate/stale event與worker result不重複commit。
+  - [x] 演練worker crash、lease expiry、generation/nonce fencing、retry exhaustion與dead-letter；receipt commit後crash仍只能有一筆fill/journal/receipt，dead-letter不得自動追單。
+  - [x] 演練ledger mismatch、reconciliation failure與global/account kill switch；任何drift先rollback再audited fail-safe，resume必須完整replay通過且不能刪除既有fill/journal。
+  - [x] 建立digest-pinned PostgreSQL實際backup/restore drill：DB restart、bounded dump、fresh target restore、Alembic head、row/hash-chain/replay與append-only constraints重驗；來源/目標混用或驗證失敗即丟棄restore。
+  - [x] 建立六份operator runbook與machine-readable drill report；記錄RTO/RPO measurement但不在未完成P6.10負載基準前宣稱production SLA。
+  - [x] 將resilience/restore smoke接入least-privilege CI，完成focused、完整non-PostgreSQL/PostgreSQL/security gates與文件同步。
 
 - [ ] **P6.10 Performance and resource budgets** — 建立`tests/performance/`與`docs/operations/capacity.md`，量測API、queue、snapshot、research、forecast、paper cycle；設定per-process CPU/RAM/concurrency budget。（Depends：P6.4、P6.7；Complexity：L；Risk：Medium）
   - 重型workers不能飢餓risk/execution；LLM/forecast queues獨立限流。
@@ -1045,3 +1052,10 @@
 - Image / vulnerability evidence：clean core image runtime證明`psycopg.pq`為C implementation、無`psycopg_binary`、system `libpq`與CPython license存在。Canonical inventory為97 packages、865 components，reviewed hash `b1584f2a...6bd4`；Grype DB v6.1.9掃描為17 Medium、2 Low、1 Negligible、0個未抑制High/Critical，10個Python High只由exact OpenVEX抑制。
 - Bundle / verification：本機unsigned candidate含192 artifacts、136,809,165 bytes，manifest、paper identity、image report、locks、reports、SBOM/license、Grype DB/VEX、notices及三組source closure全部通過。Formal keyless path只由protected tag/release environment執行；本機沒有偽造OIDC、發布registry或宣稱signature/provenance已產生。
 - Verification：focused release/source/policy matrix為99 passed，actionlint、Ruff、strict mypy與actual archive verification全通過。完整non-PostgreSQL gate為2004 passed、6 skipped、268 deselected、coverage 87.52%；完整PostgreSQL gate為2272 passed、6 skipped、coverage 87.36%，699 files format、Ruff、mypy 346 source files、106 schemas、Alembic無drift、upstream/license、secret、frozen lock與dependency audit全綠。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、legal/security/runbook與本review已同步；下一項為P6.9 failure injection與disaster drills。
+
+### P6 Progress Review — P6.9 — 2026-07-22
+
+- Scope completed：新增paper-only `stonks-resilience-drills/1` frozen catalog、11項failure class/injection point/terminal state/forbidden side effect/audit/metric/recovery contract，以及六份operator runbook。Metric evidence直接重驗既有低基數telemetry catalog；unknown、duplicate、partial、contract mismatch、forbidden side effect、缺evidence/precondition與unsafe recovery全數fail closed。
+- Failure matrix：`tests/resilience/`證明provider/LLM/model/sidecar outage在target/order前停止；artifact hash corruption不可重播；duplicate result只commit一組event/outbox，payload drift拒絕；expired lease/stale generation+nonce結果進quarantine，current lease只commit一次；retry exhaustion進dead-letter且不得追單；ledger mismatch先rollback、另transaction啟global kill switch，projection修復後仍維持execution closed。
+- Actual restore / security：digest-pinned PostgreSQL `17.10-alpine` drill使用fresh source/target、random loopback ports、temporary 0600 secret file、bounded custom dump與stdin restore。Preflight與exact labels確保只cleanup本次owned資源；source/target system IDs、Alembic `0017`、2-event canonical digest/replay、source marker、append-only update/delete及invalid-chain probes全通過，且無container/network殘留。本次獨立量測RTO 0.719秒、RPO 0秒/0 lost events，明示只為single-host drill measurement、不是production SLA，且restore永不自動promote。
+- Verification：focused resilience/restore matrix為55 passed，actionlint、Ruff、format與strict mypy全通過；完整non-PostgreSQL gate為2059 passed、6 skipped、268 deselected、coverage 87.65%，完整PostgreSQL gate為2327 passed、6 skipped、coverage 87.47%。713 files format、Ruff、mypy 348 source files、106 schemas、Alembic無drift、upstream/license、secret、frozen lock與dependency audit全綠。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`、runbooks與本review已同步；`tasks/lessons.md`無新的使用者修正可新增，下一項為P6.10 performance與resource budgets。

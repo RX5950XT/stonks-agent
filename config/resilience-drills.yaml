@@ -1,0 +1,195 @@
+schema_version: 1
+policy_id: stonks-resilience-drills/1
+execution_mode: paper
+
+fail_closed:
+  unknown_drill: reject
+  duplicate_entry: reject
+  partial_result: reject
+  unsafe_recovery: reject
+  automatic_recovery: false
+
+measurement_contract:
+  rto_start: injected_at
+  rto_end: recovered_at
+  rpo_source: last_durable_commit_at
+  rpo_recovered: recovered_through_at
+  unit: seconds
+  production_sla_claim: false
+
+drills:
+  - drill_id: provider_outage
+    failure_class: upstream_outage
+    injection_point: provider_request
+    expected_state: degraded
+    forbidden_side_effects: [target_created, reservation_created, order_created]
+    required_audit_evidence: [provider_outage_detected, paper_cycle_degraded]
+    required_metric_evidence:
+      - name: stonks_operation_calls_total
+        labels:
+          - {name: component, value: provider}
+          - {name: operation, value: fetch}
+          - {name: status, value: error}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [dependency_healthy, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: llm_outage
+    failure_class: upstream_outage
+    injection_point: llm_request
+    expected_state: degraded
+    forbidden_side_effects: [target_created, reservation_created, order_created]
+    required_audit_evidence: [llm_outage_detected, research_degraded]
+    required_metric_evidence:
+      - name: stonks_operation_calls_total
+        labels:
+          - {name: component, value: llm}
+          - {name: operation, value: complete}
+          - {name: status, value: error}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [dependency_healthy, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: model_outage
+    failure_class: upstream_outage
+    injection_point: model_inference
+    expected_state: degraded
+    forbidden_side_effects: [target_created, reservation_created, order_created]
+    required_audit_evidence: [model_outage_detected, forecast_degraded]
+    required_metric_evidence:
+      - name: stonks_operation_calls_total
+        labels:
+          - {name: component, value: model}
+          - {name: operation, value: infer}
+          - {name: status, value: error}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [dependency_healthy, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: sidecar_outage
+    failure_class: upstream_outage
+    injection_point: sidecar_request
+    expected_state: degraded
+    forbidden_side_effects: [target_created, reservation_created, order_created]
+    required_audit_evidence: [sidecar_outage_detected, provider_route_degraded]
+    required_metric_evidence:
+      - name: stonks_operation_calls_total
+        labels:
+          - {name: component, value: provider}
+          - {name: operation, value: fetch}
+          - {name: status, value: error}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [dependency_healthy, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: database_restart
+    failure_class: database_disaster
+    injection_point: database_connection
+    expected_state: failed
+    forbidden_side_effects:
+      [reservation_created, order_created, unbalanced_journal_committed]
+    required_audit_evidence: [database_unavailable, paper_cycle_failed]
+    required_metric_evidence:
+      - name: stonks_operation_calls_total
+        labels:
+          - {name: component, value: queue}
+          - {name: operation, value: claim}
+          - {name: status, value: error}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [database_healthy, alembic_head_verified, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: worker_crash
+    failure_class: worker_failure
+    injection_point: worker_after_receipt_commit
+    expected_state: fenced
+    forbidden_side_effects:
+      [duplicate_receipt_committed, duplicate_fill_committed, duplicate_journal_committed]
+    required_audit_evidence: [worker_crash_detected, stale_worker_fenced]
+    required_metric_evidence:
+      - name: stonks_operation_calls_total
+        labels:
+          - {name: component, value: worker}
+          - {name: operation, value: process}
+          - {name: status, value: error}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [fence_advanced, ledger_balanced, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: lease_expiry
+    failure_class: worker_failure
+    injection_point: lease_renewal
+    expected_state: fenced
+    forbidden_side_effects: [stale_result_committed, reservation_created, order_created]
+    required_audit_evidence: [lease_expired, stale_worker_fenced]
+    required_metric_evidence:
+      - name: stonks_operation_calls_total
+        labels:
+          - {name: component, value: worker}
+          - {name: operation, value: claim}
+          - {name: status, value: error}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [fence_advanced, dead_letter_inspected, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: duplicate_event
+    failure_class: delivery_anomaly
+    injection_point: event_delivery
+    expected_state: rejected
+    forbidden_side_effects:
+      [order_created, duplicate_receipt_committed, duplicate_fill_committed, duplicate_journal_committed]
+    required_audit_evidence: [duplicate_event_detected, duplicate_event_rejected]
+    required_metric_evidence:
+      - name: stonks_correctness_violations_total
+        labels:
+          - {name: invariant, value: duplicate_paper_order}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [inbox_deduplication_verified, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: artifact_corruption
+    failure_class: artifact_corruption
+    injection_point: artifact_read
+    expected_state: rejected
+    forbidden_side_effects:
+      [corrupt_artifact_replayed, target_created, reservation_created, order_created]
+    required_audit_evidence: [artifact_corruption_detected, artifact_replay_rejected]
+    required_metric_evidence:
+      - name: stonks_correctness_violations_total
+        labels:
+          - {name: invariant, value: claim_provenance}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [artifact_integrity_verified, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: ledger_mismatch
+    failure_class: canonical_state_mismatch
+    injection_point: ledger_before_commit
+    expected_state: failed
+    forbidden_side_effects:
+      [unbalanced_journal_committed, order_created, existing_fill_deleted, existing_journal_deleted]
+    required_audit_evidence: [ledger_mismatch_detected, kill_switch_activated]
+    required_metric_evidence:
+      - name: stonks_correctness_violations_total
+        labels:
+          - {name: invariant, value: risk_replayability}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [kill_switch_active, ledger_balanced, reconciliation_passed, replay_verified, audit_chain_verified, operator_approved]
+
+  - drill_id: database_restore
+    failure_class: database_disaster
+    injection_point: database_restore
+    expected_state: failed
+    forbidden_side_effects:
+      [source_database_mutated, existing_fill_deleted, existing_journal_deleted, unbalanced_journal_committed]
+    required_audit_evidence: [restore_source_verified, restore_target_verified]
+    required_metric_evidence:
+      - name: stonks_operation_calls_total
+        labels:
+          - {name: component, value: reconciliation}
+          - {name: operation, value: reconcile}
+          - {name: status, value: success}
+          - {name: environment, value: test}
+    recovery_preconditions:
+      [fresh_restore_target, source_target_isolated, alembic_head_verified, hash_chain_verified, replay_verified, append_only_verified, audit_chain_verified, operator_approved]

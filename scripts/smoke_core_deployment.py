@@ -26,6 +26,7 @@ _HTTP_REQUEST_TIMEOUT_SECONDS = 5.0
 _COMMAND_TIMEOUT_SECONDS = 900.0
 _MAX_REPLAY_PROBE_BYTES = 128 * 1024
 _IMAGE_CONTENT_CHECK = """
+import hashlib
 import importlib.util
 import os
 import pathlib
@@ -43,6 +44,23 @@ assert all(
 )
 assert not pathlib.Path("/opt/stonks/tests").exists()
 assert not pathlib.Path("/opt/stonks/.research").exists()
+notice_path = pathlib.Path(
+    "/usr/share/licenses/stonks-agent/"
+    "AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md"
+)
+notice = notice_path.read_bytes()
+assert hashlib.sha256(notice).hexdigest() == (
+    "91607e5dd43d93ad8372921ceacba8a579b07dcd6cd2dd5a2be244d8e6e7696c"
+)
+notice_text = notice.decode("utf-8")
+assert all(
+    marker in notice_text
+    for marker in (
+        "Copyright (c) 2024 Virat Singh",
+        "Permission is hereby granted, free of charge",
+        'THE SOFTWARE IS PROVIDED "AS IS"',
+    )
+)
 """
 _READ_ONLY_ROOTFS_CHECK = """
 from pathlib import Path

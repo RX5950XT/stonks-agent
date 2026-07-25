@@ -448,6 +448,20 @@ def test_exercise_runs_full_persistence_security_and_cleanup_flow(
     assert len(rootfs_checks) == 1
 
 
+def test_image_content_smoke_binds_full_ai_hedge_fund_mit_notice() -> None:
+    check = smoke_core_deployment._IMAGE_CONTENT_CHECK
+
+    for token in (
+        "/usr/share/licenses/stonks-agent/",
+        "AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md",
+        "91607e5dd43d93ad8372921ceacba8a579b07dcd6cd2dd5a2be244d8e6e7696c",
+        "Copyright (c) 2024 Virat Singh",
+        "Permission is hereby granted, free of charge",
+        'THE SOFTWARE IS PROVIDED "AS IS"',
+    ):
+        assert token in check
+
+
 def test_exercise_skips_build_but_always_cleans_up_after_failure(
     tmp_path: Path,
 ) -> None:

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from scripts.smoke_optional_profiles import load_policy
 from stonks_agent.config.features import load_optional_feature_catalog
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,3 +77,58 @@ def test_core_lock_and_project_remain_free_of_optional_heavy_runtimes() -> None:
     assert dependencies.isdisjoint(CORE_DENIED)
     for denied in CORE_DENIED:
         assert f'name = "{denied}"' not in lock
+
+
+def test_optional_smoke_policy_matches_exact_compose_profiles() -> None:
+    policy = load_policy(ROOT / "config" / "optional-smoke.yaml")
+    compose = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
+    compose_profiles = {
+        profile
+        for service in compose["services"].values()
+        for profile in service["profiles"]
+    }
+
+    assert {item.profile for item in policy.profiles} == compose_profiles
+    assert (
+        sum(
+            item.compatibility_expectation == "actual_runtime"
+            for item in policy.profiles
+        )
+        == 4
+    )
+    assert (
+        sum(item.compatibility_expectation == "blocked" for item in policy.profiles)
+        == 5
+    )
+    assert (
+        sum(item.compatibility_expectation == "unsupported" for item in policy.profiles)
+        == 1
+    )
+
+
+def test_optional_ci_matrix_requires_independent_actual_runtime_jobs() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    )
+    job = workflow["jobs"]["optional-integration-manifests"]
+    rendered = yaml.safe_dump(job, sort_keys=True)
+
+    assert set(job["needs"]) == {
+        "core-deployment",
+        "openbb-sidecar",
+        "nautilus-sidecar",
+        "lean-sidecar",
+        "rd-agent-sandbox",
+    }
+    assert job["permissions"] == {"contents": "read"}
+    assert job["timeout-minutes"] == 30
+    assert (
+        job["env"]["STONKS_OPTIONAL_ACTUAL_RUNTIME_PROFILES"]
+        == "openbb,nautilus,lean,rd-agent"
+    )
+    assert "scripts/smoke_optional_profiles.py" in rendered
+    assert "optional-profile-smoke.json" in rendered
+    assert "if-no-files-found: error" in rendered
+    assert "uv run python -m pytest" in rendered
+    assert "uv run pytest" not in rendered
+    assert "continue-on-error" not in rendered

@@ -22,11 +22,13 @@
       "payload/LICENSE",
       "payload/THIRD_PARTY_NOTICES.md",
       "payload/config/defaults.toml",
+      "payload/config/features.yaml",
       "payload/config/release/core.openvex.json",
       "payload/config/release/core-runtime-legal.json",
       "payload/config/release/python-source-policy.json",
       "payload/config/release-policy.json",
       "payload/docs/legal/license-policy.md",
+      "payload/docs/legal/notices/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md",
       "payload/docs/legal/notices/ALPINE-3.23-CORE-RUNTIME.md",
       "payload/docs/legal/notices/CPYTHON-PYTHON-2.0-COOKIE-SECURITY-BACKPORT.md",
       "payload/docs/legal/upstream-manifest.yaml",
@@ -61,12 +63,15 @@
       "payload/scripts/release_source_contracts.py",
       "payload/scripts/release_verifier_bundle.py",
       "payload/scripts/release_verifier_common.py",
+      "payload/scripts/release_verifier_final.py",
       "payload/scripts/release_verifier_reports.py",
       "payload/scripts/release_verifier_signatures.py",
       "payload/scripts/verify_release.py",
       "payload/sidecars/lean/pyproject.toml",
+      "payload/sidecars/lean/NOTICE.md",
       "payload/sidecars/lean/uv.lock",
       "payload/sidecars/nautilus/pyproject.toml",
+      "payload/sidecars/nautilus/NOTICE.md",
       "payload/sidecars/nautilus/uv.lock",
       "payload/sidecars/openbb/Dockerfile",
       "payload/sidecars/openbb/NOTICE.md",
@@ -79,13 +84,17 @@
       "payload/uv.lock",
       "payload/workers/kronos/profiles/cuda/pyproject.toml",
       "payload/workers/kronos/profiles/cuda/uv.lock",
+      "payload/workers/kronos/NOTICE.md",
       "payload/workers/kronos/pyproject.toml",
       "payload/workers/kronos/uv.lock",
       "payload/workers/quant_lab/pyproject.toml",
+      "payload/workers/quant_lab/NOTICE.md",
+      "payload/workers/quant_lab/rd_agent/NOTICE.md",
       "payload/workers/quant_lab/rd_agent/pyproject.toml",
       "payload/workers/quant_lab/rd_agent/uv.lock",
       "payload/workers/quant_lab/uv.lock",
       "payload/workers/tradingagents/pyproject.toml",
+      "payload/workers/tradingagents/NOTICE.md",
       "payload/workers/tradingagents/uv.lock"
     ],
     "required_trees": [
@@ -139,8 +148,77 @@
       "KRONOS-MIT-WORKER",
       "NAUTILUS-TRADER-LGPL-3.0-SIDECAR",
       "OPENBB-AGPL-3.0-SIDECAR",
+      "QLIB-MIT-WORKER",
       "QUANTCONNECT-LEAN-APACHE-2.0-SIDECAR",
+      "RD-AGENT-MIT-SANDBOX",
       "TRADINGAGENTS-APACHE-2.0-WORKER"
+    ],
+    "dedicated_notices": [
+      {
+        "id": "AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY",
+        "path": "payload/docs/legal/notices/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md",
+        "sha256": "91607e5dd43d93ad8372921ceacba8a579b07dcd6cd2dd5a2be244d8e6e7696c",
+        "runtime_path": "/usr/share/licenses/stonks-agent/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md"
+      }
+    ],
+    "feature_notices": [
+      {
+        "integration": "openbb",
+        "root_notice_id": "OPENBB-AGPL-3.0-SIDECAR",
+        "paths": [
+          "sidecars/openbb/NOTICE.md",
+          "sidecars/openbb/SOURCE_OFFER.md"
+        ],
+        "execution_authority": false
+      },
+      {
+        "integration": "tradingagents",
+        "root_notice_id": "TRADINGAGENTS-APACHE-2.0-WORKER",
+        "paths": [
+          "workers/tradingagents/NOTICE.md"
+        ],
+        "execution_authority": false
+      },
+      {
+        "integration": "kronos",
+        "root_notice_id": "KRONOS-MIT-WORKER",
+        "paths": [
+          "workers/kronos/NOTICE.md"
+        ],
+        "execution_authority": false
+      },
+      {
+        "integration": "qlib",
+        "root_notice_id": "QLIB-MIT-WORKER",
+        "paths": [
+          "workers/quant_lab/NOTICE.md"
+        ],
+        "execution_authority": false
+      },
+      {
+        "integration": "nautilus",
+        "root_notice_id": "NAUTILUS-TRADER-LGPL-3.0-SIDECAR",
+        "paths": [
+          "sidecars/nautilus/NOTICE.md"
+        ],
+        "execution_authority": false
+      },
+      {
+        "integration": "lean",
+        "root_notice_id": "QUANTCONNECT-LEAN-APACHE-2.0-SIDECAR",
+        "paths": [
+          "sidecars/lean/NOTICE.md"
+        ],
+        "execution_authority": false
+      },
+      {
+        "integration": "rd_agent",
+        "root_notice_id": "RD-AGENT-MIT-SANDBOX",
+        "paths": [
+          "workers/quant_lab/rd_agent/NOTICE.md"
+        ],
+        "execution_authority": false
+      }
     ]
   },
   "openbb": {
@@ -195,6 +273,16 @@
     "workflow": ".github/workflows/release.yml",
     "image_bundle": "signatures/core-image.sigstore.json",
     "manifest_bundle": "signatures/release-manifest.sigstore.json",
-    "verification_report_bundle": "signatures/verification-report.sigstore.json"
+    "verification_report_bundle": "signatures/verification-report.sigstore.json",
+    "final_evidence": {
+      "image_bundle": "signatures/core-image.sigstore.json",
+      "manifest_bundle": "signatures/release-manifest.sigstore.json",
+      "verification_report_bundle": "signatures/verification-report.sigstore.json",
+      "provenance_bundle": "signatures/github-provenance.sigstore.json",
+      "sbom_bundle": "signatures/github-sbom.sigstore.json",
+      "provenance_predicate_type": "https://slsa.dev/provenance/v1",
+      "sbom_predicate_type": "https://cyclonedx.org/bom",
+      "max_bundle_bytes": 33554432
+    }
   }
 }

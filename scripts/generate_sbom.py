@@ -13,6 +13,7 @@ import re
 import stat
 import subprocess
 import tempfile
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -100,7 +101,7 @@ def normalize_sbom(
         raise SbomError("SBOM must use CycloneDX")
     if normalized.get("specVersion") != "1.6":
         raise SbomError("SBOM must use CycloneDX 1.6")
-    normalized.pop("serialNumber", None)
+    normalized["serialNumber"] = deterministic_serial_number(image_reference)
     metadata = _mapping_copy(normalized.get("metadata"), "SBOM metadata")
     metadata.pop("timestamp", None)
     normalized["metadata"] = metadata
@@ -163,6 +164,13 @@ def normalize_sbom(
         "components": inventory_components,
     }
     return _canonical(normalized), _canonical(inventory)
+
+
+def deterministic_serial_number(image_reference: str) -> str:
+    """Return one stable RFC 4122 CycloneDX serial for an exact image digest."""
+    validate_image_reference(image_reference)
+    name = f"stonks-agent-cyclonedx:{image_reference}"
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
 
 
 def write_normalized_sbom(

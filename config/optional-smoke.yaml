@@ -1,0 +1,54 @@
+schema_version: 1
+claim_scope: optional_profile_compatibility_and_absence_safety
+execution_mode: paper
+profiles:
+  - profile: openbb
+    integration: openbb
+    compatibility_expectation: actual_runtime
+    evidence_ref: openbb-sidecar
+    absence_probe: external_ci_runtime
+  - profile: tradingagents-paper
+    integration: tradingagents
+    compatibility_expectation: blocked
+    evidence_ref: missing_trusted_runtime_inputs
+    absence_probe: isolated_auth_boundary
+  - profile: tradingagents-backtest
+    integration: tradingagents
+    compatibility_expectation: blocked
+    evidence_ref: missing_trusted_runtime_inputs
+    absence_probe: isolated_auth_boundary
+  - profile: tradingagents-production
+    integration: tradingagents
+    compatibility_expectation: blocked
+    evidence_ref: missing_trusted_runtime_inputs
+    absence_probe: isolated_auth_boundary
+  - profile: kronos-cpu
+    integration: kronos
+    compatibility_expectation: blocked
+    evidence_ref: missing_model_and_trusted_runtime_inputs
+    absence_probe: isolated_auth_boundary
+  - profile: kronos-cuda
+    integration: kronos
+    compatibility_expectation: unsupported
+    evidence_ref: github_hosted_runner_has_no_gpu_or_model
+    absence_probe: cuda_hardware
+  - profile: qlib
+    integration: qlib
+    compatibility_expectation: blocked
+    evidence_ref: missing_trusted_runtime_inputs
+    absence_probe: isolated_auth_boundary
+  - profile: nautilus
+    integration: nautilus
+    compatibility_expectation: actual_runtime
+    evidence_ref: nautilus-sidecar
+    absence_probe: external_ci_runtime
+  - profile: lean
+    integration: lean
+    compatibility_expectation: actual_runtime
+    evidence_ref: lean-sidecar
+    absence_probe: external_ci_runtime
+  - profile: rd-agent
+    integration: rd_agent
+    compatibility_expectation: actual_runtime
+    evidence_ref: rd-agent-sandbox
+    absence_probe: external_ci_runtime

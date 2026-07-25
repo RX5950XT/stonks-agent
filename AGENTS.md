@@ -48,6 +48,8 @@
 - Heavy upstream 各自使用獨立 lock/image；OpenBB、PyTorch、TradingAgents、Qlib、RD-Agent、Nautilus、LEAN 不得進 core lock。
 - Linux core只能使用source-built `psycopg-c`與system `libpq`；不得以bundled `psycopg-binary`隱藏native dependency。正式bundle必含並重驗OpenBB、Alpine與Python exact corresponding source、canonical SBOM/Grype/VEX與所有locks/notices。
 - Release必須先在registry publication前通過unsigned candidate，再只對registry exact digest做GitHub OIDC keyless signing/attestation；本機unsigned結果不得宣稱signature或provenance。
+- Canonical CycloneDX serial必須deterministic綁定exact image；formal final verifier須獨立重驗五份exact evidence，且SBOM attestation predicate body必須與signed canonical SBOM完全相同。
+- Optional profile若blocked/unsupported不得宣稱runtime compatibility；本機render或fail-closed probe不能取代GitHub workflow runtime report，缺外部證據維持unverified。
 
 ## 程式與驗證標準
 

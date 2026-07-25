@@ -31,5 +31,6 @@ key，完成 receiver 健康檢查後才恢復 queue consumption。
 檢查 duplicate compute、stale generation/nonce 與 core completion fencing audit；
 remote result 永遠不能直接 commit DB、建立 order 或 override risk。
 
-Service bearer 只能在 private/internal network 傳送；跨主機部署須由 P6.7 的 TLS／
-mTLS transport 保護。未具備加密 transport 時不得開放 worker ingress 到外部網路。
+Service bearer 只能在 private/internal network 傳送。目前 repository 尚未驗證跨主機
+TLS/mTLS、orchestrator network policy 或 public ingress；因此現有證據只允許 single-host
+internal transport。未具備並驗證加密 transport 時不得開放 worker ingress 到外部網路。

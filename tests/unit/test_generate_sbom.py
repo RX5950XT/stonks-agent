@@ -126,7 +126,7 @@ def test_normalization_removes_only_nondeterminism_and_preserves_file_components
 
     assert first_sbom == second_sbom
     assert first_inventory == second_inventory
-    assert "serialNumber" not in first_sbom
+    assert first_sbom["serialNumber"] == "urn:uuid:87ad2edb-6a1e-5aee-bb8a-ee169762e3ab"
     assert "timestamp" not in first_sbom["metadata"]
     assert [item["bom-ref"] for item in first_sbom["components"]] == [
         "alpha",
@@ -136,6 +136,21 @@ def test_normalization_removes_only_nondeterminism_and_preserves_file_components
     assert first_inventory["component_count"] == 2
     assert len(first_inventory["components_sha256"]) == 64
     assert first_inventory["components"][0]["licenses"] == ["Apache-2.0"]
+
+
+def test_normalization_binds_deterministic_serial_to_exact_image_digest() -> None:
+    first, _ = normalize_sbom(
+        _sbom(timestamp="2026-07-18T01:00:00Z", serial="urn:uuid:random"),
+        image_reference=IMAGE,
+        license_overrides={"pkg:pypi/alpha@2.0": "Apache-2.0"},
+    )
+    second, _ = normalize_sbom(
+        _sbom(timestamp="2026-07-18T01:00:00Z", serial="urn:uuid:random"),
+        image_reference="ghcr.io/acme/stonks-agent@sha256:" + ("b" * 64),
+        license_overrides={"pkg:pypi/alpha@2.0": "Apache-2.0"},
+    )
+
+    assert first["serialNumber"] != second["serialNumber"]
 
 
 def test_normalization_rejects_unknown_package_license_and_duplicate_purl() -> None:

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
 
 import yaml
+
+from scripts.release_verifier_bundle import stage_release
+from scripts.release_verifier_reports import verify_notices
 
 ROOT = Path(__file__).resolve().parents[2]
 FULL_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -104,7 +108,18 @@ def test_release_verifies_the_unsigned_candidate_before_registry_publication() -
 
     assert create_offset < verify_offset < push_offset
     assert content.count("scripts/verify_release.py create") == 2
-    assert content.count("scripts/verify_release.py verify") == 2
+    assert content.count("scripts/verify_release.py verify") == 3
+    assert content.count("scripts/verify_release.py verify-final") == 1
+
+
+def test_formal_final_verification_runs_after_all_five_evidence_files_land() -> None:
+    content, _ = _workflow("release.yml")
+    provenance_copy = content.index("github-provenance.sigstore.json")
+    sbom_copy = content.index("github-sbom.sigstore.json")
+    final_verify = content.index("scripts/verify_release.py verify-final")
+    transfer = content.index("name: Transfer signed verified release")
+
+    assert max(provenance_copy, sbom_copy) < final_verify < transfer
 
 
 def test_core_and_openbb_images_receive_exact_release_identity_build_args() -> None:
@@ -173,6 +188,149 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "source_count": 3,
         "total_source_bytes": 947504,
     }
+
+
+def test_all_feature_notices_are_in_root_and_signed_release_policy() -> None:
+    features = yaml.safe_load(
+        (ROOT / "config" / "features.yaml").read_text(encoding="utf-8")
+    )
+    policy = json.loads(
+        (ROOT / "config" / "release-policy.json").read_text(encoding="utf-8")
+    )
+    required = set(policy["bundle"]["required_payload_files"])
+    root_notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    declared = {
+        item["integration"]: item for item in policy["legal"]["feature_notices"]
+    }
+    expected = {
+        item["name"]: item["supply_chain"]["notice_paths"]
+        for item in features["integrations"]
+        if item["supply_chain"] is not None
+    }
+    expected_root_ids = {
+        "openbb": "OPENBB-AGPL-3.0-SIDECAR",
+        "tradingagents": "TRADINGAGENTS-APACHE-2.0-WORKER",
+        "kronos": "KRONOS-MIT-WORKER",
+        "qlib": "QLIB-MIT-WORKER",
+        "nautilus": "NAUTILUS-TRADER-LGPL-3.0-SIDECAR",
+        "lean": "QUANTCONNECT-LEAN-APACHE-2.0-SIDECAR",
+        "rd_agent": "RD-AGENT-MIT-SANDBOX",
+    }
+
+    assert set(declared) == set(expected) == set(expected_root_ids)
+    assert "payload/config/features.yaml" in required
+    for integration, notice_paths in expected.items():
+        item = declared[integration]
+        assert item["paths"] == notice_paths
+        assert item["root_notice_id"] == expected_root_ids[integration]
+        assert item["execution_authority"] is False
+        assert root_notices.count(f"## {item['root_notice_id']}\n") == 1
+        section = root_notices.split(f"## {item['root_notice_id']}\n", 1)[1]
+        section = section.split("\n## ", 1)[0]
+        assert "execution authority" in " ".join(section.split())
+        for path in notice_paths:
+            assert (ROOT / path).is_file()
+            assert f"payload/{path}" in required
+
+
+def test_ai_hedge_fund_full_mit_notice_is_signed_and_copied_into_core_image() -> None:
+    relative = "docs/legal/notices/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md"
+    runtime = "/usr/share/licenses/stonks-agent/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md"
+    expected_sha256 = "91607e5dd43d93ad8372921ceacba8a579b07dcd6cd2dd5a2be244d8e6e7696c"
+    notice = (ROOT / relative).read_bytes()
+    text = notice.decode("utf-8")
+    policy = json.loads(
+        (ROOT / "config" / "release-policy.json").read_text(encoding="utf-8")
+    )
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
+    root_notices = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+
+    assert hashlib.sha256(notice).hexdigest() == expected_sha256
+    assert "https://github.com/virattt/ai-hedge-fund" in text
+    assert "3a18702cb25777fb4bdb4b2527a0c868bc8297f4" in text
+    assert "Copyright (c) 2024 Virat Singh" in text
+    assert "Permission is hereby granted, free of charge" in text
+    assert 'THE SOFTWARE IS PROVIDED "AS IS"' in text
+    root_section = root_notices.split("## AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY\n", 1)[
+        1
+    ].split("\n## ", 1)[0]
+    assert relative in root_section
+    assert f"payload/{relative}" in policy["bundle"]["required_payload_files"]
+    assert policy["legal"]["dedicated_notices"] == [
+        {
+            "id": "AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY",
+            "path": f"payload/{relative}",
+            "sha256": expected_sha256,
+            "runtime_path": runtime,
+        }
+    ]
+    assert f"COPY --chown=65532:65532 --chmod=0444 {relative} {runtime}" in dockerfile
+    allowlist = (
+        "docs/*",
+        "!docs/legal",
+        "docs/legal/*",
+        "!docs/legal/notices",
+        "docs/legal/notices/*",
+        f"!{relative}",
+    )
+    positions = tuple(dockerignore.index(pattern) for pattern in allowlist)
+    assert positions == tuple(sorted(positions))
+    assert [
+        line
+        for line in dockerignore.splitlines()
+        if line.startswith("!docs/") and line.endswith(".md")
+    ] == [f"!{relative}"]
+    for source in (
+        ROOT / "src" / "stonks_agent" / "strategies" / "pead.py",
+        ROOT / "src" / "stonks_agent" / "analytics" / "event_study.py",
+    ):
+        content = source.read_text(encoding="utf-8")
+        assert "3a18702cb25777fb4bdb4b2527a0c868bc8297f4" in content
+        assert "MIT" in content
+
+
+def test_formal_release_policy_closes_exactly_five_sigstore_evidence_files() -> None:
+    policy = json.loads(
+        (ROOT / "config" / "release-policy.json").read_text(encoding="utf-8")
+    )
+    final = policy["signing"]["final_evidence"]
+
+    assert final == {
+        "image_bundle": "signatures/core-image.sigstore.json",
+        "manifest_bundle": "signatures/release-manifest.sigstore.json",
+        "verification_report_bundle": ("signatures/verification-report.sigstore.json"),
+        "provenance_bundle": "signatures/github-provenance.sigstore.json",
+        "sbom_bundle": "signatures/github-sbom.sigstore.json",
+        "provenance_predicate_type": "https://slsa.dev/provenance/v1",
+        "sbom_predicate_type": "https://cyclonedx.org/bom",
+        "max_bundle_bytes": 33554432,
+    }
+
+
+def test_production_release_policy_stages_every_static_signed_file(
+    tmp_path: Path,
+) -> None:
+    policy = json.loads(
+        (ROOT / "config" / "release-policy.json").read_text(encoding="utf-8")
+    )
+    bundle = tmp_path / "bundle"
+
+    copied = stage_release(ROOT, bundle, policy)
+
+    required = {
+        path
+        for path in policy["bundle"]["required_payload_files"]
+        if not path.startswith("payload/release/")
+    }
+    staged = {
+        path.relative_to(bundle).as_posix()
+        for path in bundle.rglob("*")
+        if path.is_file()
+    }
+    assert required <= staged
+    assert copied == len(staged)
+    verify_notices(bundle, policy)
 
 
 def test_both_supply_chain_workflows_generate_and_stage_exact_source_closure() -> None:

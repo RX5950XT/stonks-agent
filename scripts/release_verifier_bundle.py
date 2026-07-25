@@ -314,8 +314,9 @@ def validate_identity(
         raise ReleaseError("release commit must be a full lowercase SHA")
     if not IMAGE_PATTERN.fullmatch(image):
         raise ReleaseError("image must be an exact registry image digest")
-    expected_prefix = f"ghcr.io/{repository.lower()}"
-    if not image.startswith(expected_prefix):
+    image_repository, separator, _digest = image.partition("@sha256:")
+    expected_repository = f"ghcr.io/{repository.lower()}"
+    if separator != "@sha256:" or image_repository != expected_repository:
         raise ReleaseError("image repository does not match release repository")
     if signing_mode not in {"unsigned-candidate", "keyless-release"}:
         raise ReleaseError("release signing mode is invalid")

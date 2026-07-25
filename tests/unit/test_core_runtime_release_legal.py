@@ -41,7 +41,7 @@ def test_release_verifier_blocks_incomplete_alpine_source_closure(
     notices = bundle / "payload" / "THIRD_PARTY_NOTICES.md"
     notices.parent.mkdir(parents=True, exist_ok=True)
     notices.write_text(
-        "CPYTHON-PYTHON-2.0-COOKIE-SECURITY-BACKPORT\nALPINE-3.23-CORE-RUNTIME\n",
+        "## CPYTHON-PYTHON-2.0-COOKIE-SECURITY-BACKPORT\n## ALPINE-3.23-CORE-RUNTIME\n",
         encoding="utf-8",
     )
     release_policy = {

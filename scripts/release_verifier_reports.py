@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import tarfile
+import uuid
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -454,8 +455,8 @@ def verify_sbom(bundle: Path, policy: Mapping[str, Any], *, image: str) -> None:
     sbom = load_json(sbom_path, max_bytes=128 * 1024 * 1024)
     if sbom.get("bomFormat") != "CycloneDX" or sbom.get("specVersion") != "1.6":
         raise ReleaseError("release SBOM must use CycloneDX 1.6")
-    if "serialNumber" in sbom:
-        raise ReleaseError("release SBOM contains nondeterministic serialNumber")
+    if sbom.get("serialNumber") != _deterministic_sbom_serial(image):
+        raise ReleaseError("release SBOM serialNumber is not image-bound")
     metadata = as_mapping(sbom.get("metadata"), "SBOM metadata")
     if "timestamp" in metadata:
         raise ReleaseError("release SBOM contains nondeterministic timestamp")
@@ -483,6 +484,11 @@ def verify_sbom(bundle: Path, policy: Mapping[str, Any], *, image: str) -> None:
         and component_hash != expected_hash
     ):
         raise ReleaseError("reviewed license inventory drifted")
+
+
+def _deterministic_sbom_serial(image: str) -> str:
+    name = f"stonks-agent-cyclonedx:{image}"
+    return f"urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, name)}"
 
 
 def _verify_package_licenses(packages: list[object]) -> None:
@@ -518,10 +524,138 @@ def verify_notices(bundle: Path, policy: Mapping[str, Any]) -> None:
     tokens = legal_policy.get("required_notice_ids", [])
     if not isinstance(tokens, list):
         raise ReleaseError("required notice ids must be a list")
-    for token in tokens:
-        if not isinstance(token, str) or token not in notices:
-            raise ReleaseError(f"required third-party notice is missing: {token}")
+    _verify_required_notice_ids(notices, tokens)
+    _verify_dedicated_notices(bundle, policy, legal_policy, tokens)
+    _verify_feature_notices(bundle, policy, legal_policy, notices, tokens)
     verify_core_runtime_legal(bundle, legal_policy)
+
+
+def _verify_required_notice_ids(notices: str, notice_ids: list[object]) -> None:
+    seen: set[str] = set()
+    for notice_id in notice_ids:
+        if not isinstance(notice_id, str):
+            raise ReleaseError(f"required third-party notice is missing: {notice_id}")
+        if notice_id in seen:
+            raise ReleaseError("required notice identity is duplicated")
+        if notices.count(f"## {notice_id}\n") != 1:
+            raise ReleaseError(f"required third-party notice is missing: {notice_id}")
+        seen.add(notice_id)
+
+
+def _verify_dedicated_notices(
+    bundle: Path,
+    policy: Mapping[str, Any],
+    legal: Mapping[str, Any],
+    notice_ids: list[object],
+) -> None:
+    raw = legal.get("dedicated_notices")
+    if raw is None:
+        return
+    if not isinstance(raw, list) or not raw:
+        raise ReleaseError("dedicated notice policy must be a non-empty list")
+    required = _required_release_paths(policy)
+    seen_ids: set[str] = set()
+    seen_paths: set[str] = set()
+    seen_runtime_paths: set[str] = set()
+    for value in raw:
+        item = as_mapping(value, "dedicated notice")
+        if set(item) != {"id", "path", "sha256", "runtime_path"}:
+            raise ReleaseError("dedicated notice policy fields drifted")
+        notice_id = as_string(item.get("id"), "dedicated notice id")
+        path = as_string(item.get("path"), "dedicated notice path")
+        expected_hash = as_string(item.get("sha256"), "dedicated notice sha256")
+        runtime_path = as_string(
+            item.get("runtime_path"), "dedicated notice runtime path"
+        )
+        validate_relative_path(path, label="dedicated notice path")
+        filename = path.rsplit("/", maxsplit=1)[-1]
+        if (
+            notice_id in seen_ids
+            or path in seen_paths
+            or runtime_path in seen_runtime_paths
+            or notice_id not in notice_ids
+            or path not in required
+            or not path.startswith("payload/docs/legal/notices/")
+            or not SHA256_PATTERN.fullmatch(expected_hash)
+            or runtime_path != f"/usr/share/licenses/stonks-agent/{filename}"
+        ):
+            raise ReleaseError("dedicated notice closure is invalid")
+        notice_path = safe_join(bundle, path)
+        regular_status(notice_path, max_bytes=2_000_000)
+        if sha256(notice_path) != expected_hash:
+            raise ReleaseError("dedicated notice content drifted")
+        seen_ids.add(notice_id)
+        seen_paths.add(path)
+        seen_runtime_paths.add(runtime_path)
+
+
+def _verify_feature_notices(
+    bundle: Path,
+    policy: Mapping[str, Any],
+    legal: Mapping[str, Any],
+    notices: str,
+    notice_ids: list[object],
+) -> None:
+    raw = legal.get("feature_notices")
+    if raw is None:
+        return
+    if not isinstance(raw, list) or not raw:
+        raise ReleaseError("feature notice policy must be a non-empty list")
+    required = _required_release_paths(policy)
+    if "payload/config/features.yaml" not in required:
+        raise ReleaseError("feature catalog is not signed")
+    seen_integrations: set[str] = set()
+    seen_notice_ids: set[str] = set()
+    seen_paths: set[str] = set()
+    for value in raw:
+        item = as_mapping(value, "feature notice")
+        if set(item) != {
+            "integration",
+            "root_notice_id",
+            "paths",
+            "execution_authority",
+        }:
+            raise ReleaseError("feature notice policy fields drifted")
+        integration = as_string(item.get("integration"), "feature integration")
+        notice_id = as_string(item.get("root_notice_id"), "feature notice id")
+        if (
+            integration in seen_integrations
+            or notice_id in seen_notice_ids
+            or notice_id not in notice_ids
+        ):
+            raise ReleaseError("feature notice identity drifted")
+        if item.get("execution_authority") is not False:
+            raise ReleaseError("feature notice grants execution authority")
+        _verify_feature_notice_section(notices, notice_id)
+        paths = item.get("paths")
+        if not isinstance(paths, list) or not paths:
+            raise ReleaseError("feature notice paths are invalid")
+        for path_value in paths:
+            path = as_string(path_value, "feature notice path")
+            validate_relative_path(path, label="feature notice path")
+            if path in seen_paths or f"payload/{path}" not in required:
+                raise ReleaseError("feature notice is not uniquely signed")
+            regular_status(safe_join(bundle, f"payload/{path}"), max_bytes=2_000_000)
+            seen_paths.add(path)
+        seen_integrations.add(integration)
+        seen_notice_ids.add(notice_id)
+
+
+def _required_release_paths(policy: Mapping[str, Any]) -> set[str]:
+    bundle = as_mapping(policy.get("bundle"), "policy.bundle")
+    raw = bundle.get("required_payload_files")
+    if not isinstance(raw, list):
+        raise ReleaseError("required payload files are invalid")
+    return {as_string(value, "required payload file") for value in raw}
+
+
+def _verify_feature_notice_section(notices: str, notice_id: str) -> None:
+    heading = f"## {notice_id}\n"
+    if notices.count(heading) != 1:
+        raise ReleaseError("feature root notice identity drifted")
+    section = notices.split(heading, maxsplit=1)[1].split("\n## ", maxsplit=1)[0]
+    if "execution authority" not in " ".join(section.split()):
+        raise ReleaseError("feature root notice lacks authority boundary")
 
 
 def verify_core_runtime_legal(bundle: Path, legal_policy: Mapping[str, Any]) -> None:

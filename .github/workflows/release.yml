@@ -420,29 +420,24 @@ jobs:
           push-to-registry: true
           create-storage-record: false
 
-      - name: Verify GitHub attestations against exact workflow identity
+      - name: Close and verify all five formal Sigstore evidence files
         env:
           GH_TOKEN: ${{ github.token }}
-          IMAGE: ${{ needs.gate.outputs.image }}
-          IMAGE_DIGEST: ${{ needs.publish-image.outputs.digest }}
           PROVENANCE_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
           SBOM_BUNDLE: ${{ steps.sbom_attestation.outputs.bundle-path }}
         run: |
-          gh attestation verify "oci://${IMAGE}@${IMAGE_DIGEST}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
-            --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA" \
-            --deny-self-hosted-runners
+          set -euo pipefail
+          test -n "$PROVENANCE_BUNDLE"
+          test -n "$SBOM_BUNDLE"
           cp "$PROVENANCE_BUNDLE" \
             "$RUNNER_TEMP/release-input/bundle/signatures/github-provenance.sigstore.json"
           cp "$SBOM_BUNDLE" \
             "$RUNNER_TEMP/release-input/bundle/signatures/github-sbom.sigstore.json"
-          gh attestation verify "oci://${IMAGE}@${IMAGE_DIGEST}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --predicate-type https://cyclonedx.org/bom \
-            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml" \
-            --source-ref "$GITHUB_REF" --source-digest "$GITHUB_SHA" \
-            --deny-self-hosted-runners
+          uv run python scripts/verify_release.py verify-final \
+            --bundle "$RUNNER_TEMP/release-input/bundle" \
+            --expected-repository "$GITHUB_REPOSITORY" \
+            --expected-tag "$GITHUB_REF_NAME" \
+            --expected-commit "$GITHUB_SHA"
 
       - name: Transfer signed verified release
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

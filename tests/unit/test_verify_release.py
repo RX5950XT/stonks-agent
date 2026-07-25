@@ -13,6 +13,8 @@ from typing import Any
 
 import pytest
 
+from scripts.release_verifier_bundle import validate_identity
+
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = spec_from_file_location(
     "verify_release_under_test",
@@ -31,6 +33,7 @@ verify_grype_database_identity: Any = MODULE.verify_grype_database_identity
 verify_openbb_source: Any = MODULE.verify_openbb_source
 verify_image_report: Any = MODULE.verify_image_report
 verify_release: Any = MODULE.verify_release
+verify_sbom: Any = MODULE._verify_sbom
 
 IMAGE = "ghcr.io/acme/stonks-agent@sha256:" + ("a" * 64)
 COMMIT = "b" * 40
@@ -83,6 +86,28 @@ def _policy() -> dict[str, object]:
     }
 
 
+@pytest.mark.parametrize(
+    "image",
+    [
+        "ghcr.io/acme/stonks-agent-evil@sha256:" + ("a" * 64),
+        "ghcr.io/acme/stonks-agent/child@sha256:" + ("a" * 64),
+    ],
+)
+def test_release_identity_rejects_non_exact_repository_image(image: str) -> None:
+    with pytest.raises(
+        ReleaseError,
+        match="image repository does not match release repository",
+    ):
+        validate_identity(
+            version="0.1.0",
+            tag="v0.1.0",
+            repository="acme/stonks-agent",
+            commit=COMMIT,
+            image=image,
+            signing_mode="unsigned-candidate",
+        )
+
+
 def _tar(path: Path, *, unsafe: bool = False) -> None:
     members = {
         "SOURCE_OFFER.md": b"offer",
@@ -122,6 +147,7 @@ def _bundle(tmp_path: Path) -> Path:
             {
                 "bomFormat": "CycloneDX",
                 "specVersion": "1.6",
+                "serialNumber": "urn:uuid:87ad2edb-6a1e-5aee-bb8a-ee169762e3ab",
                 "metadata": {
                     "component": {
                         "name": "ghcr.io/acme/stonks-agent",
@@ -172,6 +198,27 @@ def _bundle(tmp_path: Path) -> Path:
     )
     _tar(payload / "openbb-source.tar.gz")
     return bundle
+
+
+def test_release_sbom_requires_image_bound_deterministic_serial(
+    tmp_path: Path,
+) -> None:
+    bundle = _bundle(tmp_path)
+    policy = _policy()
+    sbom_path = bundle / "payload" / "core.cdx.json"
+
+    verify_sbom(bundle, policy, image=IMAGE)
+
+    sbom = json.loads(sbom_path.read_text(encoding="utf-8"))
+    sbom["serialNumber"] = "urn:uuid:11111111-1111-4111-8111-111111111111"
+    sbom_path.write_text(json.dumps(sbom), encoding="utf-8")
+    with pytest.raises(ReleaseError, match="serialNumber"):
+        verify_sbom(bundle, policy, image=IMAGE)
+
+    sbom.pop("serialNumber")
+    sbom_path.write_text(json.dumps(sbom), encoding="utf-8")
+    with pytest.raises(ReleaseError, match="serialNumber"):
+        verify_sbom(bundle, policy, image=IMAGE)
 
 
 def test_json_loader_rejects_duplicate_keys_and_non_finite_numbers(

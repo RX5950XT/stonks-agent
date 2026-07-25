@@ -71,6 +71,7 @@ COPY --chown=65532:65532 config /opt/stonks/config
 COPY --chown=65532:65532 templates /opt/stonks/templates
 COPY --chown=65532:65532 strategies /opt/stonks/strategies
 COPY --chown=65532:65532 LICENSE THIRD_PARTY_NOTICES.md /usr/share/licenses/stonks-agent/
+COPY --chown=65532:65532 --chmod=0444 docs/legal/notices/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md /usr/share/licenses/stonks-agent/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md
 USER 65532:65532
 ENTRYPOINT ["stonks-deploy"]
 CMD ["serve"]

@@ -41,6 +41,40 @@ docker compose -f infra/compose.optional.yaml config --profiles
 docker compose -f infra/compose.optional.yaml --profile nautilus config --quiet
 ```
 
+Compose render 只驗證 manifest，不能算 runtime smoke。P6.11 另以
+`config/optional-smoke.yaml` 固定 10-profile machine matrix，報告欄位將
+runtime compatibility 與 optional service 缺失時的 core isolation 分開：
+
+| Profile | CI runtime compatibility evidence | Matrix 狀態 |
+|---|---|---|
+| `openbb` | `openbb-sidecar` 真實 HTTP/provider smoke | `actual_passed` |
+| `nautilus` | `nautilus-sidecar` 真實 canonical replay | `actual_passed` |
+| `lean` | `lean-sidecar` 真實 canonical replay | `actual_passed` |
+| `rd-agent` | `rd-agent-sandbox` 真實 one-shot sandbox | `actual_passed` |
+| `tradingagents-paper`、`tradingagents-backtest`、`tradingagents-production` | 缺 trusted service identity 時 exact auth boundary 拒絕 | `blocked` |
+| `kronos-cpu` | 缺 model 與 trusted service identity 時 auth boundary fail closed | `blocked` |
+| `qlib` | 缺 trusted service identity 時 auth boundary fail closed | `blocked` |
+| `kronos-cuda` | GitHub-hosted runner 無 GPU/model，不執行 CUDA runtime | `unsupported` |
+
+`blocked` 與 `unsupported` 的 `runtime_compatibility_verified` 永遠是 `false`；
+不能因 fail-closed 或 matrix contract 通過而改標 runtime passed。這五組 blocked 證據只
+驗證 runtime 共用的 OIDC auth loader 會拒絕缺失輸入，不宣稱 service process 已完成
+startup。CUDA 即使在其他主機
+可用，也只能由具 GPU、pinned model 與對應 lock/image 的獨立 gate 建立新證據。
+
+CI 的 bounded matrix 只在四個獨立 positive runtime jobs 與 core deployment job通過後
+執行；report 封存 `GITHUB_RUN_ID`、exact 40-byte commit SHA 與 workflow ref。它啟動
+本次專屬的 default core/PostgreSQL，對每個 profile 寫入 before/during/after
+readiness，並比較 `run`、target、reservation、order、fill、receipt 與 journal 八組
+canonical row counts。所有 delta 必須為 0，完成後刪除本次專屬 volume。這個 isolation
+trial 驗證 optional service 缺失或 auth boundary fail-closed 不影響 core；四組 positive runtime
+相容性來自獨立 job，不能解讀成與 core 同程序或同 Compose 同時運行的 throughput smoke。
+
+Machine report 只允許 `matrix_contract_status=passed` 與
+`absence_safety_verified=true`；目前固定
+`runtime_compatibility_complete=false`（4 actual、5 blocked、1 unsupported）。Report 上限
+128 KiB，不保存 command output、credential、JWKS、model path、request payload 或 DSN。
+
 不指定 profile 時，`config --services` 必須沒有輸出：
 
 ```powershell

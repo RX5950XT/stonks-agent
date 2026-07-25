@@ -94,6 +94,34 @@ Sidecar image 包含完整 GNU AGPL v3 license，所有 HTTP response 都廣告
 `Link: </source>; rel="source"`，`GET /source` 免費提供實際部署版本的 source/build
 archive，且 archive 內含四個實際安裝版本的 OpenBB source sdists。OpenBB process
 boundary 是技術隔離，不免除 AGPL 或資料 provider 條款。
+Sidecar 只能輸出 canonical observation，沒有 target、risk、order、broker、ledger
+或 execution authority。
+
+## QLIB-MIT-WORKER
+
+Optional `workers/quant_lab/` 是與 core lock 隔離的 Qlib evaluation worker，使用
+Microsoft Qlib commit `d5379c520f66a39953bad76234a7019a72796fd0`；
+Copyright (c) Microsoft Corporation，依 MIT License 提供。Exact source archive
+SHA-256、獨立 dependency resolution 與完整授權位置固定於
+`workers/quant_lab/NOTICE.md`、`pyproject.toml`、`uv.lock` 與 image build。
+
+Worker 只允許 closed typed contract 的 pinned Qlib `LinearModel` OLS path，不接受
+任意 module、serialized model、expression、dataset path、provider credential 或
+generated code。結果只作 evaluation，沒有 target、risk、reservation、order、
+broker、ledger 或 execution authority。
+
+## RD-AGENT-MIT-SANDBOX
+
+Optional `workers/quant_lab/rd_agent/` image 保存 Microsoft RD-Agent commit
+`4f9ecb005881cddc08df0124a2e894c018007679` 的 unmodified source snapshot；
+Copyright (c) Microsoft Corporation，依 MIT License 提供。Exact source、完整授權、
+獨立 lock 與 sandbox distribution identity 固定於
+`workers/quant_lab/rd_agent/NOTICE.md` 及同目錄 manifests。
+
+Stonks adapter 不 import 或執行 upstream RD-Agent code，只在 separate one-shot
+sandbox 評估已封存 proposal 的 documented factor-only expression subset。Sandbox
+沒有 network、DB、provider、target、risk、reservation、order、broker、ledger 或
+execution authority。
 
 ## NAUTILUS-TRADER-LGPL-3.0-SIDECAR
 

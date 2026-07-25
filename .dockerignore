@@ -4,7 +4,12 @@
 .venv
 **/.venv
 tests
-docs
+docs/*
+!docs/legal
+docs/legal/*
+!docs/legal/notices
+docs/legal/notices/*
+!docs/legal/notices/AI-HEDGE-FUND-MIT-PEAD-EVENT-STUDY.md
 tasks
 scripts
 !scripts/patch_cpython_stdlib.py

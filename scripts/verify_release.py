@@ -20,6 +20,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
 from scripts import release_source_contracts as source_contract
 from scripts import release_verifier_bundle as bundle_contract
 from scripts import release_verifier_common as common
+from scripts import release_verifier_final as final_contract
 from scripts import release_verifier_reports as report_contract
 from scripts import release_verifier_signatures as signature_contract
 
@@ -63,6 +64,7 @@ __all__ = [
     "main",
     "stage_release",
     "verify_alpine_source",
+    "verify_formal_release",
     "verify_grype_database_identity",
     "verify_grype_report",
     "verify_image_report",
@@ -148,6 +150,40 @@ def verify_release(
         image=image,
         actual=actual,
         signatures_verified=signatures_verified,
+    )
+
+
+def verify_formal_release(
+    bundle: Path,
+    policy: Mapping[str, Any],
+    *,
+    expected_repository: str,
+    expected_tag: str,
+    expected_commit: str,
+    runner: CommandRunner = subprocess.run,
+) -> dict[str, Any]:
+    """Reverify payload semantics and all five formal Sigstore evidence files."""
+    report = verify_release(
+        bundle,
+        policy,
+        expected_repository=expected_repository,
+        expected_tag=expected_tag,
+        expected_commit=expected_commit,
+        require_signatures=True,
+        runner=runner,
+    )
+    manifest = load_json(bundle / "release-manifest.json", max_bytes=MAX_MANIFEST_BYTES)
+    image_data = _mapping(manifest.get("image"), "manifest.image")
+    image = _string(image_data.get("subject"), "image.subject")
+    return final_contract.verify_formal_evidence(
+        bundle,
+        policy,
+        image=image,
+        repository=expected_repository,
+        tag=expected_tag,
+        commit=expected_commit,
+        expected_report=report,
+        runner=runner,
     )
 
 
@@ -353,6 +389,11 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--expected-commit", required=True)
     verify.add_argument("--require-signatures", action="store_true")
     verify.add_argument("--report", type=Path)
+    final = subparsers.add_parser("verify-final")
+    final.add_argument("--bundle", required=True, type=Path)
+    final.add_argument("--expected-repository", required=True)
+    final.add_argument("--expected-tag", required=True)
+    final.add_argument("--expected-commit", required=True)
     locks = subparsers.add_parser("audit-locks")
     locks.add_argument("--root", required=True, type=Path)
     locks.add_argument("--report", required=True, type=Path)
@@ -425,6 +466,20 @@ def _run_command(
             "success": True,
             "status": "passed",
             "data": report,
+            "error": None,
+        }
+    if args.command == "verify-final":
+        result = verify_formal_release(
+            args.bundle,
+            policy,
+            expected_repository=args.expected_repository,
+            expected_tag=args.expected_tag,
+            expected_commit=args.expected_commit,
+        )
+        return {
+            "success": True,
+            "status": "passed",
+            "data": result,
             "error": None,
         }
     if args.command == "audit-locks":

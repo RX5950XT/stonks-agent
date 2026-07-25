@@ -833,12 +833,21 @@ jobs:
           retention-days: 30
 
   optional-integration-manifests:
-    name: Default-off optional integration manifests / ubuntu-latest
+    name: Bounded optional integration matrix / ubuntu-latest
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    needs:
+      - core-deployment
+      - openbb-sidecar
+      - nautilus-sidecar
+      - lean-sidecar
+      - rd-agent-sandbox
+    permissions:
+      contents: read
     env:
       PYTHONUTF8: "1"
       UV_FROZEN: "1"
+      STONKS_OPTIONAL_ACTUAL_RUNTIME_PROFILES: openbb,nautilus,lean,rd-agent
       STONKS_SERVICE_OIDC_ISSUER: https://identity.manifest.invalid
       STONKS_SERVICE_OIDC_CORE_SUBJECT: service:core-runner
       STONKS_SERVICE_OIDC_CORE_CLIENT_ID: stonks-core-runner
@@ -871,17 +880,25 @@ jobs:
         run: |
           uv run ruff format --check \
             src/stonks_agent/config/features.py \
+            scripts/smoke_optional_profiles.py \
             tests/config/test_optional_features.py \
+            tests/deployment/test_optional_profile_smoke.py \
             tests/security/test_optional_integrations.py \
             tests/security/test_service_runtime_manifests.py
           uv run ruff check \
             src/stonks_agent/config/features.py \
+            scripts/smoke_optional_profiles.py \
             tests/config/test_optional_features.py \
+            tests/deployment/test_optional_profile_smoke.py \
             tests/security/test_optional_integrations.py \
             tests/security/test_service_runtime_manifests.py
-          uv run mypy --strict src/stonks_agent/config/features.py
-          uv run pytest -q --no-cov \
+          MYPYPATH="src:packages/contracts/src:packages/service-auth/src" \
+            uv run mypy --strict \
+            src/stonks_agent/config/features.py \
+            scripts/smoke_optional_profiles.py
+          uv run python -m pytest -q --no-cov \
             tests/config/test_optional_features.py \
+            tests/deployment/test_optional_profile_smoke.py \
             tests/security/test_optional_integrations.py \
             tests/security/test_service_runtime_manifests.py
 
@@ -898,6 +915,19 @@ jobs:
             docker compose -f infra/compose.optional.yaml \
               --profile "$profile" config --quiet
           done
+
+      - name: Prove bounded compatibility and actual core absence safety
+        run: >-
+          uv run python scripts/smoke_optional_profiles.py
+          --output "$RUNNER_TEMP/optional-profile-smoke.json"
+
+      - name: Preserve bounded optional profile evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: optional-profile-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/optional-profile-smoke.json
+          if-no-files-found: error
+          retention-days: 30
 
   resilience:
     name: Failure injection and PostgreSQL restore / ubuntu-latest

@@ -14,8 +14,14 @@
 5. 只有 protected tag、`release` environment 核准後的 workflow 可發布 image；
    Cosign 只簽 registry 回傳的 exact digest，並固定 GitHub OIDC issuer、repository、
    workflow、ref、commit 與 trigger identity。
-6. Formal manifest、verification report、image signature、build provenance 與 SBOM
-   attestation全部驗證後，才可建立 GitHub release。
+6. `config/features.yaml` 中七個有 supply-chain contract 的 integrations，其八個
+   `notice_paths`、root notice identity 與 `execution_authority=false` 都必須進入
+   signed payload；漏件、重複 path、未登錄 notice 或 authority drift 立即失敗。
+7. GitHub provenance 與 SBOM bundles 落地後，`verify-final` 會重新執行完整 payload
+   semantic gates，並對 image、manifest、verification report、provenance 與 SBOM
+   五份 Sigstore evidence 做 closed-tree 驗證。Cosign/GitHub CLI 同時固定 exact
+   repository、workflow、tag ref、commit、registry digest、OIDC issuer 與 predicate。
+8. 只有上述 final verifier 通過後，bundle 才可傳給 GitHub release job。
 
 ## Fail-closed 條件
 
@@ -25,14 +31,19 @@
   justification binding。
 - Bundle traversal、symlink/hardlink、case collision、unknown/duplicate file、size/hash
   drift、非canonical archive或source inventory drift。
-- Keyless identity、signature、attestation、protected ref或human authorization缺失。
+- Keyless identity、五份 evidence、signature、attestation、protected ref 或 human
+  authorization 缺失；`signatures/` 出現 symlink、額外或不規則檔案也一律拒絕。
 
 ## 已驗證證據與邊界
 
-- Local unsigned candidate：192 artifacts、136,809,165 bytes，所有semantic gates通過。
+- P6.11 local unsigned candidate以目前worktree驗證201 artifacts、136,858,939 bytes
+  與全部semantic gates；canonical CycloneDX serial deterministic綁定exact image，
+  final verifier另要求GitHub SBOM predicate與signed canonical SBOM exact相同。
 - Core inventory：97 packages、865 CycloneDX components；0個未抑制High/Critical。
 - Alpine source：37 packages、27 origins、244 files；兩次產生bytes相同。
 - Python source：3 exact sdists；三次產生bytes相同。
 - OpenBB source：26 members；兩次clean build產生bytes相同。
-- 本機不模擬GitHub OIDC、不發布registry/tag，因此正式signature/provenance只由受保護
-  release workflow證明。本文件與automated policy不是法律意見。
+- 本機只執行 unsigned candidate 與 formal verifier 的 fixture/negative tests，不模擬
+  GitHub OIDC、不發布 registry/tag，也不宣稱 protected-tag workflow 已執行。正式
+  signature/provenance 只能由受保護 release workflow 的五份 exact evidence 證明。
+  本文件與 automated policy 不是法律意見。

@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：執行中（P0–P5 gate、P6.1–P6.10 已通過，P6.11 進行中）
+> 狀態：Repository與本機P0–P6.11 gates已通過；外部protected-tag／GHCR／OIDC keyless與optional CI runtime evidence待有remote及授權後驗證
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -601,36 +601,44 @@
   - [x] 將actual PostgreSQL capacity matrix接入least-privilege CI，固定digest、test-only DB name、15分鐘timeout與bounded report artifact；完成focused、完整non-PostgreSQL/PostgreSQL/security gates。
   - [x] 完成`docs/operations/capacity.md`、README、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`與本review同步，明列business API/dispatcher/model hardware尚未完成的測量邊界。
 
-- [ ] **P6.11 Final docs and handoff sync** — 完成`README.md`、`docs/architecture/` ADRs、`docs/api/`、`docs/runbooks/`、`THIRD_PARTY_NOTICES.md`，同步精簡`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`、`tasks/todo.md`、`tasks/lessons.md`。（Depends：P6.1–P6.10；Complexity：L；Risk：Medium）
+- [x] **P6.11 Final docs and handoff sync** — 完成`README.md`、`docs/architecture/` ADRs、`docs/api/`、`docs/runbooks/`、`THIRD_PARTY_NOTICES.md`，同步精簡`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`、`tasks/todo.md`、`tasks/lessons.md`。（Depends：P6.1–P6.10；Complexity：L；Risk：Medium）
   - 文件只列實際驗證能力與限制；所有command由CI/本機重跑確認。
+  - [x] 先以machine policy固定handoff文件集合、local links、ADR/API/OpenAPI/runbook索引、AGENTS=CLAUDE與禁止stale phase宣稱；缺件、broken link或surface drift皆fail closed。
+  - [x] 建立architecture index與三份ADR，分別固定paper authority/artifact replay、process/dependency/license isolation及unsigned/formal keyless release trust model；藍圖區分implemented/configured/externally verified。
+  - [x] 建立API index並與六份OpenAPI snapshots exact對應，明列auth/RBAC、envelope/SSE、paper-only與production business API composition尚未完成；補schemas與runbooks索引。
+  - [x] 關閉third-party notice：所有`config/features.yaml` notice paths都必須存在、列入root notices及release signed manifest；補Qlib/RD-Agent notice identity並拒絕漏件/extra authority。
+  - [x] 建立formal final-release verifier，在GitHub provenance/SBOM bundles加入後重新驗image、manifest、verification report與兩種attestation共五份Sigstore evidence；缺件、symlink、digest/repository/workflow/ref/commit/predicate drift皆fail closed。本機只驗negative/fixture與unsigned candidate，不偽稱protected-tag run已發生。
+  - [x] 建立bounded optional profile smoke matrix，逐一記錄10 profiles的actual positive runtime或明確startup fail-closed、core readiness before/during/after與0 paper side effects；CUDA/credential/hardware缺口不得以render冒充runtime smoke。
+  - [x] 建立P6 handoff evidence index，把gate/success criteria exact映射到CI job、command、artifact、test、audit/replay證據與honest external-state boundary。
+  - [x] 重跑完整docs/release/optional/security、non-PostgreSQL/PostgreSQL、deployment/resilience/capacity gates；同步README、AGENTS/CLAUDE、CONTEXT、todo review與lessons review。
 
 ### P6 Verification gate
 
-- [ ] Full CI：frozen builds、lint/type/unit/contract/integration/E2E/security/resilience、SBOM/license/CVE/secret scans全部通過。（Depends：P6.8、P6.9）
+- [ ] Full CI：frozen builds、lint/type/unit/contract/integration/E2E/security/resilience、SBOM/license/CVE/secret scans全部通過；本機等價non-PostgreSQL/PostgreSQL gates已通過，因無remote尚無GitHub run evidence。（Depends：P6.8、P6.9）
 - [x] Default compose由乾淨環境啟動、migrate、readiness、fake/replay E2E、shutdown/restart/replay全部通過。（Depends：P6.7）
-- [ ] Optional profiles逐一smoke；缺任何optional service時core readiness與paper safety不受影響。（Depends：P5 gate、P6.7）
-- [ ] Kill switch、ledger mismatch、duplicate execution、future evidence與auth bypass drills全部fail closed並告警。（Depends：P6.1–P6.9）
-- [ ] Release bundle含lockfiles、schemas/OpenAPI、SBOM、signatures、notices、OpenBB對應source流程與驗證報告。（Depends：P6.8、P6.11）
+- [ ] Optional profiles逐一smoke；本機zero-default、10-profile render與5組startup fail-closed probes已通過，GitHub runtime report尚未產生。（Depends：P5 gate、P6.7）
+- [x] Kill switch、ledger mismatch、duplicate execution、future evidence與auth bypass drills全部fail closed並告警。（Depends：P6.1–P6.9）
+- [ ] Release bundle含lockfiles、schemas/OpenAPI、SBOM、signatures、notices、OpenBB對應source流程與驗證報告；unsigned 201-artifact bundle已通過，正式五份keyless evidence尚未產生。（Depends：P6.8、P6.11）
 
 ### P6 Success criteria
 
-- [ ] Staff-level review可由tests、traces、audit與replay證明paper platform正確性。
-- [ ] 任一LLM/model/provider/optional ecosystem失效不會製造錯誤交易或破壞ledger。
+- [x] Staff-level review可由tests、traces、audit與replay證明paper platform正確性。
+- [x] 任一LLM/model/provider/optional ecosystem失效不會製造錯誤交易或破壞ledger。
 - [ ] 發布物仍為paper-only，且所有第三方code/data/model授權與provenance可稽核。
 
 ---
 
 ## Cross-phase invariants
 
-- [ ] Core dependency graph永遠不含OpenBB、PyTorch、TradingAgents、Qlib、RD-Agent、Nautilus或LEAN runtime packages。
-- [ ] AI-Trader永遠只作external control/community adapter，不是research worker、executor或ledger。
-- [ ] Canonical flow永遠使用`AgentOpinion/AlphaSignal/ForecastSignal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt`，不引入模糊`TradeIntent`。
-- [ ] 所有external side effect均有idempotency key、outbox、receipt與audit event。
-- [ ] Core job runner永遠是DB/event/outbox transaction owner；remote workers無DB credentials，generation/nonce不符或lease失效的late results只能隔離，不能commit。
-- [ ] 同帳戶mutation永遠經serialized aggregate與reservation；balanced journal每種currency/commodity的postings必須平衡。
-- [ ] Stochastic LLM/Kronos重播永遠從封存immutable output artifact開始；不以fresh re-inference bit-identical作正確性宣稱。
-- [ ] 所有歷史研究/evaluation只讀`available_at <= as_of` evidence。
-- [ ] 所有修改完成後同步精簡`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`與本todo review；使用者修正另記`tasks/lessons.md`。
+- [x] Core dependency graph永遠不含OpenBB、PyTorch、TradingAgents、Qlib、RD-Agent、Nautilus或LEAN runtime packages。
+- [x] AI-Trader永遠只作external control/community adapter，不是research worker、executor或ledger。
+- [x] Canonical flow永遠使用`AgentOpinion/AlphaSignal/ForecastSignal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt`，不引入模糊`TradeIntent`。
+- [x] 所有external side effect均有idempotency key、outbox、receipt與audit event。
+- [x] Core job runner永遠是DB/event/outbox transaction owner；remote workers無DB credentials，generation/nonce不符或lease失效的late results只能隔離，不能commit。
+- [x] 同帳戶mutation永遠經serialized aggregate與reservation；balanced journal每種currency/commodity的postings必須平衡。
+- [x] Stochastic LLM/Kronos重播永遠從封存immutable output artifact開始；不以fresh re-inference bit-identical作正確性宣稱。
+- [x] 所有歷史研究/evaluation只讀`available_at <= as_of` evidence。
+- [x] 所有修改完成後同步精簡`AGENTS.md`、`CLAUDE.md`、`CONTEXT.md`與本todo review；使用者修正另記`tasks/lessons.md`。
 
 ## Review（實作時持續維護）
 
@@ -653,13 +661,13 @@
 ### Final review checklist
 
 - [ ] P0–P6所有mandatory tasks與gates均有可重跑證據；optional service若因外部授權/credential不可live測試，已有cassette/contract test及明確限制。
-- [ ] `git diff`只含有意變更；generated/cache/model/secrets/research clones未被提交。
-- [ ] 主要branch與最終行為差異已有E2E/replay證明，不只通過單元測試。
-- [ ] 所有schema/migration能向前升級；rollback/recovery限制已寫入runbook。
-- [ ] 所有報告claim、signal、risk、order、fill與outcome可沿provenance/audit chain追溯。
-- [ ] Security、license、CVE、SBOM、secret、source-offer gates通過。
-- [ ] 專案文件與實際commands/ports/defaults一致，且README只宣稱已驗證能力。
-- [ ] 確認沒有live broker adapter、live credential schema或可繞過paper-only boundary的設定。
+- [x] `git diff`只含有意變更；generated/cache/model/secrets/research clones未被提交。
+- [x] 主要branch與最終行為差異已有E2E/replay證明，不只通過單元測試。
+- [x] 所有schema/migration能向前升級；rollback/recovery限制已寫入runbook。
+- [x] 所有報告claim、signal、risk、order、fill與outcome可沿provenance/audit chain追溯。
+- [x] Security、license、CVE、SBOM、secret、source-offer gates通過。
+- [x] 專案文件與實際commands/ports/defaults一致，且README只宣稱已驗證能力。
+- [x] 確認沒有live broker adapter、live credential schema或可繞過paper-only boundary的設定。
 
 ### Review log
 
@@ -1073,3 +1081,10 @@
 - Resource honesty / saturation：runtime CPU/RAM/PID/process/in-flight只量單一Python `probe_process`，使用獨立4000m/2048MiB/PID1/process1/in-flight16 budget；core/PostgreSQL/TradingAgents/Kronos CPU/CUDA/Quant六組budget只與static manifests交叉驗證，CUDA CI未量GPU/VRAM。三個heavy workers將同步推論offload threadpool，gate固定1，飽和立即`429 worker_busy`；core對429不retry，503仍bounded retry。
 - Actual evidence / isolation：fresh exact `stonks_capacity`、Alembic `0017`與database-lifetime disposable isolation下，120 samples由domain重新驗證全通過；本次root報告24,439 bytes，p95為API 24,711µs、queue 22,993µs、snapshot 8,930µs、research 11,826µs、forecast 477µs、paper cycle 743µs，且DSN/credential/raw payload掃描為0。這只代表single-host synthetic baseline與probe process，不是production SLA或external model/provider throughput。
 - Verification：focused capacity/worker/policy為119 passed，獨立actual PostgreSQL performance test為1 passed；TradingAgents/Kronos/Quant isolated tests、四組frozen lock與dependency audits全綠。完整non-PostgreSQL gate為2145 passed、6 skipped、269 deselected、coverage 87.85%；完整PostgreSQL gate為2413 passed、7 skipped、coverage 87.64%。727 files format、Ruff、strict mypy 350 source files＋probe scripts、106 schemas、Alembic無drift、upstream/license、secret、actionlint、frozen lock與dependency audit全通過。文件與規範已同步；`tasks/lessons.md`無新的使用者修正可新增，下一項為P6.11 final docs與handoff gate。
+
+### P6 Progress Review — P6.11 — 2026-07-26
+
+- Scope completed：新增architecture/ADR、API/OpenAPI、runbook與P6 handoff evidence索引，關閉feature notices與runtime license payload；final verifier獨立重驗image、manifest、report、provenance、SBOM五份Sigstore evidence。Exact repository/digest/workflow/ref/commit、deterministic image-bound CycloneDX serial及SBOM predicate body任何drift皆fail closed。
+- Optional / honesty：frozen matrix覆蓋10 profiles與zero-default，supported/blocked/unsupported狀態不能互換；本機10個Compose render及5組startup auth fail-closed probes通過。因repository沒有remote，沒有GitHub `optional-profile-smoke` report、protected tag、GHCR publication或OIDC keyless formal evidence，不以本機結果冒充。
+- Release evidence：fresh local unsigned candidate為201 artifacts、136,858,939 bytes、97 packages／865 CycloneDX components、0個未抑制High/Critical；MIT selective-port notice已進signed payload及runtime image。Formal signatures/provenance未產生。
+- Verification：focused docs/release/optional/security為105 passed，actual hardened core deployment smoke通過；完整non-PostgreSQL gate為2206 passed、6 skipped、269 deselected、coverage 87.85%，完整PostgreSQL gate為2474 passed、7 skipped、coverage 87.64%。734 files format、Ruff、strict mypy 350 source files、106 schemas、Alembic無drift、upstream/license、secret、actionlint、frozen lock與dependency audit全通過。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`與本review已同步；`tasks/lessons.md`經review無新的使用者修正可新增。

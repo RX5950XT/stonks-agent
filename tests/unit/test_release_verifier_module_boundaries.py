@@ -27,6 +27,7 @@ def test_release_verifier_facade_preserves_supported_api() -> None:
         "verify_grype_report",
         "verify_image_report",
         "verify_openbb_source",
+        "verify_formal_release",
         "verify_release",
     }
 

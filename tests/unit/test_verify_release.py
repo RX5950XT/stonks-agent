@@ -455,7 +455,7 @@ def test_manifest_and_verifier_fail_closed_on_mutation_extra_and_unsigned_releas
     assert report["signatures_verified"] is False
 
     (bundle / "payload" / "LICENSE").write_text("changed", encoding="utf-8")
-    with pytest.raises(ReleaseError, match="hash or size drift"):
+    with pytest.raises(ReleaseError, match="hash or size drift") as raised:
         verify_release(
             bundle,
             policy,
@@ -464,6 +464,7 @@ def test_manifest_and_verifier_fail_closed_on_mutation_extra_and_unsigned_releas
             expected_commit=COMMIT,
             require_signatures=False,
         )
+    assert raised.value.phase == "payload_inventory"
 
     (bundle / "payload" / "LICENSE").write_text("Apache-2.0", encoding="utf-8")
     (bundle / "payload" / "extra").write_text("unexpected", encoding="utf-8")

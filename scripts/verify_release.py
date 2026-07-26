@@ -9,7 +9,7 @@ import json
 import os
 import subprocess
 import sys
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -112,34 +112,52 @@ def verify_release(
     if release.get("execution_mode") != "paper":
         raise ReleaseError("release is not paper-only")
 
-    actual = _verify_payload_inventory(bundle, policy, manifest)
-    _verify_structured_reports(bundle, policy)
-    _verify_image_identity_report(
-        bundle,
-        policy,
-        image=image,
-        repository=repository,
-        commit=commit,
-        version=version,
-        signing_mode=signing_mode,
+    actual = _verify_phase(
+        "payload_inventory",
+        lambda: _verify_payload_inventory(bundle, policy, manifest),
     )
-    _verify_sbom(bundle, policy, image=image)
-    _verify_notices(bundle, policy)
-    _verify_corresponding_sources(bundle, policy)
+    _verify_phase(
+        "structured_reports",
+        lambda: _verify_structured_reports(bundle, policy),
+    )
+    _verify_phase(
+        "image_report",
+        lambda: _verify_image_identity_report(
+            bundle,
+            policy,
+            image=image,
+            repository=repository,
+            commit=commit,
+            version=version,
+            signing_mode=signing_mode,
+        ),
+    )
+    _verify_phase("sbom", lambda: _verify_sbom(bundle, policy, image=image))
+    _verify_phase("notices", lambda: _verify_notices(bundle, policy))
+    _verify_phase(
+        "corresponding_sources",
+        lambda: _verify_corresponding_sources(bundle, policy),
+    )
     openbb = _mapping(policy.get("openbb"), "policy.openbb")
     archive_path = _safe_join(bundle, _string(openbb.get("archive"), "openbb.archive"))
-    verify_openbb_source(archive_path, openbb)
-    signatures_verified = _verify_release_signatures(
-        bundle,
-        policy,
-        manifest_path=manifest_path,
-        image=image,
-        repository=repository,
-        tag=tag,
-        commit=commit,
-        signing_mode=signing_mode,
-        require_signatures=require_signatures,
-        runner=runner,
+    _verify_phase(
+        "openbb_source",
+        lambda: verify_openbb_source(archive_path, openbb),
+    )
+    signatures_verified = _verify_phase(
+        "signatures",
+        lambda: _verify_release_signatures(
+            bundle,
+            policy,
+            manifest_path=manifest_path,
+            image=image,
+            repository=repository,
+            tag=tag,
+            commit=commit,
+            signing_mode=signing_mode,
+            require_signatures=require_signatures,
+            runner=runner,
+        ),
     )
     return _verification_report(
         manifest_path=manifest_path,
@@ -409,7 +427,8 @@ def main() -> int:
         result = _run_command(args, _load_policy(args.policy))
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
         return 0
-    except (ReleaseError, OSError, subprocess.SubprocessError):
+    except (ReleaseError, OSError, subprocess.SubprocessError) as error:
+        phase = error.phase if isinstance(error, ReleaseError) else "unknown"
         print(
             json.dumps(
                 {
@@ -419,12 +438,21 @@ def main() -> int:
                     "error": {
                         "code": "RELEASE_VERIFICATION_FAILED",
                         "message": "release verification failed closed",
+                        "phase": phase,
                     },
                 },
                 sort_keys=True,
             )
         )
         return 1
+
+
+def _verify_phase[T](phase: str, operation: Callable[[], T]) -> T:
+    try:
+        return operation()
+    except ReleaseError as error:
+        error.phase = phase
+        raise
 
 
 def _run_command(

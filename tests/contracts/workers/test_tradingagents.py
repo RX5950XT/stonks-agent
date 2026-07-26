@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib
+import os
 import sys
 import tomllib
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from stonks_service_auth import ServiceReceiver
+from stonks_service_auth.environment import _forbidden_credential_names
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKER = ROOT / "workers" / "tradingagents"
@@ -574,8 +576,9 @@ def test_runtime_entrypoint_builds_one_profile_per_process(
     import stonks_service_auth
 
     monkeypatch.setenv("STONKS_WORKER_PROFILE", "backtest")
-    monkeypatch.delenv("STONKS_TEST_DATABASE_URL", raising=False)
-    monkeypatch.delenv("STONKS_DATABASE_URL", raising=False)
+    monkeypatch.setenv("PGUSER", "hosted-runner-ambient")
+    for name in _forbidden_credential_names(os.environ):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(
         stonks_service_auth,
         "load_static_oidc_service_authenticator",

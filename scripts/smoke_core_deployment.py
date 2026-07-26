@@ -251,6 +251,7 @@ def build_context(
     )
     _validate_generated_values(project, revision, values)
     secret_directory.mkdir(parents=True, exist_ok=False)
+    secret_directory.chmod(0o700)
     owner_file = (secret_directory / "postgres-owner").resolve()
     runtime_file = (secret_directory / "stonks-runtime").resolve()
     _write_secret(owner_file, values[0])
@@ -755,7 +756,7 @@ def _existing_revision(
 def _write_secret(path: Path, value: str) -> None:
     try:
         path.write_text(value, encoding="utf-8", newline="\n")
-        path.chmod(0o600)
+        path.chmod(0o444)
     except OSError as error:
         raise SmokeError() from error
 

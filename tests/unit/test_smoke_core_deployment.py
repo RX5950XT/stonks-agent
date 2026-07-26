@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 import subprocess
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -168,6 +170,14 @@ def test_build_context_writes_private_secret_files_without_secret_environment(
     assert "runtime-generated" not in context.environment.values()
     assert context.environment["ProgramFiles"] == "C:/Program Files"
     assert "UNSAFE_AMBIENT_TOKEN" not in context.environment
+    owner_mode = stat.S_IMODE(context.owner_secret_file.stat().st_mode)
+    runtime_mode = stat.S_IMODE(context.runtime_secret_file.stat().st_mode)
+    assert owner_mode & stat.S_IWUSR == 0
+    assert runtime_mode & stat.S_IWUSR == 0
+    if os.name == "posix":
+        assert stat.S_IMODE(context.owner_secret_file.parent.stat().st_mode) == 0o700
+        assert owner_mode == 0o444
+        assert runtime_mode == 0o444
 
 
 def test_subprocess_runner_uses_argv_and_never_renders_failed_output(

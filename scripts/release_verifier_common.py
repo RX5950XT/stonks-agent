@@ -26,6 +26,10 @@ MAX_MANIFEST_BYTES = 4 * 1024 * 1024
 class ReleaseError(ValueError):
     """Raised when a release artifact violates the frozen policy."""
 
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.phase = "unknown"
+
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
 

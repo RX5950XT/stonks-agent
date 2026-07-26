@@ -6,7 +6,7 @@ runtime:
   qlib_commit: d5379c520f66a39953bad76234a7019a72796fd0
   qlib_source_hash: 3aaefc2f1711376ef6e603ffcf953e6f377eed90d6367fe2eb0cbcd4cfcb2276
   qlib_version: 0.9.8.dev0+d5379c52
-  runtime_hash: 8dd1698cb7b41c745e09867b3126584c4dc4b937bc191804fcd9af1135bfd113
+  runtime_hash: 29ebcb4c85c6aa1070ee6d2b32152172ebf262ee6f8adc9e3ae7c0c39b37474d
   python_version: 3.12.12
   numpy_version: 2.2.6
   pandas_version: 2.2.3

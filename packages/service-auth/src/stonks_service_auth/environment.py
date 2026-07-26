@@ -38,7 +38,12 @@ _FORBIDDEN_PREFIXES = (
 
 
 def validate_isolated_runtime_environment(environment: Mapping[str, str]) -> None:
-    forbidden = tuple(
+    if _forbidden_credential_names(environment):
+        raise RuntimeError("forbidden credential entered isolated runtime")
+
+
+def _forbidden_credential_names(environment: Mapping[str, str]) -> tuple[str, ...]:
+    return tuple(
         name
         for name, value in environment.items()
         if value
@@ -47,5 +52,3 @@ def validate_isolated_runtime_environment(environment: Mapping[str, str]) -> Non
             or name.upper().startswith(_FORBIDDEN_PREFIXES)
         )
     )
-    if forbidden:
-        raise RuntimeError("forbidden credential entered isolated runtime")

@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：Repository、本機P0–P6.11與GitHub CI／unsigned supply-chain／bounded optional evidence已通過；public formal release gates已配置，`v0.1.0` protected-tag／GHCR／OIDC keyless publication正在執行
+> 狀態：Repository、本機P0–P6.11與GitHub CI／unsigned supply-chain／bounded optional evidence已通過；public formal release gates已配置，`v0.1.0`在Cosign v3 bundle重驗處fail closed，修正版`v0.1.1`待發布
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -578,6 +578,7 @@
   - [x] `verify_release.py`重算所有hash/size、重驗CycloneDX、CVE severity、license/source/notice、lock與paper-only boundary；High/Critical CVE、secret finding、license drift或OpenBB source不完整皆fail closed。
   - [x] Security workflow以least privilege執行frozen lock、secret/upstream/license、dependency與digest-pinned image SBOM/CVE gates；actions與scanner images固定immutable SHA/digest。
   - [x] Release workflow只簽署registry回傳的exact image digest，使用GitHub OIDC keyless Cosign與build provenance/SBOM attestations；驗證固定issuer與repository workflow identity，PR/fork不得取得signing或package write authority。
+  - [x] Cosign v3 container signature先保存exact Sigstore bundle，以`verify-blob-attestation`綁定digest與OIDC identity，再把同一bundle attach至registry並以`cosign verify`重驗；不得把不支援的`cosign verify --bundle`當正式證據。
   - [x] 本機unsigned candidate只能證明結構、內容與policy gates，不宣稱signature/provenance；正式release缺少可驗證signature/attestation bundle即失敗。
   - [x] 完成focused、真實core image SBOM/CVE/license/secret/release smoke、完整non-PostgreSQL/PostgreSQL gates與文件同步。
 
@@ -1100,15 +1101,17 @@
 - [x] 以exact commit `fd5c73d`完成第六輪：Supply-chain及11個CI jobs通過；exact PostgreSQL stop排除Compose restart依賴差異，唯一失敗已縮小為DB `pool_pre_ping`仍在執行時外層5秒HTTP probe先逾時。
 - [x] 以exact commit `93a1c51`完成第七輪：Supply-chain run `30194459983`成功；CI run `30194459987` attempt 2全綠。Attempt 1的`compose_build_core` transient setup failure以同SHA failed-jobs rerun通過，未改變runtime gate。
 - [x] 下載並重驗remote artifacts：optional `8629782731`精確綁run/SHA/workflow並為4 actual、5 blocked、1 unsupported、0 side effects；unsigned candidate `8629712567`由canonical verifier通過201 artifacts、136,872,645 bytes與exact image。
-- [ ] 由protected tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
+- [ ] 由protected `v0.1.1` tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
 - [x] 重驗private repository、package、release asset、attestation與workflow identity，將外部證據及誠實限制同步回handoff文件。
-- Remote review：repository維持private、default `main`、Actions啟用SHA pinning及read-only default token；remote `93a1c51` tree共1,077 entries且0 forbidden paths，tags/releases/packages/environments皆為0、attestation endpoint為404。Private rulesets API明確回403 upgrade/public提示，formal release未被弱化或執行。
+- Pre-public review：repository當時為private、default `main`、Actions啟用SHA pinning及read-only default token；remote `93a1c51` tree共1,077 entries且0 forbidden paths，tags/releases/packages/environments皆為0、attestation endpoint為404。Private rulesets API明確回403 upgrade/public提示，因此改公開前formal release未被弱化或執行。
 - Docs verification：handoff/architecture/API/release/optional focused matrix為44 passed，Ruff、diff與secret scan全綠；最新replacement `AGENTS.md`／`CLAUDE.md`已逐字一致，新增lesson已記錄。
 
 ### P6 Formal Public Release — 2026-07-26
 
 - [x] 公開前重驗本機／`origin/main` exact commit、clean worktree、remote 1,077-entry tree與secret scan；forbidden paths及secret findings皆為0。
 - [x] 將`RX5950XT/stonks-agent`改為public，配置active SemVer tag ruleset、`release` required-reviewer＋tag-only environment與immutable releases。
-- [ ] 建立指向exact `main`的`v0.1.0` protected tag，核准environment並監看`Keyless release`全部jobs。
+- [x] 建立指向exact commit `7826085`的protected `v0.1.0` tag並核准environment；run `30196542394`完成build/scan與GHCR exact digest `sha256:068e41e374faf4d3752332bbb91f80b62060990c598f6e34062567a55fe122ca`後，在Cosign v3不支援`verify --bundle`處fail closed，未產生attestations或GitHub Release。
+- [x] 以TDD改成Cosign v3 exact image bundle的`verify-blob-attestation`＋registry attach/verify，並將project/core/OpenBB image版本推進至`0.1.1`；舊tag不移動、不刪除，舊image不得宣稱formal。
+- [ ] 建立指向修正後exact `main`的`v0.1.1` protected tag，逐次核准environment並監看`Keyless release`全部jobs。
 - [ ] 下載signed release bundle，以canonical verifier獨立重驗五份Sigstore evidence、GHCR exact digest、GitHub attestations及immutable release assets。
 - [ ] 同步README、CONTEXT、handoff與本review，提交推送後確認final CI與remote tree。

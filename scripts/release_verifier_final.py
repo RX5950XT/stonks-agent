@@ -26,6 +26,10 @@ from scripts.release_verifier_common import (
     safe_join,
     unique_object,
 )
+from scripts.release_verifier_signatures import (
+    image_bundle_verify_command,
+    image_registry_verify_command,
+)
 
 FINAL_SCHEMA = "stonks-agent/formal-release-verification/v1"
 _FINAL_FIELDS = {
@@ -81,9 +85,9 @@ def verify_formal_evidence(
         commit=commit,
     )
     outputs = _run_commands(commands, runner)
-    _verify_attestation_output(outputs[3], image, final["provenance_predicate_type"])
+    _verify_attestation_output(outputs[4], image, final["provenance_predicate_type"])
     _verify_attestation_output(
-        outputs[4],
+        outputs[5],
         image,
         final["sbom_predicate_type"],
         expected_predicate_payload=canonical_sbom,
@@ -214,7 +218,8 @@ def _commands(
     identity = _identity(repository, signing, tag)
     common = _cosign_identity(identity, repository, tag, commit, signing)
     return (
-        ("cosign", "verify", "--bundle", str(paths[0]), *common, image),
+        image_bundle_verify_command(paths[0], common, image),
+        image_registry_verify_command(common, image),
         (
             "cosign",
             "verify-blob",

@@ -22,7 +22,7 @@ FROM python:3.12.13-alpine3.23@sha256:601d3d3797e90e2534782e69c85fafb7971b43f24c
 
 ARG VCS_REF
 ARG SOURCE_URL=https://github.com/stonks-agent/stonks-agent
-ARG RELEASE_VERSION=0.1.0
+ARG RELEASE_VERSION=0.1.1
 LABEL org.opencontainers.image.title="Stonks Agent core" \
       org.opencontainers.image.description="Paper-only deployment health and migration runtime" \
       org.opencontainers.image.source="${SOURCE_URL}" \

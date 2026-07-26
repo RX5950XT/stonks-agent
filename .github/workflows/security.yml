@@ -42,7 +42,12 @@ jobs:
           enable-cache: false
 
       - name: Install and verify frozen source
+        shell: bash
         run: |
+          version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=v$version" >> "$GITHUB_ENV"
           uv sync --frozen
           uv run python scripts/verify.py
           uv run python scripts/export_openapi.py
@@ -68,12 +73,12 @@ jobs:
           docker build -f Dockerfile \
             --build-arg VCS_REF="$GITHUB_SHA" \
             --build-arg SOURCE_URL="$SOURCE_URL" \
-            --build-arg RELEASE_VERSION=0.1.0 \
+            --build-arg RELEASE_VERSION="$RELEASE_VERSION" \
             -t stonks-agent-core:security .
           docker build -f sidecars/openbb/Dockerfile \
             --build-arg VCS_REF="$GITHUB_SHA" \
             --build-arg SOURCE_URL="$SOURCE_URL" \
-            --build-arg RELEASE_VERSION=0.1.0 \
+            --build-arg RELEASE_VERSION="$RELEASE_VERSION" \
             -t stonks-openbb-sidecar:security .
 
       - name: Generate canonical SBOM and block High or Critical CVEs
@@ -111,7 +116,7 @@ jobs:
           uv run python scripts/generate_image_report.py \
             --local-reference stonks-agent-core:security \
             --subject "$subject" --repository "$GITHUB_REPOSITORY" \
-            --commit "$GITHUB_SHA" --version 0.1.0 \
+            --commit "$GITHUB_SHA" --version "$RELEASE_VERSION" \
             --allow-local-candidate \
             --output "$RUNNER_TEMP/scan/core-image.json"
           docker run --rm \
@@ -177,12 +182,12 @@ jobs:
             "$bundle/payload/release/openbb-corresponding-source.tar.gz"
           docker rm "$container"
           uv run python scripts/verify_release.py create \
-            --bundle "$bundle" --version 0.1.0 --tag v0.1.0 \
+            --bundle "$bundle" --version "$RELEASE_VERSION" --tag "$RELEASE_TAG" \
             --repository "$GITHUB_REPOSITORY" --commit "$GITHUB_SHA" \
             --image "$subject" --signing-mode unsigned-candidate
           uv run python scripts/verify_release.py verify \
             --bundle "$bundle" --expected-repository "$GITHUB_REPOSITORY" \
-            --expected-tag v0.1.0 --expected-commit "$GITHUB_SHA" \
+            --expected-tag "$RELEASE_TAG" --expected-commit "$GITHUB_SHA" \
             --report "$bundle/verification-report.json"
 
       - name: Preserve verified candidate evidence

@@ -3,7 +3,7 @@ FROM ghcr.io/astral-sh/uv:0.9.27-python3.12-bookworm-slim@sha256:a0cb65a2dada255
 
 ARG VCS_REF
 ARG SOURCE_URL=https://github.com/stonks-agent/stonks-agent
-ARG RELEASE_VERSION=0.1.0
+ARG RELEASE_VERSION=0.1.1
 LABEL org.opencontainers.image.title="Stonks Agent OpenBB sidecar" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.vendor="Stonks Agent contributors" \

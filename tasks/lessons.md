@@ -44,3 +44,5 @@
 ## 2026-07-26
 
 - 使用者明示 `AGENTS.md` replacement 時，先逐條比對目前落盤版本並立即同步 `AGENTS.md`／`CLAUDE.md`；即使內容已一致，也要把新增或重申的不變量納入完成稽核，不能沿用較早的對話版本。
+- 使用者追問「事情做完了嗎」時，必須明確區分repository公開、GHCR image存在與formal release closure；只要signature、attestation、immutable release或獨立驗證仍缺一項，就只能回報未完成並持續收尾。
+- Cosign major-version行為不能由舊CLI記憶推定：v3 image bundle是DSSE attestation，saved bundle要用`verify-blob-attestation`綁exact digest/predicate驗證，並確認同一bundle確實附加至registry後再用`verify`重驗。

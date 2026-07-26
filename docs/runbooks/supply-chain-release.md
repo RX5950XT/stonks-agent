@@ -14,16 +14,23 @@
 5. 只有 protected tag、`release` environment 核准後的 workflow 可發布 image；
    Cosign 只簽 registry 回傳的 exact digest，並固定 GitHub OIDC issuer、repository、
    workflow、ref、commit 與 trigger identity。
-6. `config/features.yaml` 中七個有 supply-chain contract 的 integrations，其八個
+6. Cosign v3 container signature會先以`sign --bundle`保存exact Sigstore bundle，
+   再以`verify-blob-attestation`重驗bundle中的digest、predicate與完整OIDC claims，
+   用`attach attestation`把同一bundle寫入registry，最後以不帶`--bundle`且限定
+   `sign/v1` predicate的`cosign verify-attestation`重驗registry referrer；blob
+   signatures仍使用`verify-blob --bundle`。
+7. `config/features.yaml` 中七個有 supply-chain contract 的 integrations，其八個
    `notice_paths`、root notice identity 與 `execution_authority=false` 都必須進入
    signed payload；漏件、重複 path、未登錄 notice 或 authority drift 立即失敗。
-7. GitHub provenance 與 SBOM bundles 落地後，`verify-final` 會重新執行完整 payload
+8. GitHub provenance 與 SBOM bundles 落地後，`verify-final` 會重新執行完整 payload
    semantic gates，並對 image、manifest、verification report、provenance 與 SBOM
    五份 Sigstore evidence 做 closed-tree 驗證。Cosign/GitHub CLI 同時固定 exact
    repository、workflow、tag ref、commit、registry digest、OIDC issuer 與 predicate。
-8. 只有上述 final verifier 通過後，bundle 才可傳給 GitHub release job。
-9. GitHub release job只可恢復同tag的既有draft；若release已發布，重跑只能重驗
+9. 只有上述 final verifier 通過後，bundle 才可傳給 GitHub release job。
+10. GitHub release job只可恢復同tag的既有draft；若release已發布，重跑只能重驗
    immutable release與兩個asset attestations，不得重新建立或覆寫publication。
+11. 任一protected tag失敗後保持immutable，不移動、不刪除、不覆寫；修正必須遞增
+    SemVer patch並重新通過全部gate。
 
 ## Fail-closed 條件
 
@@ -46,6 +53,11 @@
 - Python source：3 exact sdists；三次產生bytes相同。
 - OpenBB source：26 members；兩次clean build產生bytes相同。
 - 本機只執行 unsigned candidate 與 formal verifier 的 fixture/negative tests，不模擬
-  GitHub OIDC、不發布 registry/tag，也不宣稱 protected-tag workflow 已執行。正式
-  signature/provenance 只能由受保護 release workflow 的五份 exact evidence 證明。
+  GitHub OIDC。Protected `v0.1.0` run `30196542394`已發布GHCR exact image，但在
+  Cosign v3錯用`verify --bundle`處fail closed，沒有formal attestations或GitHub
+  Release；修正版`v0.1.1`會依上述bundle/registry雙重驗證重新發布。
+- `v0.1.0` image digest為
+  `sha256:068e41e374faf4d3752332bbb91f80b62060990c598f6e34062567a55fe122ca`，
+  只作失敗診斷與稽核證據，不能宣稱formal release。正式signature/provenance只能由
+  受保護release workflow的五份exact evidence證明。
   本文件與 automated policy 不是法律意見。

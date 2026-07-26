@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.release_verifier_common import (
+    IMAGE_PATTERN,
     CommandRunner,
     ReleaseError,
     as_mapping,
@@ -14,6 +15,8 @@ from scripts.release_verifier_common import (
     regular_status,
     safe_join,
 )
+
+COSIGN_SIGN_PREDICATE_TYPE = "https://sigstore.dev/cosign/sign/v1"
 
 
 def verify_signatures(
@@ -60,14 +63,8 @@ def verify_signatures(
         "push",
     )
     commands = (
-        (
-            "cosign",
-            "verify",
-            "--bundle",
-            str(image_bundle),
-            *common,
-            image,
-        ),
+        image_bundle_verify_command(image_bundle, common, image),
+        image_registry_verify_command(common, image),
         (
             "cosign",
             "verify-blob",
@@ -87,3 +84,44 @@ def verify_signatures(
         )
         if completed.returncode != 0:
             raise ReleaseError("keyless signature verification failed")
+
+
+def image_bundle_verify_command(
+    image_bundle: Path,
+    identity_args: tuple[str, ...],
+    image: str,
+) -> tuple[str, ...]:
+    """Build a Cosign v3 command that binds one saved bundle to the image digest."""
+    if not IMAGE_PATTERN.fullmatch(image):
+        raise ReleaseError("formal image reference is invalid")
+    digest = image.rsplit("@sha256:", maxsplit=1)[1]
+    return (
+        "cosign",
+        "verify-blob-attestation",
+        "--bundle",
+        str(image_bundle),
+        "--digest",
+        digest,
+        "--digestAlg",
+        "sha256",
+        "--type",
+        COSIGN_SIGN_PREDICATE_TYPE,
+        *identity_args,
+    )
+
+
+def image_registry_verify_command(
+    identity_args: tuple[str, ...],
+    image: str,
+) -> tuple[str, ...]:
+    """Build a registry verification command restricted to image signatures."""
+    if not IMAGE_PATTERN.fullmatch(image):
+        raise ReleaseError("formal image reference is invalid")
+    return (
+        "cosign",
+        "verify-attestation",
+        "--type",
+        COSIGN_SIGN_PREDICATE_TYPE,
+        *identity_args,
+        image,
+    )

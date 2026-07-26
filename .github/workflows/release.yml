@@ -368,16 +368,39 @@ jobs:
             --bundle "$bundle/signatures/core-image.sigstore.json" \
             "$subject"
           identity="https://github.com/$GITHUB_REPOSITORY/.github/workflows/release.yml@$GITHUB_REF"
-          cosign verify \
+          cosign verify-blob-attestation \
             --bundle "$bundle/signatures/core-image.sigstore.json" \
+            --digest "${IMAGE_DIGEST#sha256:}" --digestAlg sha256 \
+            --type https://sigstore.dev/cosign/sign/v1 \
             --certificate-identity "$identity" \
             --certificate-oidc-issuer \
               https://token.actions.githubusercontent.com \
             --certificate-github-workflow-repository "$GITHUB_REPOSITORY" \
             --certificate-github-workflow-ref "$GITHUB_REF" \
             --certificate-github-workflow-sha "$GITHUB_SHA" \
-            --certificate-github-workflow-trigger push \
+            --certificate-github-workflow-trigger push
+          cosign attach attestation \
+            --attestation "$bundle/signatures/core-image.sigstore.json" \
             "$subject"
+          registry_verified=false
+          for attempt in $(seq 1 6); do
+            if cosign verify-attestation \
+              --type https://sigstore.dev/cosign/sign/v1 \
+              --certificate-identity "$identity" \
+              --certificate-oidc-issuer \
+                https://token.actions.githubusercontent.com \
+              --certificate-github-workflow-repository "$GITHUB_REPOSITORY" \
+              --certificate-github-workflow-ref "$GITHUB_REF" \
+              --certificate-github-workflow-sha "$GITHUB_SHA" \
+              --certificate-github-workflow-trigger push \
+              "$subject"; then
+              registry_verified=true
+              break
+            fi
+            test "$attempt" -lt 6
+            sleep "$((attempt * 5))"
+          done
+          test "$registry_verified" = "true"
           uv run python scripts/verify_release.py create \
             --bundle "$bundle" --version "$VERSION" \
             --tag "$GITHUB_REF_NAME" --repository "$GITHUB_REPOSITORY" \

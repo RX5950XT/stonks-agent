@@ -8,6 +8,7 @@ import pytest
 
 from scripts.release_verifier_common import ReleaseError
 from scripts.release_verifier_final import verify_formal_evidence
+from scripts.release_verifier_signatures import verify_signatures
 
 IMAGE = "ghcr.io/acme/stonks-agent@sha256:" + ("a" * 64)
 COMMIT = "b" * 40
@@ -151,14 +152,27 @@ def test_final_verifier_rechecks_exact_five_evidence_and_identity(
         "ref": "refs/tags/v1.2.3",
         "commit": COMMIT,
     }
-    assert len(commands) == 5
+    assert len(commands) == 6
     assert [command[:2] for command in commands] == [
-        ("cosign", "verify"),
+        ("cosign", "verify-blob-attestation"),
+        ("cosign", "verify-attestation"),
         ("cosign", "verify-blob"),
         ("cosign", "verify-blob"),
         ("gh", "attestation"),
         ("gh", "attestation"),
     ]
+    assert any(part.endswith("core-image.sigstore.json") for part in commands[0])
+    assert commands[0][commands[0].index("--digest") + 1] == "a" * 64
+    assert commands[0][commands[0].index("--digestAlg") + 1] == "sha256"
+    assert (
+        commands[0][commands[0].index("--type") + 1]
+        == "https://sigstore.dev/cosign/sign/v1"
+    )
+    assert "--bundle" not in commands[1]
+    assert IMAGE in commands[1]
+    assert commands[1][commands[1].index("--type") + 1] == (
+        "https://sigstore.dev/cosign/sign/v1"
+    )
     identity = (
         "https://github.com/acme/stonks-agent/.github/workflows/"
         "release.yml@refs/tags/v1.2.3"
@@ -175,6 +189,45 @@ def test_final_verifier_rechecks_exact_five_evidence_and_identity(
             assert "--deny-self-hosted-runners" in command
             assert "--bundle" in command
             assert "--format" in command
+
+
+def test_signature_verifier_separates_saved_image_bundle_and_registry(
+    tmp_path: Path,
+) -> None:
+    bundle = _bundle(tmp_path)
+    commands: list[tuple[str, ...]] = []
+
+    def runner(
+        command: tuple[str, ...], **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    verify_signatures(
+        bundle,
+        _policy(),
+        manifest_path=bundle / "release-manifest.json",
+        image=IMAGE,
+        repository="acme/stonks-agent",
+        tag="v1.2.3",
+        commit=COMMIT,
+        runner=runner,
+    )
+
+    assert [command[:2] for command in commands] == [
+        ("cosign", "verify-blob-attestation"),
+        ("cosign", "verify-attestation"),
+        ("cosign", "verify-blob"),
+    ]
+    assert any(part.endswith("core-image.sigstore.json") for part in commands[0])
+    assert commands[0][commands[0].index("--digest") + 1] == "a" * 64
+    assert "--bundle" not in commands[1]
+    assert IMAGE in commands[1]
+    assert commands[1][commands[1].index("--type") + 1] == (
+        "https://sigstore.dev/cosign/sign/v1"
+    )
+    assert any(part.endswith("release-manifest.sigstore.json") for part in commands[2])
+    assert Path(commands[2][-1]).name == "release-manifest.json"
 
 
 @pytest.mark.parametrize(

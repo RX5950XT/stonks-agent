@@ -52,6 +52,19 @@ def test_security_workflow_has_read_only_fork_safe_supply_chain_gates() -> None:
     assert "packages: write" not in content
 
 
+def test_unsigned_candidate_derives_release_identity_from_project_version() -> None:
+    content, _ = _workflow("security.yml")
+
+    assert 'echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"' in content
+    assert 'echo "RELEASE_TAG=v$version" >> "$GITHUB_ENV"' in content
+    assert '--build-arg RELEASE_VERSION="$RELEASE_VERSION"' in content
+    assert '--version "$RELEASE_VERSION" --tag "$RELEASE_TAG"' in content
+    assert '--expected-tag "$RELEASE_TAG"' in content
+    assert "RELEASE_VERSION=0.1.0" not in content
+    assert "--version 0.1.0" not in content
+    assert "--tag v0.1.0" not in content
+
+
 def test_release_workflow_is_tag_only_and_keyless_authority_is_scoped() -> None:
     content, workflow = _workflow("release.yml")
     assert "pull_request" not in content
@@ -64,7 +77,7 @@ def test_release_workflow_is_tag_only_and_keyless_authority_is_scoped() -> None:
     assert "cosign-release: v3.0.6" in content
     assert "cosign sign --yes" in content
     assert content.count("cosign sign-blob --yes") == 2
-    assert "cosign verify" in content
+    assert "cosign verify-attestation" in content
     assert "cosign verify-blob" in content
     assert "verification-report.sigstore.json" in content
     assert "certificate-oidc-issuer" in content
@@ -81,6 +94,42 @@ def test_release_workflow_is_tag_only_and_keyless_authority_is_scoped() -> None:
     assert "mapfile -t digests" in content
     assert '[[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]' in content
     assert 'gh release verify "$GITHUB_REF_NAME"' in content
+
+
+def test_cosign_v3_uploads_and_verifies_the_same_exact_image_bundle() -> None:
+    content, _ = _workflow("release.yml")
+    assert (
+        "cosign sign --yes \\\n"
+        '            --bundle "$bundle/signatures/core-image.sigstore.json" \\\n'
+        '            "$subject"'
+    ) in content
+    assert (
+        "cosign verify-blob-attestation \\\n"
+        '            --bundle "$bundle/signatures/core-image.sigstore.json" \\\n'
+        '            --digest "${IMAGE_DIGEST#sha256:}" --digestAlg sha256 \\\n'
+        "            --type https://sigstore.dev/cosign/sign/v1"
+    ) in content
+    assert (
+        "cosign attach attestation \\\n"
+        '            --attestation "$bundle/signatures/core-image.sigstore.json" \\\n'
+        '            "$subject"'
+    ) in content
+    attach_index = content.index("cosign attach attestation \\")
+    registry_verify = content[
+        attach_index : content.index(
+            "uv run python scripts/verify_release.py create", attach_index
+        )
+    ]
+    assert "cosign verify-attestation \\" in registry_verify
+    assert "--type https://sigstore.dev/cosign/sign/v1" in registry_verify
+    assert "registry_verified=false" in registry_verify
+    assert "for attempt in $(seq 1 6); do" in registry_verify
+    assert 'test "$registry_verified" = "true"' in registry_verify
+    assert registry_verify.count("cosign attach attestation \\") == 1
+    assert registry_verify.count("cosign verify-attestation \\") == 1
+    assert "--bundle" not in registry_verify.split(
+        "cosign verify-attestation \\", maxsplit=1
+    )[1]
 
 
 def test_release_jobs_hold_only_their_required_authority() -> None:

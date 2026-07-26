@@ -18,7 +18,8 @@
    再以`verify-blob-attestation`重驗bundle中的digest、predicate與完整OIDC claims，
    用`attach attestation`把同一bundle寫入registry，最後以不帶`--bundle`且限定
    `sign/v1` predicate的`cosign verify-attestation`重驗registry referrer；blob
-   signatures仍使用`verify-blob --bundle`。
+   signatures仍使用`verify-blob --bundle`。只允許對attach後的唯讀registry
+   observation做六次bounded retry，不得重簽或重複attach。
 7. `config/features.yaml` 中七個有 supply-chain contract 的 integrations，其八個
    `notice_paths`、root notice identity 與 `execution_authority=false` 都必須進入
    signed payload；漏件、重複 path、未登錄 notice 或 authority drift 立即失敗。

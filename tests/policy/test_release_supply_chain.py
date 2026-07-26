@@ -127,9 +127,10 @@ def test_cosign_v3_uploads_and_verifies_the_same_exact_image_bundle() -> None:
     assert 'test "$registry_verified" = "true"' in registry_verify
     assert registry_verify.count("cosign attach attestation \\") == 1
     assert registry_verify.count("cosign verify-attestation \\") == 1
-    assert "--bundle" not in registry_verify.split(
-        "cosign verify-attestation \\", maxsplit=1
-    )[1]
+    assert (
+        "--bundle"
+        not in registry_verify.split("cosign verify-attestation \\", maxsplit=1)[1]
+    )
 
 
 def test_release_jobs_hold_only_their_required_authority() -> None:

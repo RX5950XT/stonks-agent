@@ -119,11 +119,13 @@ def test_final_verifier_rechecks_exact_five_evidence_and_identity(
 ) -> None:
     bundle = _bundle(tmp_path)
     commands: list[tuple[str, ...]] = []
+    invocations: list[dict[str, object]] = []
 
     def runner(
-        command: tuple[str, ...], **_: object
+        command: tuple[str, ...], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
         commands.append(command)
+        invocations.append(kwargs)
         predicate = (
             "https://cyclonedx.org/bom"
             if "https://cyclonedx.org/bom" in command
@@ -153,6 +155,7 @@ def test_final_verifier_rechecks_exact_five_evidence_and_identity(
         "commit": COMMIT,
     }
     assert len(commands) == 6
+    assert all(invocation["encoding"] == "utf-8" for invocation in invocations)
     assert [command[:2] for command in commands] == [
         ("cosign", "verify-blob-attestation"),
         ("cosign", "verify-attestation"),
@@ -205,11 +208,13 @@ def test_signature_verifier_separates_saved_image_bundle_and_registry(
 ) -> None:
     bundle = _bundle(tmp_path)
     commands: list[tuple[str, ...]] = []
+    invocations: list[dict[str, object]] = []
 
     def runner(
-        command: tuple[str, ...], **_: object
+        command: tuple[str, ...], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
         commands.append(command)
+        invocations.append(kwargs)
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     verify_signatures(
@@ -228,6 +233,7 @@ def test_signature_verifier_separates_saved_image_bundle_and_registry(
         ("cosign", "verify-attestation"),
         ("cosign", "verify-blob"),
     ]
+    assert all(invocation["encoding"] == "utf-8" for invocation in invocations)
     assert any(part.endswith("core-image.sigstore.json") for part in commands[0])
     assert commands[0][commands[0].index("--digest") + 1] == "a" * 64
     assert "--bundle" not in commands[1]

@@ -131,10 +131,11 @@ def test_p6_evidence_index_maps_every_gate_without_forging_external_proof() -> N
         "capacity-report-${{ github.run_id }}",
     ):
         assert f"`{artifact}`" in evidence
-    assert "formal publication成功前仍只宣稱configured" in evidence
-    assert "正式`v0.1.2`成功前仍維持fail closed" in evidence
+    assert "formal `v0.1.2` keyless release已在下列exact" in evidence
+    assert "formal publication成功前仍只宣稱configured" not in evidence
+    assert "正式`v0.1.2`成功前仍維持fail closed" not in evidence
     assert "`v0.1.0`嘗試已在Cosign v3驗證階段fail closed" in evidence
-    assert "GitHub Actions CI已驗證" in evidence
+    assert "GitHub Actions CI、unsigned" in evidence
     for evidence_ref in (
         "30194459987",
         "30194459983",
@@ -144,8 +145,18 @@ def test_p6_evidence_index_maps_every_gate_without_forging_external_proof() -> N
         "sha256:dc7566fc578cf49e79a2aadbf316e8e1430b463ec273939db17d97c7f73832c3",
         "optional-profile-smoke-30194459987",
         "unsigned-supply-chain-candidate",
+        "5e9c2973b782cd1bd7274e6e6852cbe1df08a4f9",
+        "30200612158",
+        "30200612154",
+        "30200908948",
+        "8631582545",
+        "8631709866",
+        "sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976",
+        "823dc70999557c770e7c1cd5c7857cf0d9e155147743435a5013a38a98b85434",
+        "8015b3e11470987b6760f480bd208f9c84c08f476205fde0276ff3b2ad65570e",
     ):
         assert f"`{evidence_ref}`" in evidence
+    assert "https://github.com/RX5950XT/stonks-agent/releases/tag/v0.1.2" in evidence
     for check in (
         "tests/policy/test_docs_handoff.py",
         "tests/policy/test_api_docs.py",

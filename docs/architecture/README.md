@@ -7,12 +7,14 @@
 - `externally_verified`：由 repository 外真實服務或 publication 所產生且可核驗的證據。
 
 目前狀態為 implemented：P0-P6.11 的 repository gates；configured: public repository
-的SemVer tag protection、required-reviewer environment、immutable release與正式
-keyless路徑；externally_verified: GitHub Actions CI、unsigned supply-chain candidate
-與bounded optional integration matrix。`v0.1.0`與`v0.1.1`已驗證protected-tag
-build/scan與GHCR exact image publication；`v0.1.1`另有image及GitHub attestations，
-但五證據final closure仍fail closed，沒有GitHub Release。正式`v0.1.2`完成前不擴張宣稱。真實外部IdP/cloud secret manager、
-remote telemetry backend與跨主機網路控制仍沒有外部成功證據。
+的SemVer tag protection、required-reviewer environment與immutable releases；
+externally_verified: GitHub Actions CI、unsigned supply-chain candidate、bounded optional
+integration matrix及formal `v0.1.2` keyless release。Release run `30200908948`的六個
+jobs與五證據closure成功，GHCR digest
+`sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976`
+已由registry與GitHub attestations獨立重驗；`v0.1.0`／`v0.1.1`只保留為immutable
+fail-closed證據。真實外部IdP/cloud secret manager、remote telemetry backend與跨主機
+網路控制仍沒有外部成功證據。
 
 ## 文件
 

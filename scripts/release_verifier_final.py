@@ -332,6 +332,7 @@ def _run_commands(
                 check=False,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=180,
             )
         except (OSError, subprocess.SubprocessError) as error:

@@ -59,7 +59,17 @@
   Release。`v0.1.1` run `30199745730`已通過bundle/registry雙重驗證及GitHub
   provenance/SBOM attestations，但final verifier同時傳入互斥的`--cert-identity`
   與`--signer-workflow`而fail closed；修正版`v0.1.2`只移除多餘後者，其他exact
-  identity、digest、ref、predicate與hosted-runner constraints全部保留。
+  identity、digest、ref、predicate與hosted-runner constraints全部保留。Run
+  `30200908948`已完成六個release jobs與五份formal evidence closure，signed artifact
+  `8631709866`再由fixed Cosign v3.0.6 canonical verifier獨立重驗為`passed`。
+- Formal `v0.1.2` image為
+  `ghcr.io/rx5950xt/stonks-agent@sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976`；
+  registry signature/sign-v1 attestation、GitHub SLSA provenance/CycloneDX SBOM、
+  [immutable Release](https://github.com/RX5950XT/stonks-agent/releases/tag/v0.1.2)
+  與兩個asset attestations均已獨立重驗。
+- 正式archive與workflow artifact各208 files且hash-identical。Windows CP950首次重驗
+  遇到GitHub CLI UTF-8輸出解碼錯誤；main verifier已固定subprocess
+  `encoding=utf-8`，並在不設定`PYTHONUTF8`時以同一signed bundle重驗通過。
 - `v0.1.0` image digest為
   `sha256:068e41e374faf4d3752332bbb91f80b62060990c598f6e34062567a55fe122ca`，
   只作失敗診斷與稽核證據，不能宣稱formal release。正式signature/provenance只能由

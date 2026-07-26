@@ -80,6 +80,7 @@ def verify_signatures(
             check=False,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=180,
         )
         if completed.returncode != 0:

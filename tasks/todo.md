@@ -1097,6 +1097,7 @@
 - [x] 以exact commit `b1ed481`完成第三輪外部診斷：11個CI jobs通過；剩餘core outage polling時序與Python corresponding-source hash drift皆已fail-closed定位、修正並在本機全量重驗。
 - [x] 以exact commit `b99c36e`完成第四輪：Supply-chain unsigned candidate及10個runtime jobs通過；core 503 body drift與Windows Compose render timeout已縮成bounded diagnostics並維持原安全契約。
 - [x] 以exact commit `5199110`完成第五輪：Supply-chain及11個CI jobs通過；core outage確認為Compose dependency-stop transport差異，已改用exact container ID只停止PostgreSQL並通過actual replay smoke。
+- [x] 以exact commit `fd5c73d`完成第六輪：Supply-chain及11個CI jobs通過；exact PostgreSQL stop排除Compose restart依賴差異，唯一失敗已縮小為DB `pool_pre_ping`仍在執行時外層5秒HTTP probe先逾時。
 - [ ] 重新執行並監看exact-commit完整CI與optional profile matrix，封存job/artifact identity；render或blocked profile不得冒充positive runtime。
 - [ ] 由protected tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
 - [ ] 重驗private repository、package、release asset、attestation與workflow identity，將外部證據及誠實限制同步回handoff文件。

@@ -335,6 +335,8 @@ def test_wait_for_endpoint_uses_exact_safe_envelopes_and_no_ambient_http(
     assert clients
     assert all(client["trust_env"] is False for client in clients)
     assert all(client["follow_redirects"] is False for client in clients)
+    assert all(isinstance(client["timeout"], httpx.Timeout) for client in clients)
+    assert all(client["timeout"].read == 15.0 for client in clients)
 
 
 def test_wait_for_endpoint_fails_closed_on_wrong_payload(

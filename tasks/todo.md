@@ -1088,3 +1088,11 @@
 - Optional / honesty：frozen matrix覆蓋10 profiles與zero-default，supported/blocked/unsupported狀態不能互換；本機10個Compose render及5組startup auth fail-closed probes通過。因repository沒有remote，沒有GitHub `optional-profile-smoke` report、protected tag、GHCR publication或OIDC keyless formal evidence，不以本機結果冒充。
 - Release evidence：fresh local unsigned candidate為201 artifacts、136,858,939 bytes、97 packages／865 CycloneDX components、0個未抑制High/Critical；MIT selective-port notice已進signed payload及runtime image。Formal signatures/provenance未產生。
 - Verification：focused docs/release/optional/security為105 passed，actual hardened core deployment smoke通過；完整non-PostgreSQL gate為2206 passed、6 skipped、269 deselected、coverage 87.85%，完整PostgreSQL gate為2474 passed、7 skipped、coverage 87.64%。734 files format、Ruff、strict mypy 350 source files、106 schemas、Alembic無drift、upstream/license、secret、actionlint、frozen lock與dependency audit全通過。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`與本review已同步；`tasks/lessons.md`經review無新的使用者修正可新增。
+
+### P6 External Validation — 2026-07-26
+
+- [ ] 建立private GitHub repository、推送`main`，並以remote tree重驗research clone、cache、model、generated output與secret皆未發布。
+- [ ] 固定Actions workflow permissions、release environment與tag protection/ruleset；缺少平台能力或human authorization時fail closed。
+- [ ] 執行並監看完整CI與optional profile matrix，封存job/artifact identity；render或blocked profile不得冒充positive runtime。
+- [ ] 由protected tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
+- [ ] 重驗private repository、package、release asset、attestation與workflow identity，將外部證據及誠實限制同步回handoff文件。

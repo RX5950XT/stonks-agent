@@ -43,7 +43,7 @@ class FakeRunner(CommandRunner):
         if normalized[-3:] == ("ps", "-q", "core"):
             return "core-container"
         if normalized[-3:] == ("ps", "-q", "postgres"):
-            return "postgres-container"
+            return "a" * 64
         if normalized[:2] == ("docker", "inspect"):
             expected_user = (
                 "65532:65532" if normalized[-1] == "core-container" else "70:70"
@@ -519,6 +519,10 @@ def test_exercise_runs_full_persistence_security_and_cleanup_flow(
     ]
     assert all(value == "print('probe')\n" for value in runner.inputs if value)
     assert (*compose, "down", "--remove-orphans") in runner.commands
+    assert ("docker", "stop", "--time", "30", "a" * 64) in runner.commands
+    assert ("docker", "start", "a" * 64) in runner.commands
+    assert (*compose, "stop", "postgres") not in runner.commands
+    assert (*compose, "start", "postgres") not in runner.commands
     assert runner.commands[-1] == (
         *compose,
         "down",

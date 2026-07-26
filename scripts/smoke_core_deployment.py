@@ -36,8 +36,6 @@ _COMPOSE_ACTIONS = frozenset(
         "ps",
         "restart",
         "run",
-        "start",
-        "stop",
         "up",
     }
 )
@@ -453,10 +451,13 @@ def _exercise_deployment(
     _run_replay_stage(compose, runner, replay_source, "write")
     runner.run((*compose, "restart", "core"))
     waiter(context, "/readyz", 200)
-    runner.run((*compose, "stop", "postgres"))
+    postgres_id = runner.run((*compose, "ps", "-q", "postgres"))
+    if re.fullmatch(r"[0-9a-f]{64}", postgres_id) is None:
+        raise SmokeError()
+    runner.run(("docker", "stop", "--time", "30", postgres_id))
     waiter(context, "/healthz", 200)
     waiter(context, "/readyz", 503)
-    runner.run((*compose, "start", "postgres"))
+    runner.run(("docker", "start", postgres_id))
     runner.run((*compose, "up", "-d", "--wait", "postgres"))
     waiter(context, "/readyz", 200)
     runner.run((*compose, "down", "--remove-orphans"))

@@ -223,7 +223,7 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "signatures/verification-report.sigstore.json"
     )
     assert policy["sbom"]["expected_components_sha256"] == (
-        "b1584f2aa0b10fca2d330972d73fa0255d1e94dd627c0c5da6700fb2d6ca6bd4"
+        "498dda0eed2c8f7ac2d653262b0a23dbfe9001e5bbf04f6d5462ae4fc01d408b"
     )
     required = set(policy["bundle"]["required_payload_files"])
     assert {

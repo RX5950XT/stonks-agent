@@ -51,6 +51,7 @@ Repository = "https://github.com/stonks-agent/stonks-agent"
 
 [dependency-groups]
 dev = [
+    "cyclonedx-bom>=7.3,<8",
     "hypothesis>=6.148,<7",
     "mypy>=1.19,<2",
     "pip-audit>=2.9,<3",

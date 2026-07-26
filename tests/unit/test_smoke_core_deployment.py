@@ -185,7 +185,7 @@ def test_subprocess_runner_uses_argv_and_never_renders_failed_output(
             command,
             1,
             stdout="database detail",
-            stderr="runtime-secret",
+            stderr="bounded failure",
         )
 
     monkeypatch.setattr(smoke_core_deployment.subprocess, "run", failed_run)
@@ -199,6 +199,7 @@ def test_subprocess_runner_uses_argv_and_never_renders_failed_output(
         runner.run(("docker", "compose", "config"))
 
     assert str(raised.value) == "Core deployment smoke failed"
+    assert raised.value.phase == "compose_config"
     assert observed["command"] == ("docker", "compose", "config")
     assert observed["shell"] is False
     assert observed["capture_output"] is True
@@ -350,7 +351,7 @@ def test_wait_for_endpoint_fails_closed_on_wrong_payload(
 
     monkeypatch.setattr(smoke_core_deployment.httpx, "Client", Client)
 
-    with pytest.raises(SmokeError):
+    with pytest.raises(SmokeError) as raised:
         wait_for_endpoint(
             "http://127.0.0.1:18000",
             "/healthz",
@@ -358,6 +359,8 @@ def test_wait_for_endpoint_fails_closed_on_wrong_payload(
             timeout_seconds=0,
             sleep=lambda _: None,
         )
+
+    assert raised.value.phase == "endpoint_healthz_200"
 
 
 def test_exercise_runs_full_persistence_security_and_cleanup_flow(

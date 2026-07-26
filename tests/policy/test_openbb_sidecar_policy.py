@@ -100,7 +100,7 @@ def test_ci_runs_static_gates_before_live_sidecar_and_always_cleans_up() -> None
         "uv run python scripts/verify_openbb_sidecar.py",
         "uv lock --check --project sidecars/openbb",
         "docker compose -f infra/compose.openbb.yaml config --quiet",
-        "build --pull openbb",
+        '--build-arg "VCS_REF=$GITHUB_SHA" openbb',
         "up --detach --wait",
         "http://127.0.0.1:6900/healthz",
         "http://127.0.0.1:6900/source",

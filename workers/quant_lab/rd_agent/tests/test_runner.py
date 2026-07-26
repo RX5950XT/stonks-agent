@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,7 @@ from workers.quant_lab.rd_agent.candidate_runner import (
     freeze_value,
     restricted_builtins,
 )
-from workers.quant_lab.rd_agent.runner import PythonCandidateRunner
+from workers.quant_lab.rd_agent.runner import PythonCandidateRunner, _validate_exit
 
 from .test_adapter import SAFE_SOURCE, dataset, sandbox_policy
 
@@ -140,6 +141,26 @@ def test_cpu_bomb_is_bounded_by_wall_timeout() -> None:
         runner.run(source=source, rows=dataset().rows, policy=active)
 
     assert captured.value.code == "candidate_timeout"
+
+
+@pytest.mark.parametrize(
+    "termination_signal",
+    [int(getattr(signal, "SIGXCPU", 24)), int(getattr(signal, "SIGKILL", 9))],
+)
+def test_cpu_limit_signals_are_classified_as_timeout(
+    termination_signal: int,
+) -> None:
+    with pytest.raises(CandidateProcessError) as captured:
+        _validate_exit(-termination_signal)
+
+    assert captured.value.code == "candidate_timeout"
+
+
+def test_unknown_fatal_signal_is_not_misclassified_as_memory() -> None:
+    with pytest.raises(CandidateProcessError) as captured:
+        _validate_exit(-signal.SIGSEGV.value)
+
+    assert captured.value.code == "candidate_process_failed"
 
 
 def test_runner_rejects_non_linux_platform_before_starting_process() -> None:

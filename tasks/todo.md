@@ -1091,8 +1091,8 @@
 
 ### P6 External Validation — 2026-07-26
 
-- [ ] 建立private GitHub repository、推送`main`，並以remote tree重驗research clone、cache、model、generated output與secret皆未發布。
-- [ ] 固定Actions workflow permissions、release environment與tag protection/ruleset；缺少平台能力或human authorization時fail closed。
+- [x] 建立private GitHub repository、推送`main`，並以remote tree重驗research clone、cache、model、generated output與secret皆未發布。
+- [x] 固定Actions workflow permissions，並稽核release environment與tag protection/ruleset；GitHub Free private repository缺少protected refs、required reviewers與private artifact attestations，故formal release維持fail closed。
 - [ ] 執行並監看完整CI與optional profile matrix，封存job/artifact identity；render或blocked profile不得冒充positive runtime。
 - [ ] 由protected tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
 - [ ] 重驗private repository、package、release asset、attestation與workflow identity，將外部證據及誠實限制同步回handoff文件。

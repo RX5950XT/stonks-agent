@@ -25,6 +25,22 @@ _HTTP_TIMEOUT_SECONDS = 60.0
 _HTTP_REQUEST_TIMEOUT_SECONDS = 5.0
 _COMMAND_TIMEOUT_SECONDS = 900.0
 _MAX_REPLAY_PROBE_BYTES = 128 * 1024
+_COMPOSE_ACTIONS = frozenset(
+    {
+        "build",
+        "config",
+        "down",
+        "exec",
+        "logs",
+        "ps",
+        "restart",
+        "run",
+        "start",
+        "stop",
+        "up",
+    }
+)
+_COMPOSE_SERVICES = frozenset({"core", "migrate", "postgres"})
 _IMAGE_CONTENT_CHECK = """
 import hashlib
 import importlib.util
@@ -105,8 +121,11 @@ _SAFE_AMBIENT_ENVIRONMENT = frozenset(
 class SmokeError(RuntimeError):
     """Public-safe deployment smoke failure."""
 
-    def __init__(self) -> None:
+    def __init__(self, phase: str = "unknown") -> None:
         super().__init__("Core deployment smoke failed")
+        self.phase = (
+            phase if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", phase) else "unknown"
+        )
 
 
 class CommandRunner(Protocol):
@@ -196,12 +215,12 @@ class SubprocessRunner:
             rendered = f"{completed.stdout}\n{completed.stderr}"
             _reject_secret_output(rendered, self._secret_values)
             if completed.returncode != 0:
-                raise SmokeError()
+                raise SmokeError(_command_phase(command))
             return completed.stdout.strip()
         except SmokeError:
             raise
         except (OSError, subprocess.SubprocessError) as error:
-            raise SmokeError() from error
+            raise SmokeError(_command_phase(command)) from error
 
 
 type EndpointWaiter = Callable[[SmokeContext, str, int], None]
@@ -283,7 +302,8 @@ def wait_for_endpoint(
             return
         except (httpx.HTTPError, SmokeError, TypeError, ValueError):
             if time.monotonic() >= deadline:
-                raise SmokeError() from None
+                endpoint = path.removeprefix("/").replace("/", "_")
+                raise SmokeError(f"endpoint_{endpoint}_{expected_status}") from None
             sleep(min(0.5, max(0.0, deadline - time.monotonic())))
 
 
@@ -318,6 +338,8 @@ def exercise_deployment(
     if primary_error is not None:
         if cleanup_error is not None:
             primary_error.add_note("isolated deployment cleanup also failed")
+        if isinstance(primary_error, SmokeError):
+            raise primary_error
         raise SmokeError() from primary_error
     if cleanup_error is not None:
         raise SmokeError() from cleanup_error
@@ -373,7 +395,8 @@ def main(
             )
         )
         return 0
-    except Exception:
+    except Exception as error:
+        phase = error.phase if isinstance(error, SmokeError) else "unknown"
         print(
             json.dumps(
                 {
@@ -381,6 +404,7 @@ def main(
                     "error": {
                         "code": "deployment_smoke_failed",
                         "message": "Core deployment smoke failed",
+                        "phase": phase,
                     },
                     "status": 500,
                     "success": False,
@@ -390,6 +414,15 @@ def main(
             file=sys.stderr,
         )
         return 1
+
+
+def _command_phase(command: Sequence[str]) -> str:
+    tokens = tuple(command)
+    if tokens[:2] != ("docker", "compose"):
+        return "command_failed"
+    action = next((value for value in tokens if value in _COMPOSE_ACTIONS), "command")
+    service = next((value for value in tokens if value in _COMPOSE_SERVICES), "")
+    return f"compose_{action}_{service}" if service else f"compose_{action}"
 
 
 def _exercise_deployment(

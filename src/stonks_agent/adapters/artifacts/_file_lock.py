@@ -22,6 +22,15 @@ class _FcntlModule(Protocol):
     def flock(self, file_descriptor: int, operation: int) -> None: ...
 
 
+class _MsvcrtModule(Protocol):
+    LK_NBLCK: int
+    LK_UNLCK: int
+
+    def locking(
+        self, file_descriptor: int, operation: int, byte_count: int
+    ) -> None: ...
+
+
 @contextmanager
 def exclusive_file_lock(path: Path, *, timeout_seconds: float = 30.0) -> Iterator[None]:
     """Hold one OS-released lock; process crashes cannot strand ownership."""
@@ -58,8 +67,7 @@ def _acquire(stream: BinaryIO, timeout_seconds: float) -> None:
 
 def _try_lock(stream: BinaryIO) -> None:
     if os.name == "nt":
-        import msvcrt
-
+        msvcrt = _msvcrt_module()
         stream.seek(0)
         msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
         return
@@ -69,8 +77,7 @@ def _try_lock(stream: BinaryIO) -> None:
 
 def _release(stream: BinaryIO) -> None:
     if os.name == "nt":
-        import msvcrt
-
+        msvcrt = _msvcrt_module()
         stream.seek(0)
         msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
         return
@@ -80,3 +87,7 @@ def _release(stream: BinaryIO) -> None:
 
 def _fcntl_module() -> _FcntlModule:
     return cast(_FcntlModule, import_module("fcntl"))
+
+
+def _msvcrt_module() -> _MsvcrtModule:
+    return cast(_MsvcrtModule, import_module("msvcrt"))

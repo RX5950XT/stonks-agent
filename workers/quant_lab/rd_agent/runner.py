@@ -6,6 +6,7 @@ import importlib
 import json
 import os
 import platform
+import signal
 import subprocess
 import sys
 from collections.abc import Callable
@@ -183,8 +184,14 @@ def _resource_limiter(policy: CandidateSandboxPolicy) -> Callable[[], None]:
 def _validate_exit(returncode: int) -> None:
     if returncode == 0:
         return
-    if returncode == 70 or returncode < 0:
+    if returncode == 70:
         raise CandidateProcessError("candidate_memory_exceeded")
+    cpu_signals = {
+        int(getattr(signal, "SIGKILL", 9)),
+        int(getattr(signal, "SIGXCPU", 24)),
+    }
+    if returncode < 0 and -returncode in cpu_signals:
+        raise CandidateProcessError("candidate_timeout")
     raise CandidateProcessError("candidate_process_failed")
 
 

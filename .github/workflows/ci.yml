@@ -212,7 +212,9 @@ jobs:
             "$RUNNER_TEMP/openbb-requirements.txt"
 
       - name: Build exact optional sidecar image
-        run: docker compose -f infra/compose.openbb.yaml build --pull openbb
+        run: >-
+          docker compose -f infra/compose.openbb.yaml build --pull
+          --build-arg "VCS_REF=$GITHUB_SHA" openbb
 
       - name: Prepare ephemeral OpenBB service identity
         run: >-

@@ -56,7 +56,10 @@
 - 本機只執行 unsigned candidate 與 formal verifier 的 fixture/negative tests，不模擬
   GitHub OIDC。Protected `v0.1.0` run `30196542394`已發布GHCR exact image，但在
   Cosign v3錯用`verify --bundle`處fail closed，沒有formal attestations或GitHub
-  Release；修正版`v0.1.1`會依上述bundle/registry雙重驗證重新發布。
+  Release。`v0.1.1` run `30199745730`已通過bundle/registry雙重驗證及GitHub
+  provenance/SBOM attestations，但final verifier同時傳入互斥的`--cert-identity`
+  與`--signer-workflow`而fail closed；修正版`v0.1.2`只移除多餘後者，其他exact
+  identity、digest、ref、predicate與hosted-runner constraints全部保留。
 - `v0.1.0` image digest為
   `sha256:068e41e374faf4d3752332bbb91f80b62060990c598f6e34062567a55fe122ca`，
   只作失敗診斷與稽核證據，不能宣稱formal release。正式signature/provenance只能由

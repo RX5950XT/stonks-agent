@@ -289,7 +289,6 @@ def _gh_command(
     commit: str,
     signing: Mapping[str, Any],
 ) -> tuple[str, ...]:
-    workflow = as_string(signing.get("workflow"), "signing.workflow")
     return (
         "gh",
         "attestation",
@@ -303,8 +302,6 @@ def _gh_command(
         _identity(repository, signing, tag),
         "--cert-oidc-issuer",
         as_string(signing.get("issuer"), "signing.issuer"),
-        "--signer-workflow",
-        f"{repository}/{workflow}",
         "--signer-digest",
         commit,
         "--source-ref",

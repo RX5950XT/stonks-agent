@@ -132,14 +132,16 @@ def test_p6_evidence_index_maps_every_gate_without_forging_external_proof() -> N
     ):
         assert f"`{artifact}`" in evidence
     assert "formal publication成功前仍只宣稱configured" in evidence
-    assert "正式`v0.1.1`成功前仍維持fail closed" in evidence
+    assert "正式`v0.1.2`成功前仍維持fail closed" in evidence
     assert "`v0.1.0`嘗試已在Cosign v3驗證階段fail closed" in evidence
     assert "GitHub Actions CI已驗證" in evidence
     for evidence_ref in (
         "30194459987",
         "30194459983",
         "30196542394",
+        "30199745730",
         "sha256:068e41e374faf4d3752332bbb91f80b62060990c598f6e34062567a55fe122ca",
+        "sha256:dc7566fc578cf49e79a2aadbf316e8e1430b463ec273939db17d97c7f73832c3",
         "optional-profile-smoke-30194459987",
         "unsigned-supply-chain-candidate",
     ):

@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：Repository、本機P0–P6.11與GitHub CI／unsigned supply-chain／bounded optional evidence已通過；public formal release gates已配置，`v0.1.0`在Cosign v3 bundle重驗處fail closed，修正版`v0.1.1`待發布
+> 狀態：Repository、本機P0–P6.11與GitHub CI／unsigned supply-chain／bounded optional evidence已通過；public formal release gates已配置，`v0.1.0`／`v0.1.1`均在formal release path fail closed，修正版`v0.1.2`待發布
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -1101,7 +1101,7 @@
 - [x] 以exact commit `fd5c73d`完成第六輪：Supply-chain及11個CI jobs通過；exact PostgreSQL stop排除Compose restart依賴差異，唯一失敗已縮小為DB `pool_pre_ping`仍在執行時外層5秒HTTP probe先逾時。
 - [x] 以exact commit `93a1c51`完成第七輪：Supply-chain run `30194459983`成功；CI run `30194459987` attempt 2全綠。Attempt 1的`compose_build_core` transient setup failure以同SHA failed-jobs rerun通過，未改變runtime gate。
 - [x] 下載並重驗remote artifacts：optional `8629782731`精確綁run/SHA/workflow並為4 actual、5 blocked、1 unsupported、0 side effects；unsigned candidate `8629712567`由canonical verifier通過201 artifacts、136,872,645 bytes與exact image。
-- [ ] 由protected `v0.1.1` tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
+- [ ] 由protected `v0.1.2` tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
 - [x] 重驗private repository、package、release asset、attestation與workflow identity，將外部證據及誠實限制同步回handoff文件。
 - Pre-public review：repository當時為private、default `main`、Actions啟用SHA pinning及read-only default token；remote `93a1c51` tree共1,077 entries且0 forbidden paths，tags/releases/packages/environments皆為0、attestation endpoint為404。Private rulesets API明確回403 upgrade/public提示，因此改公開前formal release未被弱化或執行。
 - Docs verification：handoff/architecture/API/release/optional focused matrix為44 passed，Ruff、diff與secret scan全綠；最新replacement `AGENTS.md`／`CLAUDE.md`已逐字一致，新增lesson已記錄。
@@ -1114,6 +1114,8 @@
 - [x] 以TDD改成Cosign v3 exact image bundle的`verify-blob-attestation`＋registry attach/verify，並將project/core/OpenBB image版本推進至`0.1.1`；舊tag不移動、不刪除，舊image不得宣稱formal。
 - [x] 重建`v0.1.0`與目前`0.1.1` exact core image inventory：兩者皆為97 packages／865 components，唯一差異是self package `stonks-agent` version/purl `0.1.0 -> 0.1.1`，license維持`Apache-2.0`；reviewed hash已由`b1584f2a...6bd4`更新為`498dda0e...d408b`，focused policy/SBOM/verifier為42 passed。
 - [x] 重建並審核`uv.lock`綁定的Python corresponding-source archive：三個exact sdists與947,504 source bytes均不變，只有root `stonks-agent 0.1.0 -> 0.1.1`使lock hash更新；保留完整lock binding，新manifest為`2736dc3d...11e3c`、兩次獨立重建的新archive均為`c83c157a...7d95`，focused source/legal/policy為48 passed。
-- [ ] 建立指向修正後exact `main`的`v0.1.1` protected tag，逐次核准environment並監看`Keyless release`全部jobs。
+- [x] 建立指向exact `a66377d`的protected `v0.1.1` tag並逐次核准environment；run `30199745730`完成build/scan、GHCR digest `sha256:dc7566fc578cf49e79a2aadbf316e8e1430b463ec273939db17d97c7f73832c3`、image bundle/registry verify及GitHub provenance/SBOM attestations，最後因`gh attestation verify`同時使用互斥的`--cert-identity`與`--signer-workflow`而fail closed，未產生signed artifact或GitHub Release。
+- [x] 以真實`v0.1.1` provenance/SBOM bundles做CLI conformance：原命令因互斥的`--cert-identity`＋`--signer-workflow`確實退出1，移除多餘後者後兩份均退出0；exact certificate identity、issuer、signer/source digest/ref、predicate與hosted-runner約束全部保留。版本已推進`0.1.2`，97-package inventory只有self purl/version改變，新hash為`bfd0eb36...fa53c`；三個sdists／947,504 bytes不變，兩次source archive均為`017ef469...9136b`。
+- [ ] 建立指向修正後exact `main`的`v0.1.2` protected tag，逐次核准environment並監看`Keyless release`全部jobs。
 - [ ] 下載signed release bundle，以canonical verifier獨立重驗五份Sigstore evidence、GHCR exact digest、GitHub attestations及immutable release assets。
 - [ ] 同步README、CONTEXT、handoff與本review，提交推送後確認final CI與remote tree。

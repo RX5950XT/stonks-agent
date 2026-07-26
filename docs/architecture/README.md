@@ -9,9 +9,9 @@
 目前狀態為 implemented：P0-P6.11 的 repository gates；configured: public repository
 的SemVer tag protection、required-reviewer environment、immutable release與正式
 keyless路徑；externally_verified: GitHub Actions CI、unsigned supply-chain candidate
-與bounded optional integration matrix。`v0.1.0`已驗證protected-tag build/scan與GHCR
-exact image publication，但Cosign v3驗證fail closed，沒有formal attestations或
-GitHub Release；正式`v0.1.1`完成前不擴張宣稱。真實外部IdP/cloud secret manager、
+與bounded optional integration matrix。`v0.1.0`與`v0.1.1`已驗證protected-tag
+build/scan與GHCR exact image publication；`v0.1.1`另有image及GitHub attestations，
+但五證據final closure仍fail closed，沒有GitHub Release。正式`v0.1.2`完成前不擴張宣稱。真實外部IdP/cloud secret manager、
 remote telemetry backend與跨主機網路控制仍沒有外部成功證據。
 
 ## 文件

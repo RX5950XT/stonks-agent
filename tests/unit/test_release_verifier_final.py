@@ -185,7 +185,16 @@ def test_final_verifier_rechecks_exact_five_evidence_and_identity(
             assert identity in command
             assert "https://token.actions.githubusercontent.com" in command
         else:
-            assert "acme/stonks-agent/.github/workflows/release.yml" in command
+            assert command[command.index("--cert-identity") + 1] == identity
+            for conflicting_selector in (
+                "--cert-identity-regex",
+                "--signer-repo",
+                "--signer-workflow",
+            ):
+                assert conflicting_selector not in command
+            assert command[command.index("--signer-digest") + 1] == COMMIT
+            assert command[command.index("--source-ref") + 1] == "refs/tags/v1.2.3"
+            assert command[command.index("--source-digest") + 1] == COMMIT
             assert "--deny-self-hosted-runners" in command
             assert "--bundle" in command
             assert "--format" in command

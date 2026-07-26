@@ -223,7 +223,7 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "signatures/verification-report.sigstore.json"
     )
     assert policy["sbom"]["expected_components_sha256"] == (
-        "498dda0eed2c8f7ac2d653262b0a23dbfe9001e5bbf04f6d5462ae4fc01d408b"
+        "bfd0eb3648273f940882eb0c2ff170b08139b2a9075dc84e260a9232469fa53c"
     )
     required = set(policy["bundle"]["required_payload_files"])
     assert {
@@ -242,10 +242,10 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "policy": "payload/config/release/python-source-policy.json",
         "uv_lock": "payload/uv.lock",
         "archive_sha256": (
-            "c83c157a0963985cc52af47616a0e669923ad479d36aa122eb8624d501a87d95"
+            "017ef46955edcca6a145ee61b3f15cdc0a922c40652009fd725370c4cde9136b"
         ),
         "manifest_sha256": (
-            "2736dc3d88736cc5e6c5facee8888cc0ef672a7e20a6fda09b520d9d2a711e3c"
+            "4ceff416b7d3c6fc5c2bcf03a5039ec25a4089115233898f5e69808dfd5f94d7"
         ),
         "source_count": 3,
         "total_source_bytes": 947504,

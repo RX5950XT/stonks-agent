@@ -7,9 +7,10 @@
 - `externally_verified`：由 repository 外真實服務或 publication 所產生且可核驗的證據。
 
 目前狀態為 implemented：P0-P6.11 的 repository gates；configured：正式 keyless
-release 與 optional integration 路徑；externally_verified: 無。protected tag、registry
-publication、真實外部 IdP/cloud secret manager、remote telemetry backend 與跨主機網路
-控制都沒有外部成功證據。
+release 路徑；externally_verified: private GitHub Actions CI、unsigned supply-chain
+candidate與bounded optional integration matrix。protected tag、registry publication、
+正式keyless attestation、真實外部 IdP/cloud secret manager、remote telemetry backend
+與跨主機網路控制都沒有外部成功證據。
 
 ## 文件
 

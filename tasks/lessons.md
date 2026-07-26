@@ -40,3 +40,7 @@
 - Strict environment allowlist要包含同一entrypoint實際消費的固定鍵；只做unit loader測試可能出現「runtime需要、loader卻拒絕」的自我矛盾，必須用真實Compose migration抓整合漂移。
 - Readiness的client timeout必須大於內部DB connect timeout；否則DB outage雖會正確產生503，外層probe卻只看見timeout，造成不必要的unhealthy與無法辨識故障。
 - PostgreSQL `CREATE/ALTER ROLE ... PASSWORD`不接受bind parameter；不可退回raw password literal。應先用libpq產生SCRAM verifier，再只把verifier寫入DDL，並以真實PostgreSQL登入測試驗證。
+
+## 2026-07-26
+
+- 使用者明示 `AGENTS.md` replacement 時，先逐條比對目前落盤版本並立即同步 `AGENTS.md`／`CLAUDE.md`；即使內容已一致，也要把新增或重申的不變量納入完成稽核，不能沿用較早的對話版本。

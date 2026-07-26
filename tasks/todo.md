@@ -1,6 +1,6 @@
 # Stonks Agent 實作計畫
 
-> 狀態：Repository與本機P0–P6.11 gates已通過；外部protected-tag／GHCR／OIDC keyless與optional CI runtime evidence待有remote及授權後驗證
+> 狀態：Repository、本機P0–P6.11與private GitHub CI／unsigned supply-chain／bounded optional evidence已通過；formal protected-tag／GHCR／OIDC keyless因private平台能力不足維持fail closed
 > Architecture source of truth：`docs/architecture/integration-blueprint.md`  
 > 執行規則：本計畫確認一次後，依 P0 → P6 連續實作；phase gate 是驗證門檻，不是再次等待確認。只有 live trading、產品授權變更或新增高權限外部整合須另立 RFC。
 
@@ -614,9 +614,9 @@
 
 ### P6 Verification gate
 
-- [ ] Full CI：frozen builds、lint/type/unit/contract/integration/E2E/security/resilience、SBOM/license/CVE/secret scans全部通過；本機等價non-PostgreSQL/PostgreSQL gates已通過，因無remote尚無GitHub run evidence。（Depends：P6.8、P6.9）
+- [x] Full CI：exact commit `93a1c51`的private CI run `30194459987` attempt 2與Supply-chain run `30194459983`全綠；frozen builds、lint/type/unit/contract/integration/E2E/security/resilience、SBOM/license/CVE/secret gates皆有remote evidence。（Depends：P6.8、P6.9）
 - [x] Default compose由乾淨環境啟動、migrate、readiness、fake/replay E2E、shutdown/restart/replay全部通過。（Depends：P6.7）
-- [ ] Optional profiles逐一smoke；本機zero-default、10-profile render與5組startup fail-closed probes已通過，GitHub runtime report尚未產生。（Depends：P5 gate、P6.7）
+- [x] Optional profiles逐一smoke；artifact `optional-profile-smoke-30194459987`由frozen policy重驗4 actual、5 blocked、1 unsupported、readiness invariance與0 canonical paper side effects，blocked/unsupported未冒充runtime compatibility。（Depends：P5 gate、P6.7）
 - [x] Kill switch、ledger mismatch、duplicate execution、future evidence與auth bypass drills全部fail closed並告警。（Depends：P6.1–P6.9）
 - [ ] Release bundle含lockfiles、schemas/OpenAPI、SBOM、signatures、notices、OpenBB對應source流程與驗證報告；unsigned 201-artifact bundle已通過，正式五份keyless evidence尚未產生。（Depends：P6.8、P6.11）
 
@@ -1085,9 +1085,9 @@
 ### P6 Progress Review — P6.11 — 2026-07-26
 
 - Scope completed：新增architecture/ADR、API/OpenAPI、runbook與P6 handoff evidence索引，關閉feature notices與runtime license payload；final verifier獨立重驗image、manifest、report、provenance、SBOM五份Sigstore evidence。Exact repository/digest/workflow/ref/commit、deterministic image-bound CycloneDX serial及SBOM predicate body任何drift皆fail closed。
-- Optional / honesty：frozen matrix覆蓋10 profiles與zero-default，supported/blocked/unsupported狀態不能互換；本機10個Compose render及5組startup auth fail-closed probes通過。因repository沒有remote，沒有GitHub `optional-profile-smoke` report、protected tag、GHCR publication或OIDC keyless formal evidence，不以本機結果冒充。
+- Optional / honesty：frozen matrix覆蓋10 profiles與zero-default，supported/blocked/unsupported狀態不能互換；private GitHub `optional-profile-smoke-30194459987`已重驗4 actual、5 blocked、1 unsupported與0 canonical paper side effects。Protected tag、GHCR publication與OIDC keyless formal evidence仍未產生，不以unsigned結果冒充。
 - Release evidence：fresh local unsigned candidate為201 artifacts、136,858,939 bytes、97 packages／865 CycloneDX components、0個未抑制High/Critical；MIT selective-port notice已進signed payload及runtime image。Formal signatures/provenance未產生。
-- Verification：focused docs/release/optional/security為105 passed，actual hardened core deployment smoke通過；完整non-PostgreSQL gate為2206 passed、6 skipped、269 deselected、coverage 87.85%，完整PostgreSQL gate為2474 passed、7 skipped、coverage 87.64%。734 files format、Ruff、strict mypy 350 source files、106 schemas、Alembic無drift、upstream/license、secret、actionlint、frozen lock與dependency audit全通過。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`與本review已同步；`tasks/lessons.md`經review無新的使用者修正可新增。
+- Verification：focused docs/release/optional/security為105 passed，actual hardened core deployment smoke通過；完整non-PostgreSQL gate為2206 passed、6 skipped、269 deselected、coverage 87.85%，完整PostgreSQL gate為2474 passed、7 skipped、coverage 87.64%。734 files format、Ruff、strict mypy 350 source files、106 schemas、Alembic無drift、upstream/license、secret、actionlint、frozen lock與dependency audit全通過。`README.md`、`AGENTS.md`/`CLAUDE.md`、`CONTEXT.md`與本review已同步；後續使用者replacement修正已另記於`tasks/lessons.md`。
 
 ### P6 External Validation — 2026-07-26
 
@@ -1098,6 +1098,9 @@
 - [x] 以exact commit `b99c36e`完成第四輪：Supply-chain unsigned candidate及10個runtime jobs通過；core 503 body drift與Windows Compose render timeout已縮成bounded diagnostics並維持原安全契約。
 - [x] 以exact commit `5199110`完成第五輪：Supply-chain及11個CI jobs通過；core outage確認為Compose dependency-stop transport差異，已改用exact container ID只停止PostgreSQL並通過actual replay smoke。
 - [x] 以exact commit `fd5c73d`完成第六輪：Supply-chain及11個CI jobs通過；exact PostgreSQL stop排除Compose restart依賴差異，唯一失敗已縮小為DB `pool_pre_ping`仍在執行時外層5秒HTTP probe先逾時。
-- [ ] 重新執行並監看exact-commit完整CI與optional profile matrix，封存job/artifact identity；render或blocked profile不得冒充positive runtime。
+- [x] 以exact commit `93a1c51`完成第七輪：Supply-chain run `30194459983`成功；CI run `30194459987` attempt 2全綠。Attempt 1的`compose_build_core` transient setup failure以同SHA failed-jobs rerun通過，未改變runtime gate。
+- [x] 下載並重驗remote artifacts：optional `8629782731`精確綁run/SHA/workflow並為4 actual、5 blocked、1 unsupported、0 side effects；unsigned candidate `8629712567`由canonical verifier通過201 artifacts、136,872,645 bytes與exact image。
 - [ ] 由protected tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
-- [ ] 重驗private repository、package、release asset、attestation與workflow identity，將外部證據及誠實限制同步回handoff文件。
+- [x] 重驗private repository、package、release asset、attestation與workflow identity，將外部證據及誠實限制同步回handoff文件。
+- Remote review：repository維持private、default `main`、Actions啟用SHA pinning及read-only default token；remote `93a1c51` tree共1,077 entries且0 forbidden paths，tags/releases/packages/environments皆為0、attestation endpoint為404。Private rulesets API明確回403 upgrade/public提示，formal release未被弱化或執行。
+- Docs verification：handoff/architecture/API/release/optional focused matrix為44 passed，Ruff、diff與secret scan全綠；最新replacement `AGENTS.md`／`CLAUDE.md`已逐字一致，新增lesson已記錄。

@@ -1,17 +1,18 @@
 # Stonks Agent 整合架構藍圖
 
-> 狀態：Accepted architecture baseline；P0-P6.10 repository gates 已實作並驗證
+> 狀態：Accepted architecture baseline；P0-P6.11 repository gates 已實作並驗證
 >
 > 研究基準：2026-07-10，對應 `docs/research/` 的固定 upstream snapshots
 >
-> 最後狀態校準：2026-07-22；本文保留 target architecture，實際 surface 與證據以
+> 最後狀態校準：2026-07-26；本文保留 target architecture，實際 surface 與證據以
 > [architecture index](README.md)、[API index](../api/README.md) 與
 > [P6 evidence index](../verification/p6-handoff-evidence.md) 為準
 
 狀態語意固定為：`implemented` 是 repository 內有自動驗證；`configured` 是 manifest／
 workflow 路徑已固定但不代表外部執行；`externally_verified` 必須有真實外部服務或
-publication 證據。目前 P0-P6.10 為 implemented；正式 keyless release 與 optional
-integration 路徑為 configured；externally_verified 為無。default deployment 只組合
+publication 證據。目前 P0-P6.11 為 implemented；正式 keyless release 路徑為
+configured；private GitHub Actions CI、unsigned supply-chain candidate與bounded
+optional integration matrix為externally_verified。default deployment 只組合
 health/readiness app，五組 business API factories 尚未組成 production ingress。
 
 ## 1. 目標產品
@@ -695,6 +696,6 @@ Global kill switch會停止新paper commands與取消尚未成交的可取消ord
 | P5 | Optional ecosystems：AI-Trader、LEAN/Nautilus、RD-Agent與community/evaluation |
 | P6 | 將P0起即存在的security/observability/reliability controls升級為production adapters、fault drills、deployment與release hardening |
 
-P0-P6.10 已依 automated gates 實作；phase 完成只代表對應 repository evidence 通過，
+P0-P6.11 已依 automated gates 實作；phase 完成只代表對應 repository evidence 通過，
 不自動升格為 production SLA 或 external verification。超出本文件授權範圍的 live
 trading、產品 license 變更或新外部高權限整合仍須另立 RFC 與核准 gate。

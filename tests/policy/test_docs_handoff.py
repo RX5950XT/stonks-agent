@@ -89,7 +89,7 @@ def test_architecture_decisions_and_status_are_explicit() -> None:
     assert "implemented" in index
     assert "configured" in index
     assert "externally_verified" in index
-    assert "externally_verified: 無" in index
+    assert "externally_verified: private GitHub Actions" in index
     for document in ARCHITECTURE_DOCS - {"README.md"}:
         assert index.count(document) == 1
     assert "待一次性確認後進入實作" not in blueprint
@@ -132,6 +132,14 @@ def test_p6_evidence_index_maps_every_gate_without_forging_external_proof() -> N
         assert f"`{artifact}`" in evidence
     assert "protected tag publication: 未驗證" in evidence
     assert "formal keyless signature / provenance: 未產生" in evidence
+    assert "private GitHub Actions CI: 已驗證" in evidence
+    for evidence_ref in (
+        "30194459987",
+        "30194459983",
+        "optional-profile-smoke-30194459987",
+        "unsigned-supply-chain-candidate",
+    ):
+        assert f"`{evidence_ref}`" in evidence
     for check in (
         "tests/policy/test_docs_handoff.py",
         "tests/policy/test_api_docs.py",

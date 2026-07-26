@@ -1113,6 +1113,7 @@
 - [x] 建立指向exact commit `7826085`的protected `v0.1.0` tag並核准environment；run `30196542394`完成build/scan與GHCR exact digest `sha256:068e41e374faf4d3752332bbb91f80b62060990c598f6e34062567a55fe122ca`後，在Cosign v3不支援`verify --bundle`處fail closed，未產生attestations或GitHub Release。
 - [x] 以TDD改成Cosign v3 exact image bundle的`verify-blob-attestation`＋registry attach/verify，並將project/core/OpenBB image版本推進至`0.1.1`；舊tag不移動、不刪除，舊image不得宣稱formal。
 - [x] 重建`v0.1.0`與目前`0.1.1` exact core image inventory：兩者皆為97 packages／865 components，唯一差異是self package `stonks-agent` version/purl `0.1.0 -> 0.1.1`，license維持`Apache-2.0`；reviewed hash已由`b1584f2a...6bd4`更新為`498dda0e...d408b`，focused policy/SBOM/verifier為42 passed。
+- [x] 重建並審核`uv.lock`綁定的Python corresponding-source archive：三個exact sdists與947,504 source bytes均不變，只有root `stonks-agent 0.1.0 -> 0.1.1`使lock hash更新；保留完整lock binding，新manifest為`2736dc3d...11e3c`、兩次獨立重建的新archive均為`c83c157a...7d95`，focused source/legal/policy為48 passed。
 - [ ] 建立指向修正後exact `main`的`v0.1.1` protected tag，逐次核准environment並監看`Keyless release`全部jobs。
 - [ ] 下載signed release bundle，以canonical verifier獨立重驗五份Sigstore evidence、GHCR exact digest、GitHub attestations及immutable release assets。
 - [ ] 同步README、CONTEXT、handoff與本review，提交推送後確認final CI與remote tree。

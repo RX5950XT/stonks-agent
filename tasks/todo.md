@@ -1120,6 +1120,6 @@
 - [x] 建立指向exact `5e9c2973b782cd1bd7274e6e6852cbe1df08a4f9`的`v0.1.2` protected tag，逐次核准三個exact `release` environment deployments；`Keyless release`六個jobs全數成功。
 - [x] 下載signed artifact `8631709866`，以fixed Cosign v3.0.6 canonical verifier獨立重驗五份Sigstore evidence、GHCR exact digest、GitHub attestations及immutable release assets。
 - [x] 比對正式archive與workflow artifact：兩者各208 files且hash-identical；以TDD固定formal subprocess UTF-8解碼，同一signed bundle在Windows CP950且無`PYTHONUTF8`環境重驗通過。
-- [ ] 同步README、CONTEXT、handoff與本review，提交UTF-8 portability修正後確認exact remote CI、Supply-chain與remote tree。
+- [x] 同步README、CONTEXT、handoff與本review；UTF-8 portability修正提交`5c627ea`的exact CI `30201916057`與Supply-chain `30201916044`全綠，`origin/main` tree共1,077 entries且0 forbidden paths。
 - Formal result：image為`ghcr.io/rx5950xt/stonks-agent@sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976`；canonical verifier為201 artifacts、136,874,188 bytes、`evidence_count=5`、`signatures_verified=true`、`status=passed`。
 - Durable publication：[immutable `v0.1.2` Release](https://github.com/RX5950XT/stonks-agent/releases/tag/v0.1.2)；archive SHA-256為`823dc70999557c770e7c1cd5c7857cf0d9e155147743435a5013a38a98b85434`，checksum asset SHA-256為`8015b3e11470987b6760f480bd208f9c84c08f476205fde0276ff3b2ad65570e`。

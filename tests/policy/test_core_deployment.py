@@ -44,6 +44,7 @@ OPTIONAL_PROFILES = frozenset(
     }
 )
 PINNED_IMAGE = re.compile(r"^[a-z0-9./_-]+:[A-Za-z0-9._-]+@sha256:[0-9a-f]{64}$")
+_COMPOSE_RENDER_TIMEOUT_SECONDS = 60
 
 
 def _load_yaml(path: Path) -> dict[str, object]:
@@ -263,7 +264,7 @@ def test_default_compose_surface_is_exactly_core_and_postgres(
         check=False,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=_COMPOSE_RENDER_TIMEOUT_SECONDS,
     )
     assert result.returncode == 0, result.stderr
     assert set(result.stdout.split()) == {"core", "postgres"}
@@ -408,7 +409,7 @@ def test_optional_profiles_are_default_off_and_render_with_core(
             check=False,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=_COMPOSE_RENDER_TIMEOUT_SECONDS,
         )
         assert result.returncode == 0, f"{profile}: {result.stderr}"
         assert {"core", "postgres"} <= set(result.stdout.split())

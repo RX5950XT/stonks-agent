@@ -370,7 +370,7 @@ def test_wait_for_endpoint_fails_closed_on_wrong_payload(
             sleep=lambda _: None,
         )
 
-    assert raised.value.phase == "endpoint_healthz_200"
+    assert raised.value.phase == "endpoint_healthz_200_payload"
 
 
 def test_wait_for_endpoint_reports_bounded_observed_status(
@@ -412,6 +412,47 @@ def test_wait_for_endpoint_reports_bounded_observed_status(
         )
 
     assert raised.value.phase == "endpoint_readyz_503_status_429"
+
+
+def test_wait_for_endpoint_reports_bounded_payload_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = httpx.Response(
+        503,
+        json={
+            "success": False,
+            "status": 503,
+            "data": None,
+            "error": {"code": "unexpected"},
+        },
+    )
+
+    class Client:
+        def __init__(self, **kwargs: object) -> None:
+            del kwargs
+
+        def __enter__(self) -> Client:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def get(self, url: str) -> httpx.Response:
+            del url
+            return response
+
+    monkeypatch.setattr(smoke_core_deployment.httpx, "Client", Client)
+
+    with pytest.raises(SmokeError) as raised:
+        wait_for_endpoint(
+            "http://127.0.0.1:18000",
+            "/readyz",
+            503,
+            timeout_seconds=0,
+            sleep=lambda _: None,
+        )
+
+    assert raised.value.phase == "endpoint_readyz_503_payload"
 
 
 def test_exercise_runs_full_persistence_security_and_cleanup_flow(

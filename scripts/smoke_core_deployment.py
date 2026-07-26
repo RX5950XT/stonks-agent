@@ -25,6 +25,7 @@ _HTTP_TIMEOUT_SECONDS = 60.0
 _HTTP_REQUEST_TIMEOUT_SECONDS = 5.0
 _COMMAND_TIMEOUT_SECONDS = 900.0
 _MAX_REPLAY_PROBE_BYTES = 128 * 1024
+_SMOKE_PHASE = re.compile(r"[a-z][a-z0-9_]{0,63}")
 _COMPOSE_ACTIONS = frozenset(
     {
         "build",
@@ -119,13 +120,9 @@ _SAFE_AMBIENT_ENVIRONMENT = frozenset(
 
 
 class SmokeError(RuntimeError):
-    """Public-safe deployment smoke failure."""
-
     def __init__(self, phase: str = "unknown") -> None:
         super().__init__("Core deployment smoke failed")
-        self.phase = (
-            phase if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", phase) else "unknown"
-        )
+        self.phase = phase if _SMOKE_PHASE.fullmatch(phase) else "unknown"
 
 
 class CommandRunner(Protocol):
@@ -290,8 +287,7 @@ def wait_for_endpoint(
 
     if path not in {"/healthz", "/readyz"}:
         raise SmokeError()
-    endpoint = path.removeprefix("/").replace("/", "_")
-    base_phase = f"endpoint_{endpoint}_{expected_status}"
+    base_phase = f"endpoint_{path[1:]}_{expected_status}"
     observed_phase = base_phase
     deadline = time.monotonic() + max(0.0, timeout_seconds)
     while True:
@@ -302,17 +298,20 @@ def wait_for_endpoint(
                 timeout=httpx.Timeout(_HTTP_REQUEST_TIMEOUT_SECONDS),
             ) as client:
                 response = client.get(f"{base_url}{path}")
-            observed_phase = (
-                base_phase
-                if response.status_code == expected_status
-                else f"{base_phase}_status_{response.status_code}"
-            )
+            observed_phase = base_phase
+            if response.status_code != expected_status:
+                observed_phase = f"{base_phase}_status_{response.status_code}"
             _validate_endpoint(response, path, expected_status)
             return
-        except (httpx.HTTPError, SmokeError, TypeError, ValueError):
-            if time.monotonic() >= deadline:
-                raise SmokeError(observed_phase) from None
-            sleep(min(1.0, max(0.0, deadline - time.monotonic())))
+        except httpx.HTTPError:
+            observed_phase = f"{base_phase}_transport"
+        except (TypeError, ValueError, SmokeError) as error:
+            if observed_phase == base_phase:
+                suffix = "payload" if isinstance(error, SmokeError) else "invalid_json"
+                observed_phase = f"{base_phase}_{suffix}"
+        if time.monotonic() >= deadline:
+            raise SmokeError(observed_phase) from None
+        sleep(min(1.0, max(0.0, deadline - time.monotonic())))
 
 
 def exercise_deployment(

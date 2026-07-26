@@ -12,6 +12,10 @@ drill 或 configured workflow 升格為 production SLA／external verification�
 - [Supply-chain release](supply-chain-release.md)
 - [Optional integrations](optional-integrations.md)
 
+跨服務的 budget、SLO、alerts 與 bounded capacity 證據見
+[SLO operations](../operations/slo.md) 與
+[capacity operations](../operations/capacity.md)。
+
 ## Incident 與 resilience drills
 
 - [Provider outage](provider-outage.md)

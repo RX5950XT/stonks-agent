@@ -661,7 +661,7 @@
 
 ### Final review checklist
 
-- [ ] P0–P6所有mandatory tasks與gates均有可重跑證據；optional service若因外部授權/credential不可live測試，已有cassette/contract test及明確限制。
+- [x] P0–P6所有mandatory tasks與gates均有可重跑證據；optional service若因外部授權/credential不可live測試，已有cassette/contract test及明確限制。
 - [x] `git diff`只含有意變更；generated/cache/model/secrets/research clones未被提交。
 - [x] 主要branch與最終行為差異已有E2E/replay證明，不只通過單元測試。
 - [x] 所有schema/migration能向前升級；rollback/recovery限制已寫入runbook。
@@ -1123,3 +1123,31 @@
 - [x] 同步README、CONTEXT、handoff與本review；UTF-8 portability修正提交`5c627ea`的exact CI `30201916057`與Supply-chain `30201916044`全綠，`origin/main` tree共1,077 entries且0 forbidden paths。
 - Formal result：image為`ghcr.io/rx5950xt/stonks-agent@sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976`；canonical verifier為201 artifacts、136,874,188 bytes、`evidence_count=5`、`signatures_verified=true`、`status=passed`。
 - Durable publication：[immutable `v0.1.2` Release](https://github.com/RX5950XT/stonks-agent/releases/tag/v0.1.2)；archive SHA-256為`823dc70999557c770e7c1cd5c7857cf0d9e155147743435a5013a38a98b85434`，checksum asset SHA-256為`8015b3e11470987b6760f480bd208f9c84c08f476205fde0276ff3b2ad65570e`。
+
+### README 與使用文件維護 — 2026-07-26
+
+- [x] 明確區分「v0.1.2 release closure 已完成」與「pre-alpha／paper-only／尚未 production-ready」。
+- [x] 將 README 重整為定位、目前狀態、安裝、五分鐘體驗、驗證、部署、CLI、optional integrations、限制與文件導覽。
+- [x] 實際執行 README 的離線 quick start、CLI help 與相稱的文件測試。
+- [x] 檢查 README 與 docs 內部連結、release URL、版本及 repository metadata。
+- [x] 同步 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與本 review。
+
+#### Review
+
+- Scope：README 從大型能力清單改為可操作入口，新增 `docs/README.md` 文件中心、
+  upstream integration matrix、CLI／prerequisite 表、formal release 與 FAQ；修正
+  `pyproject.toml` repository URL、API／release 版本軸說明、CONTEXT 的 P0-P6 標題與
+  optional/Windows 文件命令。
+- Usage verification：`uv run --frozen stonks fake-cycle ...` 實跑為 status 200、
+  `paper`、`completed`、fill `101.00`；`stonks`、`stonks-deploy`、`stonks-worker` 與
+  report help 全部正常。Optional focused matrix為33 passed，文件/API tests為10 passed。
+- Full gate：737 files format、Ruff、strict mypy 350 source files、2218 passed／6 skipped／
+  269 deselected、coverage 87.85%、schemas、upstream policy與secret scan全綠；`uv lock
+  --check`與`git diff --check`通過。本次為文件與metadata變更，完整 gate 使用
+  `--skip-audit`；dependency graph與frozen lock未改變，正式release supply-chain證據維持
+  `v0.1.2` exact immutable狀態。
+- Docs sync：`CONTEXT.md`與本review已更新；`AGENTS.md`／`CLAUDE.md`經review無新規範需改，
+  兩者SHA-256仍同為`F57DD4AC16640C72DDC551C94934277AFAF33A103F1F75112F55F7BF3B5073F2`。
+- Honest boundary：立即可用入口仍是deterministic離線`fake-cycle`；default Compose沒有
+  production business API／host DB／dispatcher，optional profiles需exact deployment
+  identity，live trading仍不支援。

@@ -32,16 +32,20 @@ PyTorch、TradingAgents、Qlib、RD-Agent、NautilusTrader 或 LEAN runtime。
 
 ## 驗證設定
 
-以下命令不會啟動 service：
+以下跨平台 focused gate 不會啟動 service，也不需要偽造部署 identity：
 
 ```powershell
-uv run pytest -q --no-cov tests/config/test_optional_features.py tests/security/test_optional_integrations.py
-docker compose -f infra/compose.optional.yaml config --quiet
-docker compose -f infra/compose.optional.yaml config --profiles
-docker compose -f infra/compose.optional.yaml --profile nautilus config --quiet
+uv run --frozen python -m pytest -q --no-cov `
+  tests/config/test_optional_features.py `
+  tests/security/test_optional_integrations.py `
+  tests/security/test_service_runtime_manifests.py
 ```
 
-Compose render 只驗證 manifest，不能算 runtime smoke。P6.11 另以
+`infra/compose.optional.yaml` 會在 interpolation 階段要求 exact OIDC issuer、每個
+worker audience、core subject/client ID 與 JWKS host path。未設定這些部署輸入時，裸跑
+`docker compose ... config` 會刻意 fail closed；只有實際 deployer 或 CI 才能注入完整
+值後執行 zero-default／10-profile render。Compose render 只驗證 manifest，不能算
+runtime smoke。P6.11 另以
 `config/optional-smoke.yaml` 固定 10-profile machine matrix，報告欄位將
 runtime compatibility 與 optional service 缺失時的 core isolation 分開：
 
@@ -75,11 +79,8 @@ Machine report 只允許 `matrix_contract_status=passed` 與
 `runtime_compatibility_complete=false`（4 actual、5 blocked、1 unsupported）。Report 上限
 128 KiB，不保存 command output、credential、JWKS、model path、request payload 或 DSN。
 
-不指定 profile 時，`config --services` 必須沒有輸出：
-
-```powershell
-docker compose -f infra/compose.optional.yaml config --services
-```
+CI 在完整 manifest-only OIDC 環境下驗證不指定 profile 時 `config --services` 沒有
+輸出；這個 zero-default 證據不授予任一 service runtime identity。
 
 ## 顯式啟動與停止
 

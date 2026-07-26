@@ -47,7 +47,7 @@ stonks-deploy = "stonks_agent.entrypoints.deployment:app"
 stonks-worker = "stonks_agent.entrypoints.worker:app"
 
 [project.urls]
-Repository = "https://github.com/stonks-agent/stonks-agent"
+Repository = "https://github.com/RX5950XT/stonks-agent"
 
 [dependency-groups]
 dev = [

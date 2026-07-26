@@ -1,111 +1,264 @@
 # Stonks Agent
 
-Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading 平台。P0–P5 phase gates、P6.1–P6.11 repository implementation、本機 gates與GitHub Actions外部驗證已通過；repository已公開並配置SemVer tag protection、required-reviewer release environment與immutable releases。`v0.1.2`已通過完整keyless publication及五證據closure；`v0.1.0`與`v0.1.1`仍保留為immutable fail-closed歷史，詳見[實作計畫](./tasks/todo.md)。
+[![CI](https://github.com/RX5950XT/stonks-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/RX5950XT/stonks-agent/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/RX5950XT/stonks-agent)](https://github.com/RX5950XT/stonks-agent/releases/tag/v0.1.2)
+[![License](https://img.shields.io/github/license/RX5950XT/stonks-agent)](./LICENSE)
 
-目前唯一 execution mode 是 `paper`，不支援 real-money trading。
+Stonks Agent 是 evidence-first、可稽核、可重播的投資研究與 paper trading
+平台。它把 agent research、時間序列預測、市場資料、量化評估、回測引擎與模擬交易
+整合在同一套 canonical contracts 後方，同時禁止 LLM 或外部平台繞過 deterministic
+risk、reservation、execution 與 ledger。
 
-## 已驗證能力
+> [!IMPORTANT]
+> 專案唯一允許的 execution mode 是 `paper`。目前不支援 live trading，也不構成投資、
+> 法律或財務建議。
 
-- Python 3.12 + `uv` workspace、frozen lock、ruff、mypy、pytest 與 80% coverage gate。
-- 版本化 frozen Pydantic wire contracts 與 deterministic JSON Schema snapshots。
-- 完整 in-memory paper cycle：evidence → signal → target → risk → cash reservation → next-session fill → balanced journal → report → replay。
-- Canonical paper trading domain已固定account/portfolio/ledger sequences、risk expiry、cash/position reservation、closed order transitions、fill totals與per-commodity double-entry journal。Risk approval不保留資金；只有exact authorized target delta與open reservation可形成paper execution command，stale/naive/tampered inputs皆fail closed。
-- PostgreSQL paper fund persistence以account CAS與matching hash-chained event原子保存cash/position projections、target/risk、reservation/order、fill與balanced journal。Order idempotency、append-only chains、deferred journal balance及column-scoped grants由DB保護；worker沒有任何trading table權限，corrupt persisted payload回structured conflict。
-- Deterministic portfolio baseline以versioned content-hash policy固定strategy/version ensemble weights、calibrated confidence、deadband、shrinkage、turnover penalty、long-only position bound與Decimal rounding。Missing signal不重新正規化；target stable排序並保存calculation hash、turnover與per-instrument cost diagnostics，future/ineligible/binding drift輸入皆fail closed。
-- Hard risk gate以19個stable checks重驗target/account/ledger sequence、signal與mark freshness、kill switch、session、cash/position/open reservations、pending orders、ADV、single/sector/asset/gross/net exposure、turnover、drawdown與daily loss。Risk evaluation到multi-instrument reservation/order建立由同一UoW與account CAS擁有；任一資金不足、sequence drift或unsupported order會整批rollback。
-- Reference paper broker只讀reservation-backed immutable command與已封存bar；嚴格跳過command當根，使用下一個tradable bar，以versioned policy固定market/limit、DAY/GTC/IOC、expiry、spread/slippage/impact、fees與volume participation/partial fill。Core UoW在account lock內原子寫order/reservation events、fills與append-only durable receipt；同idempotency同payload重播相同receipt，payload drift、sequence/projection mismatch整批rollback。
-- Balanced paper ledger以immutable opening snapshot與versioned average-cost policy，將每筆fill轉成cash/inventory/fee/PnL/clearing postings；per-commodity debit/credit exact平衡。Fill、journal、settled cash/position、ledger head、receipt與account event同transaction commit；replay hash、DB projection、order/fill graph不一致時rollback並以獨立transaction啟動global paper kill switch。
-- Durable paper fund cycle固定`Evidence -> Research/Opinion -> Signal -> PortfolioTarget -> RiskDecision -> OrderIntent -> ExecutionReceipt -> Ledger -> Report`，每階段只保存canonical ID/hash refs與content-hashed state，並寫入既有run-event/outbox hash chain。Checkpoint、retry、dead-letter與cancel均由DB job generation/nonce、lease/deadline及account authority fencing；receipt commit後、checkpoint前crash重領實測仍只有一筆fill/journal/receipt，完整cycle result另封存content-addressed artifact。
-- Outcome monitoring從settled ledger與exact PIT marks建立content-hashed NAV snapshot，拒絕future/missing/foreign marks及未核准FX；事後evidence保存raw return、benchmark return/alpha、path drawdown、ledger fee delta與decision-bound fill refs。Outcome payload先封存content-addressed artifact再成為derived evidence；LLM reflection只能建立綁定該evidence的新`ResearchArtifact`，無法修改歷史target/risk/order/fill/ledger。
-- AI-Trader external adapter僅允許固定HTTPS origin上的去敏thesis、discussion/reply、challenge、experiment與heartbeat endpoints；所有remote內容先封存raw artifact再轉為untrusted、evidence-only資料。Redirect、schema/authz anomaly、oversized/invalid JSON與heartbeat duplicate/conflict皆fail closed，且adapter無order/copy/risk/execution/DB/queue能力。
-- Community feedback policy只在closed observation window後讀PIT/scoped/deduplicated `ExternalEvidence`。Reputation由stably ordered core policy與policy hash綁定，remote self-claim drift會fail closed；同作者最多一票，support不提高confidence，prompt-injection隔離。Decision只能ignore、deterministic confidence haircut或透過enqueue-only port建立固定模板的research-only job，不能產signal/target/risk/order。
-- Engine-neutral backtest contracts固定immutable PIT dataset、exchange calendar/session、split/dividend-adjusted bars、instrument/currency quanta、opening cash/positions、simulation-only orders與content-hashed cost model。Result exact綁job/runtime/generation/nonce/input/dataset/calendar/cost hashes，core會重驗第一個可成交next bar、market/limit adverse price、volume cap、fees/slippage與cash/position projection；`BacktestEnginePort`只有research simulation能力，不能觸及paper risk、reservation、broker或ledger。
-- Optional NautilusTrader `1.230.0` sidecar以獨立frozen lock與hardened image執行真實`BacktestEngine`。Canonical scheduler擁有TIF/session/shared-volume semantics，只將fillable child於synthetic bar-open quote送入Nautilus，再把engine trade ID與raw event hash綁回canonical fill；core仍重算全部economics與projection。HTTP只接受authenticated bounded backtest jobs，runtime/source/image provenance exact綁定，container預設internal network、non-root、read-only且無DB/provider/queue/broker authority。
-- Optional QuantConnect LEAN `17917` sidecar從固定Apache-2.0 source commit以16份NuGet locks建置真實Launcher與固定C# algorithm。Canonical scheduler擁有TIF/session/shared-volume/cost/projection，只把scheduled fillable children送入LEAN；同job重播會保留stable semantic hash/raw fill refs，core仍重驗完整P5.4 result。Hardened image固定runtime/source/license/modification provenance，內建NuGet vulnerability gate並以Syft/Grype驗證0 High/Critical；HTTP/process/container皆bounded、internal、non-root、read-only且無paper authority或credentials。
-- Cross-engine parity evaluator以reference為唯一baseline，先逐一通過P5.4 exact validation，再按order outcome、fill schedule/quantity/price/fee/slippage、cash、position、total fee與warning做bounded hash comparison。Canonical economic threshold固定為0；warning差異只標`engine_specific`，不平均或選擇engine。缺少、失敗、逾期或tampered engine一律structured failure且不產report；報告明示只代表該fixture與pinned adapter-normalized runtimes，不代表native matching普遍等價。
-- RD-Agent整合只提供clean-room `factor-expression-v1` sandbox，不執行upstream DockerEnv/LocalEnv、model template、pickle、LLM或GPU。Proposal、label-free dataset、policy/runtime/fence與canonical predictions完整hash-bound；同一archived source必須在兩個不同fresh containers產生exact bytes，core再重跑default-deny AST scanner與P3.4完整evaluation，結果永不auto-promote。Hardened Python 3.12.13/Alpine image為network none、non-root、read-only、cap-drop/NNP且resource bounded；pinned MIT source只作provenance archive。實際smoke涵蓋import escape、network/rootfs/socket probe、CPU/output bomb與non-reproducibility；593-component SBOM無SQLite/system pip/heavy runtime，exact OpenVEX只標記已從image移除的vulnerable stdlib code，其他High/Critical仍fail closed。
-- Optional integration catalog以frozen typed boundary固定11個integration的kind、profile、config、environment allowlist、network、output scope與supply-chain policy。所有flags預設關閉，缺檔回全關閉；malformed、unknown、live-authority或boundary drift會fail closed。Aggregate Compose沒有default-active/core/database/broker service，10個explicit profiles可逐一render；Freqtrade、FinRL、vectorbt只有future RFC條目，未加入image或dependency。
-- Audited paper operations提供global/account kill-switch、exact ledger reconciliation與resume CLI/API。只有`paper_operator`/`admin`可變更；啟動時在同一transaction終止pending orders並釋放reservations，立即拒絕新execution，保留既有fills/journals。所有operator actions以DB sequence、previous hash與head CAS形成append-only chain；reconciliation或resume drift會fail closed並維持/啟動global switch。
-- Read-only portfolio/NAV/risk CLI/API projections會驗證完整account event chain、latest target/risk payload與ledger replay hash；portfolio明示settled/reserved/available cash/positions，NAV只讀append-only PIT valuation且ledger一移動就拒絕stale值。`AnalysisReport`由core加入帶content hash的target/risk/order/fill/outcome refs，LLM output schema不能自行建立或竄改這些引用。
-- Idempotency、同帳戶並行防雙花、job generation/nonce fencing、late-result quarantine。
-- PostgreSQL PIT evidence/snapshot、content-addressed artifacts、Repository/UoW、durable job/outbox/inbox與transaction-owned audit events。
-- S3-compatible artifact adapter以injected atomic credentials、official SigV4 signer、DNS/IP-pinned `httpx`與no-redirect transport執行；content-addressed bytes先通過SHA-256、size、SSE及retention驗證，再以conditional manifest finalize。短效presigned GET綁定單一bucket/key/origin；WORM/legal hold只可延長或啟用，GC保留所有current/historical finalized versions，restore只移除exact delete marker或驗證指定受信version。Maintenance結果以command/result hash寫入PostgreSQL append-only audit chain。
-- DB-authoritative lease/deadline/not-before fencing；caller clock漂移、duplicate/stale result與tampered retry graph皆fail closed。
-- US/HK/TW replay fixtures與canonical snapshot materialization；雙來源reconciliation trace可由immutable artifact離線重驗。
-- Financial Datasets與OpenBB read-only observation adapters共用daily query shape；optional OpenBB sidecar使用獨立lock/image、exact route allowlist、exact service OIDC/source identity、SBOM與AGPL corresponding source。
-- Evidence-scoped `ResearchRequest/ResearchArtifact/AgentOpinion`、usage budget、structured LLM contracts，以及 deny-by-default read-only tool authorization；tool result會核對scope、identity、hash與byte limit。
-- Clean-room bounded research orchestration：PIT artifact context、untrusted content isolation、structured planning/final turns、pre-authorized parallel read tools、budget/deadline hard-stop與deterministic artifact mapping。
-- Frozen model allowlist與offline fake、OpenAI-compatible、Anthropic structured-output adapters；exact raw response先封存，JSON Schema、model identity、deadline、token/cost/cache pricing、bounded retry/repair與secret redaction均fail closed。
-- Pinned TradingAgents v0.3.1 isolated worker：PIT canonical evidence facade、profile-per-process、serialized global config、internal model proxy、`AnalysisBundle/AgentOpinion`-only authority boundary，以及獨立lock/image/Apache notice。
-- TradingAgents core adapter只傳signed artifact refs；fixed-origin HTTP、generation/nonce/result hash、nested context與schema drift全部fail closed。只有core DB transaction可一起註冊artifact metadata、append event/outbox並ack，stale result只進quarantine audit。
-- ai-hedge-fund MIT selective port：PIT PEAD filing清理與pure-Python/Decimal event study（OLS、abnormal returns、CAR、Student t-test、seeded bootstrap）。策略固定`draft`、confidence 0，通過正式evaluation前不可成為paper target。
-- Versioned analysis context assembler：只讀canonical repository一次，依capability組裝evidence blocks；PIT、sensitivity、license與redistribution scope fail closed，missing/stale/conflict/fallback/estimated/partial/fetch_failed不會被扁平化成假success。
-- Structured `AnalysisReport` JSON truth：factual claim必須有citation與derived quality；stale/estimated/conflict只能是qualified，hypothesis不得偽裝evidenced fact。LLM只填closed draft，outlook、claim IDs、evidence union與paper/research guardrails由core決定。
-- Sandboxed fixed Jinja templates從同一`AnalysisReport`重建full/brief Markdown與email HTML；Markdown/HTML escaping、quality qualifiers、language labels、channel byte caps與content-addressed rendering hashes均deterministic。
-- Artifact-backed delivery ports以fenced outbox lease驅動console/file/email/webhook；每個adapter重驗content hash與idempotency identity，file固定root且拒絕覆寫不同artifact，webhook固定HTTPS URL、禁止redirect並做bounded retry。未配置email/webhook只留下`skipped` receipt，不偽裝已送達。
-- Queue-only research API/CLI以PostgreSQL transaction原子建立run/job/snapshot link；API request thread不執行長任務。Canonical run events先驗完整hash chain，再以可重接的SSE `Last-Event-ID`投影並redact secrets；report read只接受renderer產生且metadata完整的typed artifact，拒絕任意raw prompt/model artifact。
-- Canonical research pipeline gate把同一PIT context的deterministic artifact與TradingAgents opinion納入report attribution，再完成structured report、三channel rendering與file delivery；每次結果封存不含secret/error message的immutable audit artifact。Provider/deterministic/report outage為`failed`，TradingAgents outage為`degraded`且可產有限制說明的report，所有result contract都沒有target/order authority。
-- Strategy/signal/evaluation domain固定paper-only promotion graph與exact strategy/data/runtime/policy/evaluation provenance；未註冊、未校準、stale、expired或hash binding不符的alpha一律回零權重。Forecast與strategy-lab ports只接immutable snapshot/artifact inputs，stochastic output必須先封存raw output與sampled paths。
-- PostgreSQL strategy registry以CAS version序列化promotion，evaluation report與audit chain append-only；DB trigger本身驗promotion graph、exact evaluation binding、DB clock與每次mutation的matching audit event。`stonks_app`只有scoped columns權限，heavy worker role沒有strategy table權限。
-- Strategy/evaluation API與`stonks strategy` CLI提供read-only registry、evaluation、audit查詢及reviewer-only transition；actor由authenticated principal產生，live/order-shaped輸入、stale CAS與forged actor皆fail closed。Signal eligibility只接受exact strategy/evaluation/data/runtime provenance，缺失或binding不符固定回零權重。
-- Deterministic last-value、simple moving-average與OLS linear baselines共用PIT ordered-bar contract、frozen draft manifests與exact Decimal golden；輸出是research-only `ForecastSignal`，同輸入可重播相同payload hash，供Kronos/opinion/complex strategy在同dataset/cost evaluation下比較。
-- Point-in-time evaluation engine先拒絕future feature/label、unknown publication lag與survivorship污染，再以purged walk-forward/embargo的out-of-sample observations計算CPCV/PBO、fees/slippage/turnover sensitivity、baseline alpha、drawdown與probability calibration。每項promotion check獨立、policy為content hash，同strategy/snapshot/runtime/policy可重播相同evaluation hash。
-- Opinion-to-alpha mapper預設停用；啟用時仍要求mapper manifest parameters exact綁定policy hash、strategy為`paper_eligible`、evaluation passed且未過期、opinion confidence已校準。Bullish/neutral/bearish只映射成固定signed research value，unknown rating或任何quantity/order-shaped欄位fail closed。
-- Pinned Kronos-small/Tokenizer-base isolated worker以本機唯讀model root做file size/SHA-256/symlink/untracked-entry驗證並在startup warm一次，禁止request-time download。CPU與CUDA使用獨立PyTorch 2.12.1 locks/images；non-root/read-only/internal-network runtime無DB/provider/broker/execution credentials。Canonical request由core以PIT `BarSeries`與exchange calendar產生，worker逐explicit seed以`sample_count=1`保留raw paths；core依序封存raw response與lease-secret-free path artifact，再驗fence/runtime/OHLCV/length/extreme jump並映射research-only `ForecastSignal`。Artifact replay、CPU與RTX 3070 Ti CUDA exact runtime route及16-path aggregate tolerance皆以實際115 MB權重通過。
-- Kronos evaluation只從archived forecasts建立content-hashed PIT dataset，固定要求US/HK/TW、三個deterministic baselines、同一runtime/model/tokenizer identity與production evaluation policy。Golden的768筆跨市場資料完成4個purged walk-forward splits與252筆OOS；baseline、cost與calibration未達原門檻時保留`passed=false`，不調低threshold。Exact evaluated forecast可映射成versioned shadow `AlphaSignal`，但目前策略設定固定`shadow`且eligibility weight 0。
-- Pinned Qlib quant-lab worker只接受canonical snapshot converter產生的immutable feature/label/universe/cost/split artifact，固定執行`DataHandlerLP -> DatasetH -> LinearModel(OLS)`，回傳research-only predictions/positions/metrics與content hashes。Qlib source archive、Python/NumPy/Pandas/scikit-learn與worker source/lock皆綁定runtime identity；同job真實HTTP route重播得到相同四組artifact hashes。獨立image為UID 65532、read-only、cap-drop/internal network，無DB/queue/provider/execution credentials；worker lock audit為0 vulnerabilities，Qlib與NumPy/Pandas未進core lock。
-- Production asymmetric OIDC/JWKS、frozen RBAC、central FastAPI auth dependency、owner-scoped IDOR checks與exact-target service identities；local token與DB CLI只限明確loopback development/test，remote worker沒有human/operator/admin或paper authority。
-- Transport-neutral logical secret refs與exact-purpose providers：local/development/test從allowlisted env每次解析，staging/production只接受workload-identity cloud client且無stale/env fallback。OpenAI、Anthropic、Financial Datasets與AI-Trader每個logical request重新resolve，bounded retry固定同version、下一次request取得rotation；provider failure保證0 network/0 artifact。
-- Bounded immutable-copy redaction涵蓋structured error/log/report、nested containers、credential URL/JWT/PEM/provider keys與explicit known values。Canonical run event/job/outbox/last-error在PostgreSQL JSONB bind前拒絕secret-shaped payload並整筆rollback；API egress redaction不是DB洩漏的替代品。
-- 所有FastAPI app共用同一typed security composition：body byte/frame上限、body前edge/credential admission、body後verified-principal rate limit、exact CORS、安全headers、forwarded identity fail-closed與全域structured error。Cookie auth僅能顯式啟用，並要求canonical same-origin與double-submit CSRF；bearer-only模式拒絕ambient auth cookie。
-- Frozen W3C trace/correlation contracts、低基數metric/span catalog與exact OTel runtime已接入五個FastAPI app、durable job/outbox/inbox、queue/worker及provider/model/signal/risk/execution/reconciliation/delivery boundaries。Telemetry callback無法跳過、替換、吞掉或重播canonical結果；OTLP exporter拒絕ambient `OTEL_*`、proxy、`.netrc`與redirect。Pinned Collector→Prometheus→Grafana stack已完成真實OTLP metrics/trace、host health與dashboard runtime smoke。
-- Versioned cost/latency budget以Decimal cost與同一monotonic clock形成immutable `within/degraded/failed` decision；missing/invalid usage fail closed。Research與durable paper cycle在每個外部／canonical stage前重驗，超過soft/hard門檻後不再建立target、reservation或order，`budget_exhausted`為非重試terminal transition。Prometheus已載入correctness、availability、p95 latency、normalized budget burn與hard outcome alerts，pinned `promtool` fixtures及三容器Collector→Prometheus smoke均通過。
-- Webhook dynamic URL使用exact scheme/host/port/path allowlist、全public DNS答案驗證與TCP pinned transport，拒絕redirect、DNS rebinding及loopback/private/link-local/multicast/unspecified/reserved位址；其他固定provider URL尚未套用此transport。
-- Supply-chain release contract固定paper-only bundle、immutable GitHub Actions/scanner references、canonical CycloneDX inventory、exact Grype DB/VEX、lock/secret/upstream/dependency gates及OIDC keyless Cosign identity。Linux core以source-built `psycopg-c`搭配Alpine `libpq`，bundle必含deterministic OpenBB、37-package Alpine與三個Python sdist corresponding-source archives。Exact commit `5e9c2973b782cd1bd7274e6e6852cbe1df08a4f9`的Supply-chain run `30200612154`與CI run `30200612158`已全綠；protected `v0.1.2` release run `30200908948`通過六個jobs與五份formal evidence closure，發布immutable GitHub Release及GHCR digest `sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976`。Final verifier要求SBOM attestation predicate與canonical signed SBOM exact相同；`v0.1.0`／`v0.1.1`失敗tag仍保持immutable且不得冒充formal。
-- Frozen resilience catalog固定11項paper-only failure drills，並直接重驗既有低基數telemetry contract。Provider/LLM/model/sidecar outage、artifact corruption、worker crash、lease/dead-letter、duplicate/stale result及ledger mismatch都以跨層fault tests證明不會建立錯誤target/order或重複commit。Digest-pinned PostgreSQL drill會建立fresh source/target、bounded dump與stdin restore，重驗Alembic head、canonical replay/hash-chain、append-only與identity isolation，失敗即丟棄target且永不自動promote。
-- Frozen `stonks-capacity/1` policy固定六種workload、20 samples、bounded concurrency、nearest-rank p95、wall ceiling與`production_sla_claim=false`。Actual PostgreSQL queue/snapshot/research、ASGI security、forecast contract及deterministic full paper cycle共120 samples由獨立verifier重算；報告只量單一Python `probe_process`，六組部署resource budgets僅與static manifests交叉驗證。TradingAgents、Kronos與Quant lab同步重工作會offload event loop，per-process gate滿載立即回`429 worker_busy`且core不retry 429。
-- License/upstream policy、secret scan、locked dependency CVE audit，以及 Windows/Linux CI。
+## 目前完成狀態
 
-## Quick start
+原訂 P0-P6.11 repository implementation、公開倉庫與 `v0.1.2` formal release closure 已完成。
+這裡的「完成」是指程式碼、測試、供應鏈與發行 gate 已關閉，不代表
+它已是可連接券商、直接實盤或可暴露於公網的 production 產品；目前成熟度仍是
+`pre-alpha`。
+
+| 範圍 | 狀態 | 代表意義 |
+|---|---|---|
+| Canonical research／paper flow | `implemented` | contracts、PostgreSQL、replay、risk、reservation、fill 與 balanced journal 已測試 |
+| Public `v0.1.2` release | `externally_verified` | protected tag、GHCR、keyless signatures、provenance、SBOM 與 immutable assets 已重驗 |
+| Default Docker deployment | `implemented` | 單機 core／PostgreSQL health、migration、restart、outage 與 replay baseline 已驗證 |
+| Optional integrations | `mixed` | 4 個 CI runtime actual、5 個缺部署憑證而 blocked、1 個 GPU profile unsupported |
+| Production business API | `not_composed` | 六份 API contract 已存在，但 default deployment 尚未組合成 production business API |
+| External production wiring | `unverified` | 真實 IdP、cloud secret manager、public TLS、distributed rate limit、remote telemetry 尚未完成 |
+| Live trading | `unsupported` | 沒有開關可啟用；必須另立 RFC、權限與安全模型 |
+
+正式 release 與各項未驗證邊界可在
+[P6 handoff evidence](./docs/verification/p6-handoff-evidence.md) 逐項核對。
+
+## 整合內容
+
+Canonical flow 固定為：
+
+```text
+Evidence / ResearchArtifact
+  -> AgentOpinion / AlphaSignal / ForecastSignal
+  -> deterministic PortfolioTarget
+  -> RiskDecision
+  -> AccountReservation
+  -> OrderIntent
+  -> ExecutionReceipt / Fill
+  -> balanced Journal
+```
+
+外部模型只能在前半段產生 evidence、opinion、forecast 或 evaluation；只有 core 能建立
+target、通過 risk、保留資金、模擬成交並寫入 ledger。
+
+| 專案／能力 | 整合方式 | 現況 |
+|---|---|---|
+| ai-hedge-fund | MIT selective port：PEAD 與 event study | 已實作，輸出維持 draft／research-only |
+| Dexter | clean-room research orchestration concepts | 授權證據不足，不 vendor source／prompt／assets |
+| TradingAgents | pinned isolated worker + typed adapter | 已實作；部署需可信 service identity |
+| Kronos | pinned CPU／CUDA forecast worker | 已實作；需本機唯讀模型與對應 runtime |
+| daily_stock_analysis | report schema、template 與 evidence-quality primitives | 已整合至自有 reporting contracts |
+| AI-Trader | default-off external community HTTP adapter | 只收 untrusted evidence，不採用其 paper／copy execution |
+| OpenBB | optional AGPL sidecar | actual runtime 已驗；必須履行 corresponding-source 義務 |
+| Qlib | isolated quant-lab worker | 已實作；只允許 evaluation output |
+| RD-Agent | ephemeral clean-room factor sandbox | actual runtime 已驗；generated code 不會自動 promote |
+| NautilusTrader／LEAN | isolated backtest sidecars | actual runtime 與 cross-engine parity fixtures 已驗 |
+
+完整 process、license 與 authority 邊界見
+[整合架構藍圖](./docs/architecture/integration-blueprint.md)。
+
+## 五分鐘開始使用
+
+### 1. 前置需求
+
+- Git。
+- `uv`。
+- Python 3.12；不支援 3.11 或 3.13。
+- 只有執行 deployment smoke 或 optional sidecar 時才需要 Docker
+  Engine／Docker Desktop 與 Compose v2。
+
+### 2. 取得程式碼與依賴
+
+使用最新開發文件：
 
 ```powershell
-uv sync --frozen
+git clone https://github.com/RX5950XT/stonks-agent.git
+cd stonks-agent
+uv python install 3.12
+uv sync --frozen --python 3.12
+```
+
+若要重現 formal verified release，請在 `uv sync` 前固定 tag：
+
+```powershell
+git checkout v0.1.2
+```
+
+### 3. 跑完整離線 paper cycle
+
+```powershell
+uv run stonks fake-cycle `
+  --symbol AAPL `
+  --as-of 2026-01-02T21:00:00Z `
+  --idempotency-key demo
+```
+
+這個命令不需要 API key、LLM、PostgreSQL、網路或 optional sidecar。它使用 deterministic
+fixture 執行 evidence、signal、target、risk、reservation、next-session fill、balanced
+journal、report 與 replay，最後輸出統一 JSON envelope。成功輸出應包含：
+
+- `"success": true`
+- `"run_status": "completed"`
+- `"metadata": {"execution_mode": "paper"}`
+- `run_id`、`fill_price`、`projection_hash` 與 report conclusion
+
+這是可重播的整合示範，不是即時行情分析。
+
+### 4. 查看 CLI
+
+```powershell
+uv run stonks --help
+uv run stonks research --help
+uv run stonks strategy --help
+uv run stonks paper --help
+uv run stonks-deploy --help
+uv run stonks-worker --help
+```
+
+| Entry point | 用途 | 額外需求 |
+|---|---|---|
+| `stonks fake-cycle` | 離線完整 paper／replay demo | 無 |
+| `stonks data` | 建立 canonical data snapshot request | 本機 development/test PostgreSQL |
+| `stonks research` | 建立 research job、讀 verified run events | PostgreSQL、既有 snapshot、local scoped principal |
+| `stonks report show` | 從 local artifact store 讀 rendered report | content hash；不需要 PostgreSQL |
+| `stonks strategy` | 查詢 evaluation／audit、執行 reviewer transition | PostgreSQL、相符權限 |
+| `stonks paper` | portfolio／NAV／risk 查詢與 audited kill-switch 操作 | PostgreSQL、operator scope |
+| `stonks-deploy` | migration、health server 與 loopback probe | hardened deployment 設定 |
+| `stonks-worker claim-once` | claim 一個 fenced durable job | PostgreSQL；不是常駐 dispatcher |
+
+DB-backed CLI 必須明確設定 `STONKS_ENVIRONMENT=local|development|test` 與
+`STONKS_DATABASE_URL`；staging／production 不允許使用 local principal。Default Compose
+不發布 PostgreSQL host port，因此它不是可直接拿來操作這些 CLI 的開發資料庫。
+
+所有會修改狀態的 CLI 都會驗證 scope、CAS／fence 與 paper-only authority。請先從各 command
+的 `--help` 查看 exact arguments；部署邊界見
+[Core deployment runbook](./docs/runbooks/core-deployment.md)。
+
+## 驗證專案
+
+### 本機 repository gate
+
+完整 gate 會執行 format check、Ruff、strict mypy、pytest／coverage、schema drift、
+upstream policy、secret scan 與 dependency vulnerability audit：
+
+```powershell
 uv run python scripts/verify.py
-uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotency-key demo
+```
+
+沒有網路、只想略過 `pip-audit` 的資料庫查詢時：
+
+```powershell
+uv run python scripts/verify.py --skip-audit
+```
+
+### Docker deployment smoke
+
+```powershell
 uv run python scripts/smoke_core_deployment.py
 ```
 
-`fake-cycle` 完全離線，不需要 provider key、LLM、PostgreSQL 或 optional sidecar。Deployment smoke會自行建立temporary secret files、乾淨PostgreSQL volume與hardened containers，驗證完自動清理。
+它會自行建立 temporary secret files、乾淨 PostgreSQL volume 與 hardened containers，
+驗證 migration、least privilege、restart、DB outage、readiness 與 durable replay，無論
+成功或失敗都會清理本次資源。
 
-GitHub CI run `30200612158`的13個jobs與Supply-chain run `30200612154`已在exact commit `5e9c2973b782cd1bd7274e6e6852cbe1df08a4f9`全綠；unsigned candidate artifact `8631582545`為134,629,231 bytes。`optional-profile-smoke-30194459987`由frozen policy重驗為4個actual runtime（OpenBB、NautilusTrader、LEAN、RD-Agent）、5個blocked與1個GPU unsupported，10組profile的core readiness不變且canonical paper side-effect delta皆為0；這不代表blocked/unsupported profile具runtime compatibility。Release run `30200908948`的六個jobs全數成功，signed artifact `8631709866`經fixed Cosign v3.0.6 canonical verifier重驗五份evidence後為`passed`；GHCR、GitHub provenance/SBOM、immutable Release及兩個asset attestations也已獨立重驗。[v0.1.2 immutable Release](https://github.com/RX5950XT/stonks-agent/releases/tag/v0.1.2)是目前唯一formal verified release；`v0.1.0`與`v0.1.1`仍只作fail-closed診斷證據。
+> [!NOTE]
+> Default container 目前只提供 `/healthz` 與 `/readyz`。它是 hardened deployment
+> baseline，不是已組合完成的 public research／paper API server。
 
-P1 的canonical ingestion已以replay source完整驗證。Financial Datasets與OpenBB目前是contract-tested observation adapters，尚未宣稱已接成production canonical materialization source；OpenAI-compatible與Anthropic adapters目前以官方wire contract及mock transport驗證，尚未使用真實credentials做live smoke；TradingAgents worker與core HTTP/job completion contract已驗證，但尚未接production artifact capability signer。S3 adapter以digest-pinned SeaweedFS完成真實SigV4/conditional finalize/presigned GET smoke，但emulator不證明真實cloud IAM、SSE-KMS、Object Lock或各vendor完整相容性。Qlib quant-lab已驗證isolated research route，strategy/evaluation API與CLI已通過P3 gate。P6.7 default Compose已驗證clean migration、least-privilege runtime、DB outage、core/DB restart與persisted workflow replay，但core container目前只提供deployment health/readiness surface，尚未組合五組business API；Research API目前只建立`research_pipeline` job，`stonks-worker claim-once`也不是常駐dispatcher。P6.8 formal release path已由protected `v0.1.2`、required-reviewer environment、GitHub OIDC keyless signatures/attestations、五證據closure、immutable Release與獨立下載重驗完整通過；這不擴張成production runtime或live-trading宣稱。P6.9 restore只驗證single-host Docker Desktop/CI等級的synthetic canonical dataset；RTO/RPO是該次drill measurement，不是production SLA，也不證明managed DB、跨區、儲存損毀或大型資料集恢復能力。P6.10報告只證明single-host synthetic fixtures、actual repository primitives及目前`probe_process`資源，未實測production business API、常駐dispatcher、外部LLM/provider、真實Kronos模型或GPU/VRAM，也不是production SLA。AI-Trader adapter預設關閉，目前只以固定commit `d03ff6c`的最小runtime shapes與clean-room cassettes驗證；`api.ai4trade.ai`於驗證時DNS無法解析，因此live OpenAPI與真實credential smoke仍是unverified，不宣稱production compatibility。OIDC目前以pinned與CI ephemeral issuer/JWKS integration驗證，尚未宣稱已連接真實外部IdP；cloud secret strategy目前以injected workload client驗證，尚未連接真實cloud secret manager。Rate limit預設為單process bounded store，尚未接distributed store；forwarded identity一律拒絕，尚未建立trusted reverse-proxy policy；DNS resolverlifetime/timeout pin、public TLS/HSTS、跨host mTLS、orchestrator與network-policy egress boundary仍未建立。Observability stack目前只做本機loopback ingress、tmpfs狀態與nop trace sink，未接真實remote backend或持久化trace；response/durable carrier的synthetic span ID只保證trace ID關聯，尚未回綁SDK child span ID。SLO routing目前只有policy，未接Alertmanager/paging backend或送達驗證；correctness violation counter即使為0也不能單獨取代canonical validation、DB constraint、immutable audit與phase-gate證據。
+### Formal release
 
-## 核心文件
+- [Immutable `v0.1.2` release](https://github.com/RX5950XT/stonks-agent/releases/tag/v0.1.2)
+- GHCR：
+  `ghcr.io/rx5950xt/stonks-agent@sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976`
+- Release archive SHA-256：
+  `823dc70999557c770e7c1cd5c7857cf0d9e155147743435a5013a38a98b85434`
 
-- [整合架構藍圖](./docs/architecture/integration-blueprint.md)
-- [架構決策索引](./docs/architecture/README.md)
-- [API contracts 索引](./docs/api/README.md)
-- [Runbooks 索引](./docs/runbooks/README.md)
-- [P6 handoff evidence](./docs/verification/p6-handoff-evidence.md)
-- [實作計畫](./tasks/todo.md)
-- [上游研究索引](./docs/research/README.md)
-- [研究一致性驗證](./docs/research/verification.md)
-- [Optional integrations 操作手冊](./docs/runbooks/optional-integrations.md)
-- [Observability 操作與限制](./docs/runbooks/observability.md)
-- [SLO、預算與告警操作](./docs/operations/slo.md)
-- [Performance 與 resource capacity](./docs/operations/capacity.md)
-- [Core deployment 操作與限制](./docs/runbooks/core-deployment.md)
-- [Supply-chain release 操作與限制](./docs/runbooks/supply-chain-release.md)
-- [PostgreSQL backup/restore drill](./docs/runbooks/db-restore.md)
-- [Provider outage drill](./docs/runbooks/provider-outage.md)
-- [Ledger mismatch drill](./docs/runbooks/ledger-mismatch.md)
-- [Service OIDC key rotation](./docs/runbooks/service-oidc-key-rotation.md)
+Release archive 是含 SBOM、licenses、corresponding source 與五份 Sigstore evidence 的
+正式驗證 bundle；日常開發仍建議使用 Git checkout 加 frozen lock。
+
+## Optional integrations
+
+所有 optional profile 預設關閉，且不參與 core readiness：
+
+```powershell
+uv run --frozen python -m pytest -q --no-cov `
+  tests/config/test_optional_features.py `
+  tests/security/test_optional_integrations.py `
+  tests/security/test_service_runtime_manifests.py
+```
+
+Raw Compose render 會要求各 worker 的 OIDC issuer、audience、subject、client ID 與
+JWKS path；缺少任一值就會 fail closed，因此不能把未設定環境的裸 `docker compose
+config` 當成可用檢查。各 profile 仍需 exact image、service identity、model／source、
+license、SBOM 與 CVE gate。部署環境的 render、啟動方式與目前 matrix 請依
+[Optional integrations runbook](./docs/runbooks/optional-integrations.md)。
+
+## 專案結構
+
+| 路徑 | 內容 |
+|---|---|
+| `src/stonks_agent/` | canonical domain、application services、ports、adapters 與 entrypoints |
+| `packages/contracts/` | frozen Pydantic wire contracts |
+| `packages/service-auth/` | service identity 與 auth 共用元件 |
+| `sidecars/`、`workers/` | optional heavy runtimes 與獨立 locks／images |
+| `schemas/` | deterministic JSON Schema 與 OpenAPI snapshots |
+| `config/` | typed features、budgets、SLO、release 與 security policies |
+| `infra/` | default／optional Compose 與 observability manifests |
+| `docs/` | architecture、API、runbooks、research、operations 與 evidence |
+| `tests/` | unit、contract、property、integration、policy、security、E2E 與 resilience |
+| `tasks/` | implementation plan、review 與 lessons |
+
+`.research/upstreams/` 只供本機研究且不進版控；禁止從該目錄直接 import、vendor 或提交。
+
+## 常見問題
+
+### 為什麼 `fake-cycle` 沒有抓最新股價？
+
+它刻意使用固定 fixture，目的是證明 deterministic paper／replay flow。即時 provider
+接入必須先 materialize 成 point-in-time canonical evidence，不能讓外部 API 直接餵給
+order flow。
+
+### 為什麼啟動 default Compose 後沒有 research API？
+
+Default deployment 只組合 health／readiness 與 PostgreSQL。六份 business API factory
+已有 contracts 與測試，但 production dependency composition、external IdP、public
+TLS／proxy 與 distributed enforcement 尚未完成。
+
+### 可以連券商實盤嗎？
+
+不可以。Repository、release policy、contracts 與 runtime 都只允許 `paper`；live
+trading 不是隱藏設定。
+
+### Optional worker 顯示 blocked 代表壞掉嗎？
+
+不一定。`blocked` 表示 CI 缺少該 profile 所需的可信 service identity、model 或其他
+部署前置條件，因此 fail closed；它不能被標成 runtime passed。
+
+## 文件
+
+先從 [文件中心](./docs/README.md) 選擇需要的路徑：
+
+- [架構決策](./docs/architecture/README.md)
+- [API contracts](./docs/api/README.md)
+- [Operator runbooks](./docs/runbooks/README.md)
+- [P6 驗證證據](./docs/verification/p6-handoff-evidence.md)
+- [上游研究](./docs/research/README.md)
+- [Wire schemas](./schemas/README.md)
 - [開發交接](./CONTEXT.md)
+- [實作與 release review](./tasks/todo.md)
 
-## 安全邊界
+## License
 
-- 只有本地 canonical paper executor 可建立模擬交易；AI-Trader 只供 community/outcome observation。
-- LLM、TradingAgents、Kronos 只產 evidence/opinion/signal，不能直接下單或覆寫 risk。
-- Live trading 不在目前授權範圍，後續必須另立 RFC。
-- 所有輸出僅供研究與模擬，不構成投資或法律建議。
+Core 使用 [Apache-2.0](./LICENSE)。Optional upstream 具有各自授權、source-offer 與資料
+使用條款；詳見 [license policy](./docs/legal/license-policy.md) 與
+[third-party notices](./THIRD_PARTY_NOTICES.md)。

@@ -5,8 +5,19 @@
 ## 目前狀態
 
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
+- 第一次使用請從 `README.md` 的離線 `fake-cycle` 開始；`docs/README.md` 是統一文件
+  索引。專案仍是 pre-alpha、paper-only；default deployment 只有 health/readiness，
+  尚未組合 production business API 或常駐 dispatcher，也不支援 live trading。
 - P0–P5 phase gates、P6.1–P6.11 repository implementation、本機 gates與GitHub外部驗證已完成；exact commit `5e9c2973b782cd1bd7274e6e6852cbe1df08a4f9`的CI run `30200612158`為13/13 jobs成功，Supply-chain run `30200612154`亦成功。Optional report重驗為4 actual、5 blocked、1 unsupported且0 canonical paper side effects。Repository已公開並配置active SemVer tag ruleset、required-reviewer `release` environment、tag-only deployment policy與immutable releases。
 - Protected `v0.1.2` release run `30200908948`的六個jobs全數成功；GHCR exact digest為`sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976`。Signed artifact `8631709866`已由fixed Cosign v3.0.6 canonical verifier重驗五份evidence，GitHub provenance/SBOM、registry signature/attestation、immutable Release及兩個release asset attestations亦獨立通過；正式archive與workflow artifact共208 files且hash-identical。Windows CP950重驗暴露的CLI UTF-8解碼問題已用explicit subprocess encoding修正並以同一bundle驗證。`v0.1.0`／`v0.1.1`失敗tag保持immutable且只作診斷證據。
+- Release 後的 formal closure 文件提交 `e9095a2cecda4fbd0d22f5e0157bad2f2098fe26`
+  另由 CI run `30202214474`（13/13）與 Supply-chain run `30202214473` 重驗成功；
+  不與 release tag 所綁的 `5e9c297` publication evidence 混為同一版本。
+- 2026-07-26 使用文件維護已將 README 改為可執行 onboarding，新增
+  `docs/README.md`、全部 public docs local-link gate與repository metadata regression；
+  離線 `fake-cycle`、CLI help、33 optional tests、10 docs/API tests及完整non-PostgreSQL
+  gate均通過（2218 passed、6 skipped、coverage 87.85%）。Default Compose、optional
+  identity與live-trading限制已在首屏與runbook明示。
 - P6.8新增paper-only release contract、immutable CI/actions/scanners、canonical SBOM/license inventory、exact Grype DB/OpenVEX、keyless Cosign/GitHub attestations與pre-publish unsigned verification。Linux core改為source-built `psycopg-c`＋Alpine `libpq`；OpenBB、37-package Alpine及certifi/psycopg/psycopg-c source archives皆deterministic且由bundle verifier逐member重驗。GitHub release job可恢復既有draft；已發布後只重驗immutable release/assets，不重建publication。
 - P6.9新增11項frozen resilience drill catalog、telemetry cross-contract與55項focused failure tests；provider/LLM/model/sidecar outage、artifact corruption、worker crash/lease/dead-letter、duplicate/stale result及ledger mismatch皆證明fail closed。Digest-pinned PostgreSQL actual drill使用fresh source/target、bounded custom dump與stdin restore，重驗Alembic `0017`、canonical replay/hash-chain/append-only/source marker；本次獨立量測RTO 0.719秒、RPO 0秒/0 lost events，只是single-host drill evidence，不是production SLA，restore不會自動promote。
 - P6.10新增frozen `stonks-capacity/1` policy、六種workload×20 samples、independent report verifier、actual PostgreSQL queue/snapshot/research primitive、ASGI/forecast/full paper-cycle probes與least-privilege CI artifact。Runtime resource只量`probe_process`並對獨立4000m/2048MiB budget；六組部署budgets只做static manifest cross-check。TradingAgents/Kronos/Quant重工作offload event loop，gate固定1，滿載立即429且core不retry。
@@ -95,7 +106,7 @@
 8. AI-Trader 只作 external community HTTP adapter；不提交 canonical paper/copy order。
 9. OpenBB、Kronos、TradingAgents、Qlib、RD-Agent、LEAN/Nautilus 各自獨立 lock/image，不進 core environment。
 
-## P0 / P1 / P2 / P3 可重跑證據
+## P0-P6 可重跑證據
 
 ```powershell
 uv sync --frozen

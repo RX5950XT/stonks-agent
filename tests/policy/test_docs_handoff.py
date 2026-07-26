@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -31,10 +32,17 @@ RUNBOOK_DOCS = {
     "worker-crash.md",
 }
 HANDOFF_DOCS = (
+    ROOT / "README.md",
+    ROOT / "docs" / "README.md",
     *(ROOT / "docs" / "architecture" / path for path in ARCHITECTURE_DOCS),
     ROOT / "docs" / "api" / "README.md",
     *(ROOT / "docs" / "runbooks" / path for path in RUNBOOK_DOCS),
     ROOT / "docs" / "verification" / "p6-handoff-evidence.md",
+    ROOT / "schemas" / "README.md",
+)
+PUBLIC_DOCS = (
+    ROOT / "README.md",
+    *(sorted((ROOT / "docs").rglob("*.md"))),
     ROOT / "schemas" / "README.md",
 )
 LOCAL_LINK = re.compile(r"\[[^]]+\]\((?!https?://|mailto:)([^)#]+)(?:#[^)]+)?\)")
@@ -67,15 +75,45 @@ def test_handoff_document_set_is_exact() -> None:
 
 
 @pytest.mark.policy
-def test_handoff_local_links_resolve() -> None:
+def test_public_documentation_local_links_resolve() -> None:
     broken: list[str] = []
-    for document in HANDOFF_DOCS:
+    for document in PUBLIC_DOCS:
         for target in LOCAL_LINK.findall(document.read_text(encoding="utf-8")):
             resolved = (document.parent / unquote(target)).resolve()
             if not resolved.exists() or not resolved.is_relative_to(ROOT):
                 broken.append(f"{document.relative_to(ROOT)} -> {target}")
 
     assert broken == []
+
+
+@pytest.mark.policy
+def test_public_entry_docs_explain_how_to_use_the_verified_scope() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    docs_index = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    assert project["project"]["urls"]["Repository"] == (
+        "https://github.com/RX5950XT/stonks-agent"
+    )
+    for token in (
+        "release closure 已完成",
+        "pre-alpha",
+        "uv sync --frozen",
+        "uv run stonks fake-cycle",
+        "uv run python scripts/verify.py",
+        "不支援 live trading",
+        "尚未組合成 production business API",
+        "docs/README.md",
+    ):
+        assert token in readme
+    for target in (
+        "architecture/README.md",
+        "api/README.md",
+        "runbooks/README.md",
+        "verification/p6-handoff-evidence.md",
+        "research/README.md",
+    ):
+        assert f"({target})" in docs_index
 
 
 @pytest.mark.policy

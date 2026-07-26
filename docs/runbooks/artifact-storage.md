@@ -43,7 +43,7 @@
    provider raw error、presigned URL 或 credential 寫入 ticket/log。
 3. Bucket control、retention 或 checksum 無法確認時維持 fail closed；不要切換
    anonymous/default credential chain或 governance bypass。
-4. 以 `uv run pytest tests/adapters/artifacts tests/policy/test_s3_artifact_infra.py`
+4. 以 `uv run --frozen python -m pytest tests/adapters/artifacts tests/policy/test_s3_artifact_infra.py`
    重驗 fake failure matrix 與 pinned runtime smoke。
 
 `infra/compose.artifacts.yaml` 使用 SeaweedFS 4.34 exact digest、non-root、

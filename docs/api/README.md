@@ -17,7 +17,8 @@ business app runtime 仍由 injected authenticator、route permission、exact ow
 | [research.openapi.json](../../schemas/openapi/v1/research.openapi.json) | `Stonks Agent Research API` | `/v1/reports/{content_hash}`；`/v1/research/runs`；`/v1/research/runs/{run_id}/events` |
 | [strategies.openapi.json](../../schemas/openapi/v1/strategies.openapi.json) | `Stonks Agent Strategy API` | `/v1/evaluations/{report_id}`；`/v1/signals/eligibility`；`/v1/strategies/{strategy_id}/versions/{strategy_version}`；`/v1/strategies/{strategy_id}/versions/{strategy_version}/events`；`/v1/strategies/{strategy_id}/versions/{strategy_version}/transitions` |
 
-六份 `info.version` 均為 `0.1.0`。由
+六份 `info.version` 均為 `0.1.0`；這是 API contract snapshot version，與產品 release
+SemVer `v0.1.2` 是不同版本軸。Snapshots 由
 [`scripts/export_schemas.py`](../../scripts/export_schemas.py) 產生與 drift-check；詳細 wire
 schema index 見 [schemas README](../../schemas/README.md)。
 

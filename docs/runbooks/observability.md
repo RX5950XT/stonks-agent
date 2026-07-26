@@ -15,7 +15,7 @@ Grafana的`preinstall_disabled`與`preinstall_auto_update`用來阻止預設sugg
 ## 驗證
 
 ```powershell
-uv run pytest -q --no-cov tests/policy/test_observability_infra.py
+uv run --frozen python -m pytest -q --no-cov tests/policy/test_observability_infra.py
 ```
 
 Runtime smoke會使用三個pinned images與臨時Grafana secrets，啟動完整stack、驗證host health，從core OTLP exporter送出trace/metrics，再由internal network與Prometheus讀回七個canonical metrics及exact labels；`promtool`另驗證config、recording/alert rules與fixtures。SLO、budget與告警語意見[操作文件](../operations/slo.md)；測試結束會移除containers與network。

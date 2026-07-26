@@ -6,11 +6,12 @@
 - `configured`：manifest／workflow 已固定路徑，但不等於外部環境執行成功。
 - `externally_verified`：由 repository 外真實服務或 publication 所產生且可核驗的證據。
 
-目前狀態為 implemented：P0-P6.11 的 repository gates；configured：正式 keyless
-release 路徑；externally_verified: private GitHub Actions CI、unsigned supply-chain
-candidate與bounded optional integration matrix。protected tag、registry publication、
-正式keyless attestation、真實外部 IdP/cloud secret manager、remote telemetry backend
-與跨主機網路控制都沒有外部成功證據。
+目前狀態為 implemented：P0-P6.11 的 repository gates；configured: public repository
+的SemVer tag protection、required-reviewer environment、immutable release與正式
+keyless路徑；externally_verified: GitHub Actions CI、unsigned supply-chain candidate
+與bounded optional integration matrix。正式registry publication/keyless attestation
+完成前不擴張宣稱；真實外部IdP/cloud secret manager、remote telemetry backend與
+跨主機網路控制仍沒有外部成功證據。
 
 ## 文件
 

@@ -89,7 +89,8 @@ def test_architecture_decisions_and_status_are_explicit() -> None:
     assert "implemented" in index
     assert "configured" in index
     assert "externally_verified" in index
-    assert "externally_verified: private GitHub Actions" in index
+    assert "configured: public repository" in index
+    assert "externally_verified: GitHub Actions CI" in index
     for document in ARCHITECTURE_DOCS - {"README.md"}:
         assert index.count(document) == 1
     assert "待一次性確認後進入實作" not in blueprint
@@ -130,9 +131,9 @@ def test_p6_evidence_index_maps_every_gate_without_forging_external_proof() -> N
         "capacity-report-${{ github.run_id }}",
     ):
         assert f"`{artifact}`" in evidence
-    assert "protected tag publication: 未驗證" in evidence
-    assert "formal keyless signature / provenance: 未產生" in evidence
-    assert "private GitHub Actions CI: 已驗證" in evidence
+    assert "formal publication成功前仍只宣稱configured" in evidence
+    assert "正式`v0.1.0`成功前仍維持fail closed" in evidence
+    assert "GitHub Actions CI已驗證" in evidence
     for evidence_ref in (
         "30194459987",
         "30194459983",

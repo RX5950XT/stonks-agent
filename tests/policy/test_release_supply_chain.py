@@ -100,6 +100,18 @@ def test_release_jobs_hold_only_their_required_authority() -> None:
     assert jobs["github-release"]["permissions"] == {"contents": "write"}
 
 
+def test_immutable_github_release_can_resume_without_recreating_publication() -> None:
+    content, _ = _workflow("release.yml")
+
+    assert 'gh release view "$GITHUB_REF_NAME"' in content
+    assert "--json isDraft --jq .isDraft" in content
+    assert 'gh release upload "$GITHUB_REF_NAME"' in content
+    assert "--clobber" in content
+    assert "for attempt in $(seq 1 6)" in content
+    assert 'test "$verified" = "true"' in content
+    assert content.count("gh release verify-asset") == 2
+
+
 def test_release_verifies_the_unsigned_candidate_before_registry_publication() -> None:
     content, _ = _workflow("release.yml")
     push_offset = content.index('docker push "$IMAGE:$GITHUB_REF_NAME"')

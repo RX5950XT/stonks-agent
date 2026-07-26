@@ -22,6 +22,8 @@
    五份 Sigstore evidence 做 closed-tree 驗證。Cosign/GitHub CLI 同時固定 exact
    repository、workflow、tag ref、commit、registry digest、OIDC issuer 與 predicate。
 8. 只有上述 final verifier 通過後，bundle 才可傳給 GitHub release job。
+9. GitHub release job只可恢復同tag的既有draft；若release已發布，重跑只能重驗
+   immutable release與兩個asset attestations，不得重新建立或覆寫publication。
 
 ## Fail-closed 條件
 

@@ -10,10 +10,11 @@
 
 狀態語意固定為：`implemented` 是 repository 內有自動驗證；`configured` 是 manifest／
 workflow 路徑已固定但不代表外部執行；`externally_verified` 必須有真實外部服務或
-publication 證據。目前 P0-P6.11 為 implemented；正式 keyless release 路徑為
-configured；private GitHub Actions CI、unsigned supply-chain candidate與bounded
-optional integration matrix為externally_verified。default deployment 只組合
-health/readiness app，五組 business API factories 尚未組成 production ingress。
+publication 證據。目前 P0-P6.11 為 implemented；public repository的SemVer tag
+protection、required-reviewer environment、immutable release與正式keyless路徑為
+configured；GitHub Actions CI、unsigned supply-chain candidate與bounded optional
+integration matrix為externally_verified。default deployment只組合health/readiness
+app，五組business API factories尚未組成production ingress。
 
 ## 1. 目標產品
 

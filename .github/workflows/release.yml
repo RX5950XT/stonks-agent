@@ -463,23 +463,52 @@ jobs:
           name: signed-release
           path: ${{ runner.temp }}/signed-release
 
-      - name: Create draft then publish and verify immutable release
+      - name: Resume or publish and verify immutable release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           cd "$RUNNER_TEMP"
+          archive="stonks-agent-${GITHUB_REF_NAME}.tar.gz"
+          checksum="${archive}.sha256"
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
-            -czf "stonks-agent-${GITHUB_REF_NAME}.tar.gz" signed-release
-          sha256sum "stonks-agent-${GITHUB_REF_NAME}.tar.gz" \
-            > "stonks-agent-${GITHUB_REF_NAME}.tar.gz.sha256"
-          gh release create "$GITHUB_REF_NAME" \
-            "stonks-agent-${GITHUB_REF_NAME}.tar.gz" \
-            "stonks-agent-${GITHUB_REF_NAME}.tar.gz.sha256" \
-            --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
-            --title "Stonks Agent ${GITHUB_REF_NAME}" \
-            --notes "Paper-only verified release."
-          gh release edit "$GITHUB_REF_NAME" \
-            --repo "$GITHUB_REPOSITORY" --draft=false
-          # Fails unless the repository or its owner enabled immutable releases.
-          gh release verify "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY"
+            -czf "$archive" signed-release
+          sha256sum "$archive" > "$checksum"
+          if is_draft="$(
+            gh release view "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft \
+              2>/dev/null
+          )"; then
+            if [ "$is_draft" = "true" ]; then
+              gh release upload "$GITHUB_REF_NAME" "$archive" "$checksum" \
+                --repo "$GITHUB_REPOSITORY" --clobber
+              gh release edit "$GITHUB_REF_NAME" \
+                --repo "$GITHUB_REPOSITORY" --draft=false
+            else
+              test "$is_draft" = "false"
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" "$archive" "$checksum" \
+              --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+              --title "Stonks Agent ${GITHUB_REF_NAME}" \
+              --notes "Paper-only verified release."
+            gh release edit "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" --draft=false
+          fi
+          # Retry only immutable-release observation; publication is never repeated.
+          verified=false
+          for attempt in $(seq 1 6); do
+            if gh release verify "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY"; then
+              verified=true
+              break
+            fi
+            test "$attempt" -lt 6
+            sleep "$((attempt * 5))"
+          done
+          test "$verified" = "true"
+          gh release verify-asset "$GITHUB_REF_NAME" "$archive" \
+            --repo "$GITHUB_REPOSITORY"
+          gh release verify-asset "$GITHUB_REF_NAME" "$checksum" \
+            --repo "$GITHUB_REPOSITORY"

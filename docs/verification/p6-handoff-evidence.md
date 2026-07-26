@@ -3,9 +3,10 @@
 本索引把 P6.1-P6.11 的 success criteria 對應到 repository 內可重跑證據。CI job 名稱
 指 [CI workflow](../../.github/workflows/ci.yml)；正式 release path 見
 [release workflow](../../.github/workflows/release.yml)，scheduled supply-chain path 見
-[security workflow](../../.github/workflows/security.yml)。Private GitHub Actions CI與
-unsigned supply-chain已在下列exact run驗證；configured formal release path仍不等於
-protected-tag publication曾成功執行。
+[security workflow](../../.github/workflows/security.yml)。GitHub Actions CI與unsigned
+supply-chain已在下列exact run驗證；public repository已配置SemVer tag protection、
+required-reviewer environment、tag-only deployment policy與immutable releases，但
+formal publication成功前仍只宣稱configured。
 
 | Gate | CI job／command | Canonical tests／artifact | 誠實的 external-state boundary |
 |---|---|---|---|
@@ -15,13 +16,13 @@ protected-tag publication曾成功執行。
 | P6.4 | `verify` | `tests/policy/test_observability_infra.py`、OTLP runtime smoke | 本機loopback/tmpfs/nop trace sink已驗；remote backend、multi-host TLS/network policy未驗證。 |
 | P6.5 | `verify` | `tests/policy/test_observability_alerts.py`、budget/SLO contract tests | Alert policy已驗；Alertmanager/paging delivery未驗證，文件不宣稱production SLO。 |
 | P6.6 | `s3-artifact`、`postgres` | `tests/security/test_s3_artifact_boundary.py`、`tests/integration/test_artifact_store.py` | Digest-pinned SeaweedFS SigV4 smoke已驗；真實cloud IAM/SSE-KMS/Object Lock/vendor parity未驗證。 |
-| P6.7 | `core-deployment`、`postgres` | `tests/policy/test_core_deployment.py`、clean migration/restart/replay smoke | Private CI run `30194459987` attempt 2已驗single-host Docker/CI；orchestrator、public ingress、跨主機mTLS與network policy未驗證。 |
-| P6.8 | `supply-chain`、release `build-scan` | `tests/policy/test_release_supply_chain.py`、`unsigned-supply-chain-candidate` | Private Supply-chain run `30194459983`已驗unsigned candidate；protected tag publication: 未驗證；formal keyless signature / provenance: 未產生。 |
+| P6.7 | `core-deployment`、`postgres` | `tests/policy/test_core_deployment.py`、clean migration/restart/replay smoke | CI run `30194459987` attempt 2已驗single-host Docker/CI；orchestrator、public ingress、跨主機mTLS與network policy未驗證。 |
+| P6.8 | `supply-chain`、release `build-scan` | `tests/policy/test_release_supply_chain.py`、`unsigned-supply-chain-candidate` | Supply-chain run `30194459983`已驗unsigned candidate；public formal gates已配置，protected tag publication完成前signature/provenance仍為未產生。 |
 | P6.9 | `resilience` | `resilience-report-${{ github.run_id }}`、`tests/resilience/`、`scripts/drill_postgres_restore.py` | Run `30194459987` artifact已產生；synthetic single-host restore measurement不是production RTO/RPO SLA，managed DB/cross-region未驗證。 |
 | P6.10 | `capacity` | `capacity-report-${{ github.run_id }}`、`tests/performance/`、`scripts/run_capacity_probe.py` | Run `30194459987` artifact已產生；single-host primitives與`probe_process`資源不是production SLA，business API/dispatcher/GPU/VRAM未實測。 |
-| P6.11 | `verify`、`postgres`、`optional-integration-manifests`、`supply-chain` | `tests/policy/test_docs_handoff.py`、`tests/policy/test_api_docs.py`、`tests/policy/test_release_supply_chain.py`、`tests/unit/test_release_verifier_final.py`、`tests/security/test_optional_integrations.py`、`optional-profile-smoke-30194459987` | private GitHub Actions CI: 已驗證；bounded matrix為4 actual、5 blocked、1 unsupported與0 canonical side effects。Protected tag、registry、GitHub OIDC keyless formal evidence仍未外部驗證。 |
+| P6.11 | `verify`、`postgres`、`optional-integration-manifests`、`supply-chain` | `tests/policy/test_docs_handoff.py`、`tests/policy/test_api_docs.py`、`tests/policy/test_release_supply_chain.py`、`tests/unit/test_release_verifier_final.py`、`tests/security/test_optional_integrations.py`、`optional-profile-smoke-30194459987` | GitHub Actions CI已驗證；bounded matrix為4 actual、5 blocked、1 unsupported與0 canonical side effects。Protected tag、registry、GitHub OIDC keyless formal evidence正在執行，完成前不宣稱externally verified。 |
 
-## Private GitHub external validation
+## GitHub external validation
 
 - Exact commit：`93a1c51c9ec7cb0ef0f57d0931b7b9e524858706`。
 - CI run `30194459987` attempt 2全綠；attempt 1在進入runtime前遇一次
@@ -44,9 +45,9 @@ Repository 能重跑 unsigned candidate、schema/OpenAPI drift、lock、SBOM、C
 license/source、secret、resilience 與 capacity gates。正式 signature/provenance 只能對
 registry exact digest 由 GitHub OIDC keyless workflow 產生；在沒有 protected tag、
 release environment approval、registry publication 與可核驗 attestation 前，handoff
-只保留 configured／未驗證狀態，不能建立 placeholder external evidence。GitHub Free
-private repository目前無法同時提供protected ref、required-reviewer release environment
-與private artifact attestations，因此formal release維持fail closed。
+只保留 configured／未驗證狀態，不能建立 placeholder external evidence。Repository
+已公開並啟用active tag ruleset、required reviewer、tag-only environment policy與
+immutable releases；正式`v0.1.0`成功前仍維持fail closed。
 
 目前remote unsigned candidate為201 artifacts、136,872,645 bytes；deterministic
 serial exact綁定image，formal verifier要求SBOM attestation predicate與canonical

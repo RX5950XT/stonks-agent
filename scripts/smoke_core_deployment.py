@@ -290,6 +290,9 @@ def wait_for_endpoint(
 
     if path not in {"/healthz", "/readyz"}:
         raise SmokeError()
+    endpoint = path.removeprefix("/").replace("/", "_")
+    base_phase = f"endpoint_{endpoint}_{expected_status}"
+    observed_phase = base_phase
     deadline = time.monotonic() + max(0.0, timeout_seconds)
     while True:
         try:
@@ -299,13 +302,17 @@ def wait_for_endpoint(
                 timeout=httpx.Timeout(_HTTP_REQUEST_TIMEOUT_SECONDS),
             ) as client:
                 response = client.get(f"{base_url}{path}")
+            observed_phase = (
+                base_phase
+                if response.status_code == expected_status
+                else f"{base_phase}_status_{response.status_code}"
+            )
             _validate_endpoint(response, path, expected_status)
             return
         except (httpx.HTTPError, SmokeError, TypeError, ValueError):
             if time.monotonic() >= deadline:
-                endpoint = path.removeprefix("/").replace("/", "_")
-                raise SmokeError(f"endpoint_{endpoint}_{expected_status}") from None
-            sleep(min(0.5, max(0.0, deadline - time.monotonic())))
+                raise SmokeError(observed_phase) from None
+            sleep(min(1.0, max(0.0, deadline - time.monotonic())))
 
 
 def exercise_deployment(

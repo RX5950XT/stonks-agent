@@ -1094,6 +1094,7 @@
 - [x] 建立private GitHub repository、推送`main`，並以remote tree重驗research clone、cache、model、generated output與secret皆未發布。
 - [x] 固定Actions workflow permissions，並稽核release environment與tag protection/ruleset；GitHub Free private repository缺少protected refs、required reviewers與private artifact attestations，故formal release維持fail closed。
 - [x] 在本機重現並修正remote portability failures；完整non-PostgreSQL與disposable PostgreSQL gates、LEAN SBOM/High CVE及hardened core smoke皆通過。
+- [x] 以exact commit `b1ed481`完成第三輪外部診斷：11個CI jobs通過；剩餘core outage polling時序與Python corresponding-source hash drift皆已fail-closed定位、修正並在本機全量重驗。
 - [ ] 重新執行並監看exact-commit完整CI與optional profile matrix，封存job/artifact identity；render或blocked profile不得冒充positive runtime。
 - [ ] 由protected tag workflow發布GHCR exact digest，完成GitHub OIDC keyless Cosign signatures、provenance/SBOM attestations與五份final evidence重驗。
 - [ ] 重驗private repository、package、release asset、attestation與workflow identity，將外部證據及誠實限制同步回handoff文件。

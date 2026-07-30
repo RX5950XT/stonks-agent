@@ -6,8 +6,18 @@ portfolio, risk, or execution credentials.
 
 ## Model preparation
 
-Runtime downloads are forbidden. Prepare this exact read-only structure outside
-the repository and verify it against `model-manifest.json`:
+Worker runtime downloads are forbidden. Provisioning is a separate one-shot
+operator step; from the repository root run:
+
+```powershell
+uv run --frozen python scripts/fetch_kronos_model.py
+```
+
+It fetches only the exact pinned repository/revision recorded below, verifies
+every file against `model-manifest.json`, deletes any mismatch and exits
+non-zero, and writes `.data/models/kronos/`. Re-running verifies in place.
+To prepare the structure by hand instead, produce exactly this and verify it
+against `model-manifest.json`:
 
 ```text
 /models/

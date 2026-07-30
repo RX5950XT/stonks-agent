@@ -1,29 +1,54 @@
-# 代碼精簡與死碼清理
+# 降低上手門檻（平台／模型／憑證／台股）
 
-## 掃描結果（基準：2,438 passed／6 skipped、coverage 86.71%）
+## Phase A — 本輪執行
 
-- [x] 刪除未被任何程式碼引用的 port 模組：`ports/instrument_repository.py`、`ports/trading_calendar.py`
-- [x] 刪除未使用符號：`domain/evaluation.metric_map`、`domain/journal.LedgerAccountKind`、`composition/runtime.utc_now`、`regional/base.RegionalMarketDataAdapter`、`api/gui_research.INTENT_HEADER`、`domain/capacity.CapacityPolicy.process_budget_for`
-- [x] 合併 17 份重複的 `_utc_now()` 為 `domain/clock.utc_now`
-- [x] 合併 Anthropic／OpenAI adapter 重複的 credential 解析為 `_http.resolve_api_credential`
-- [x] 合併 Kronos／TradingAgents adapter 重複的 worker HTTP failure 與 origin 驗證為 `adapters/_worker_http.py`
-- [x] 清除 terminal.css 未使用的 9 個 CSS 變數與 2 個 class
-- [x] 重跑 verify gates
+- [x] `scripts/fetch_kronos_model.py`：one-shot 下載 pinned HF revision，逐檔比對
+      `model-manifest.json` 的 size/sha256，寫入 `.data/models/kronos/`。
+      這是 provisioning，不是 worker runtime download，worker 端禁令不變。
+- [x] `start.sh`：`start.ps1` 的 POSIX 對等版（同樣的前置檢查、同樣的參數、同樣的 `-Check`）。
+- [x] 兩支 launcher 啟動前載入 repo 根目錄 `.env`（已 gitignored）並注入子行程環境；
+      `gui.py:509` 既有 `os.environ` baseline 會自動 `verify_environment()`，
+      不需改動 `SessionModelSettings`，key 仍不進 canonical payload／browser storage。
+- [x] `.env.example`（不含任何真值）＋ README／runbook 對齊。
+- [x] `start.ps1 -Mode research` 在 `.data/models/kronos` 缺失時，錯誤訊息直接指出 fetch 指令。
+- [x] 改寫 launcher policy test：以 key allowlist／不 echo／外來鍵被拒／secret 不外洩
+      取代原本一刀切的 `assert ".env" not in source`，並補 `start.sh` policy 與 parity 測試。
+- [x] 重跑 verify gates。
+
+## Phase B — 台股（需外部權威與實測，另立）
+
+- [ ] `composition/tw_market.py`：XTAI 2026 `ExchangeCalendar`（09:00–13:30 Asia/Taipei）
+      ＋ TWSE 官方 2026 開休市表；缺權威來源前 fail closed，不得自行臆造假日。
+- [ ] `config/instruments/tw.yaml` 補 `provider: openbb` 的 `2330.TW` 對應與 `prices_daily` 能力。
+- [ ] OpenBB sidecar：`exact_target: MARKET:US/{symbol}` 改為 market-scoped；
+      `MARKET:TW/{symbol}` 納入 allowlist **前必須實測** yfinance 對 `.TW` 的 historical 回傳。
+- [ ] 4 處硬寫 `market="US"`（`openbb_rest.py:56`、`openbb_latest.py:94`、
+      `financial_datasets.py:50`、`postgres/gui_research.py:374`）改為由 instrument 決定。
+- [ ] `gui.py:355` 的 `xnas_2026_freshness_policy()` 改為依 symbol 所屬 MIC 選 policy。
+- [ ] GUI 顯示 TW 資料的 provider／延遲／品質，延遲數據不得標成即時。
+
+## Phase C — 研究導向輸出（使用者已表明不需自動下單）
+
+- [ ] Kronos 維持 `shadow`／weight 0 不變；GUI 研究結果頁把 LLM research claim 與
+      Kronos forecast 當成主要輸出，`blocked alpha`／`no-order` 降為次要的合規狀態列，
+      不再讓使用者以為「跑完什麼都沒有」。
 
 ## Review
 
-- 淨刪除約 250 行死碼與重複實作，未改動任何行為分支；新增兩個共用模組
-  （`domain/clock.py` 9 行、`adapters/_worker_http.py` 51 行）。
-- `ports/repository.py` 的 `ReadRepositoryPort`／`WriteRepositoryPort` 只有自身測試引用，
-  但屬既有 Repository Pattern 契約宣告且被 4 份 sidecar boundary denylist 參照，保留不動。
-- `scripts/verify_gui_research_runtime.py`、`scripts/verify_snapshot_runtime.py` 無其他引用，
-  屬操作者手動 runtime 驗證工具，保留。
-- 驗證：`scripts/verify.py --skip-audit` 全綠 —— ruff format／check、strict mypy 393 files、
-  2,438 passed／6 skipped、coverage 86.83%、schemas、upstream policy、secret policy；
-  另實測 `start.ps1 -Check`、`stonks --help`、`stonks-gui serve --help` 正常。
+- 三個門檻都用既有機制解決，沒有新增依賴、沒有動 `SessionModelSettings`：
+  fetch 腳本沿用 manifest 既有的 size/SHA-256、`.env` 沿用 `gui.py:509` 既有的
+  environment baseline、`start.sh` 只是 `start.ps1` 的逐項對映。
+- Docker 相依刻意保留：OpenBB 是 AGPL-3.0-only，process 隔離是授權邊界。
+- 驗證：`uv run --frozen python scripts/verify.py --skip-audit` → `[verify] all gates passed`；
+  `tests/entrypoints/test_quick_start_script.py` 11 passed；
+  fetch 腳本三種路徑（乾淨下載／重跑 verified／竄改後重抓）實測；
+  `start.ps1 -Check` 與 `bash ./start.sh --check` 三模式輸出逐字相同；
+  `.env` 注入子行程實測（child sees `STONKS_LLM_MODEL=gpt-5`），
+  `PATH=/evil` 兩支 launcher 都 exit 1。
 
 ## 教訓
 
-- 用 word-boundary regex 批次改名前要先確認不會誤中 `self._name` 屬性存取；
-  本輪已用 `git diff` 反查確認無誤傷。
-- 背景跑 verify 時不要同時改原始碼，否則該輪結果不可信；本輪重跑一次乾淨的 gate。
+- 動到 launcher 前要先讀 `tests/entrypoints/test_quick_start_script.py`：
+  那裡的 `assert "X" not in source` 是刻意的安全不變量。要放寬時不能刪斷言，
+  必須換成能表達新邊界的更精確斷言（本輪：`.env` 一刀切 → key allowlist＋不外洩）。
+- 新增 `scripts/*.py` 後先跑 `ruff format`，否則 verify 第一關就擋下來。

@@ -53,6 +53,30 @@ function Assert-SourceCheckout {
     }
 }
 
+function Import-LocalEnvironment {
+    $envFile = Join-Path $PSScriptRoot ".env"
+    if (-not (Test-Path -LiteralPath $envFile -PathType Leaf)) {
+        return
+    }
+
+    foreach ($line in Get-Content -LiteralPath $envFile) {
+        $entry = $line.Trim()
+        if ($entry.Length -eq 0 -or $entry.StartsWith("#")) {
+            continue
+        }
+        $separator = $entry.IndexOf("=")
+        if ($separator -lt 1) {
+            Stop-Launcher ".env contains a line that is not KEY=VALUE"
+        }
+        $name = $entry.Substring(0, $separator).Trim()
+        if ($name -notmatch "^STONKS_[A-Z0-9_]+$") {
+            Stop-Launcher ".env only accepts STONKS_* keys, found: $name"
+        }
+        $value = $entry.Substring($separator + 1).Trim()
+        Set-Item -LiteralPath "env:$name" -Value $value
+    }
+}
+
 function Assert-ResearchRuntime {
     if ($Mode -ne "research") {
         return
@@ -70,8 +94,14 @@ function Assert-ResearchRuntime {
     $missingKronosModels = -not (
         Test-Path -LiteralPath $kronosModels -PathType Container
     )
-    if ($missingKronosCompose -or $missingKronosManifest -or $missingKronosModels) {
-        Stop-Launcher -Message "Kronos CPU model or Compose runtime is incomplete" -Code 2
+    if ($missingKronosCompose -or $missingKronosManifest) {
+        Stop-Launcher -Message "Kronos Compose runtime is incomplete" -Code 2
+    }
+    if ($missingKronosModels) {
+        Stop-Launcher -Message (
+            "Kronos CPU model is missing; run: " +
+            "uv run --frozen python scripts/fetch_kronos_model.py"
+        ) -Code 2
     }
 }
 
@@ -117,6 +147,7 @@ function New-GuiArguments {
 }
 
 Assert-SourceCheckout
+Import-LocalEnvironment
 Assert-CommandAvailable "uv"
 Assert-CommandAvailable "docker"
 Assert-ResearchRuntime

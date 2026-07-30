@@ -18,18 +18,24 @@ OpenBB corresponding-source build context；standalone wheel 或 core image 不�
 - 可連線至 OpenBB／yfinance 使用的外部資料來源。
 - 本機 `127.0.0.1:6900` 與 `127.0.0.1:8787` 未被占用；使用 research 時另需
   `127.0.0.1:55433` 與 Kronos `127.0.0.1:17200`。
-- Research mode 另需先備妥 `.data/models/kronos/` 下的 pinned Kronos 權重
-  （runtime 禁止自行下載）。缺檔時 launcher 會以 exit code 2 與
-  `Kronos CPU model or Compose runtime is incomplete` 直接停止。exact 目錄結構、
-  pinned Hugging Face revision 與 SHA-256 見
+- Research mode 另需先備妥 `.data/models/kronos/` 下的 pinned Kronos 權重。
+  Worker runtime 禁止自行下載，改由 one-shot provisioning 腳本取得：
+  `uv run --frozen python scripts/fetch_kronos_model.py`。它只抓 manifest 記載的
+  exact repository／revision，逐檔比對 size 與 SHA-256，不符即刪檔並非零結束；
+  重跑只驗證既有檔案。缺檔時 launcher 會以 exit code 2 與
+  `Kronos CPU model is missing` 直接停止。目錄結構與 pinned revision 見
   [Kronos worker 的 Model preparation](../../workers/kronos/README.md)。
-  只用 `-Mode market` 或 `-Mode paper` 時不需要模型。
+  只用 market 或 paper 模式時不需要模型。
 
 在 repository 根目錄執行：
 
 ```powershell
 .\start.ps1 -Mode market
 ```
+
+Linux／macOS 使用對等的 `./start.sh --mode market`。以下 PowerShell 參數在 shell 版
+分別對應 `--mode`、`--port`、`--database-port`、`--kronos-port`、`--no-browser`、
+`--skip-sync` 與 `--check`；兩者的檢查順序、失敗訊息與 exit code 一致。
 
 加上 paper 投資組合面板（會啟動本機 PostgreSQL、執行 migration 並建立帳戶）：
 
@@ -46,7 +52,12 @@ OpenBB corresponding-source build context；standalone wheel 或 core image 不�
 
 LLM 不需要在啟動前設定。Research GUI 啟動後可在模型設定面板輸入 base URL、Model ID
 與 API key；只有 bounded structured completion 驗證成功才會啟用下一筆研究。
-腳本不接受 key 參數、不讀 `.env`、不保存或輸出 secret。`-Check` 只驗證 source
+
+要免除每次重開重打，把 `.env.example` 複製為根目錄 `.env`（已 gitignored）並填值。
+Launcher 會在檢查工具前載入它並注入子行程環境，GUI 以既有的 environment baseline
+自動驗證一次。`.env` 只接受 `STONKS_*` 鍵，遇到任何其他鍵直接以錯誤停止；launcher
+本身仍不接受 key 參數、不輸出也不記錄 secret，secret 也不會進入 canonical payload、
+DB、artifact 或 browser storage。`-Check` 只驗證 source
 checkout、必要工具、Compose 與 research runtime，再顯示
 將執行的 redacted 命令；`-SkipSync` 可略過增量 `uv sync --frozen`。
 

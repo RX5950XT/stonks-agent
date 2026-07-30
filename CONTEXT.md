@@ -4,6 +4,25 @@
 
 ## 目前狀態
 
+- P18 降低上手門檻（Phase A）。三件事：
+  (1) `scripts/fetch_kronos_model.py` 是 one-shot operator provisioning，只抓
+  `workers/kronos/model-manifest.json` 記載的 exact repository／revision，逐檔比對
+  size＋SHA-256，不符即刪檔並非零結束，寫入 `.data/models/kronos/`；重跑轉為 verify
+  in place。這不是 worker runtime download，worker 端禁令與啟動時的 exact 驗證不變。
+  實測：乾淨 target 真下載 4 檔全通過、重跑全 verified、竄改 `config.json` 後偵測並重抓。
+  (2) 新增 `start.sh` 作為 `start.ps1` 的 POSIX 對等版，檢查順序、模式、連接埠參數、
+  失敗訊息與 exit code 一致；三種模式的 `--check` 輸出已與 PowerShell 版逐字比對相同。
+  (3) 兩支 launcher 在檢查工具前載入根目錄 gitignored `.env` 並注入子行程環境，
+  只接受 `^STONKS_[A-Z0-9_]+$`，其餘鍵直接停止。**未改動 `SessionModelSettings`**——
+  `gui.py:509` 既有的 `os.environ` baseline 與 `verify_environment()` 自動接手，
+  所以 LLM 設定不必每次重打，secret 仍不進 canonical payload／DB／artifact／browser
+  storage。原 policy test 的 `assert ".env" not in source` 是刻意不變量，已換成更精確的
+  四項：key allowlist 存在、不 echo 值、外來鍵被拒（實測 exit 1）、`.env` 內的 key
+  不出現在 `-Check` 輸出（實測）。另新增 `start.sh` 的 source policy 與三模式 parity 測試。
+  Kronos 缺檔訊息改為直接指出 fetch 指令。
+  P18 gate：`scripts/verify.py --skip-audit` all gates passed。
+  待辦見 `tasks/todo.md` Phase B（台股）與 Phase C（研究導向輸出）。
+
 - P17 為純清理輪：刪除從未被引用的 `ports/instrument_repository.py`、
   `ports/trading_calendar.py`（其職責已由 `domain/calendar.py`＋`market_freshness`
   與 `adapters/postgres/trading_mapping.py` 實作取代）、`domain/evaluation.metric_map`、

@@ -99,7 +99,10 @@ uv sync --frozen --python 3.12
 .\start.ps1 -Mode market
 ```
 
-根目錄 `start.ps1` 會檢查 source checkout、`uv`、Docker Compose 與 Docker daemon，
+Linux／macOS 使用對等的 `./start.sh --mode market`；兩支 launcher 的檢查、模式、
+連接埠參數與 `-Check`／`--check` 輸出相同。
+
+根目錄 launcher 會檢查 source checkout、`uv`、Docker Compose 與 Docker daemon，
 同步 frozen dependencies，再建立只含 public key 的暫時 JWKS、build／啟動 isolated
 OpenBB sidecar，並在
 `http://127.0.0.1:8787` 開啟終端。GUI 預設讀取目前可驗證最快的 `1m` historical
@@ -116,12 +119,18 @@ observed／served／latest event time、cache 狀態與資料年齡；loading �
 .\start.ps1 -Mode paper
 ```
 
-要從 GUI 觸發 live snapshot 與 durable LLM research，需先備妥 pinned Kronos 權重：
-runtime 禁止自行下載，必須依
-[Kronos worker 的 Model preparation](./workers/kronos/README.md) 放進
-`.data/models/kronos/`（exact 目錄、revision 與 SHA-256 都會在啟動時檢查）。缺檔時
-launcher 會以 exit code 2 與 `Kronos CPU model or Compose runtime is incomplete`
-停止，不會退化成 synthetic forecast。備妥後執行：
+要從 GUI 觸發 live snapshot 與 durable LLM research，需先備妥 pinned Kronos 權重。
+Worker runtime 仍禁止自行下載，但可用 one-shot provisioning 腳本取得：
+
+```powershell
+uv run --frozen python scripts/fetch_kronos_model.py
+```
+
+腳本只抓 `workers/kronos/model-manifest.json` 記載的 exact repository／revision，
+逐檔比對 size 與 SHA-256，不符即刪檔並以非零 exit code 停止，寫入
+`.data/models/kronos/`；重跑會驗證既有檔案而不重新下載。缺檔時 launcher 會以
+exit code 2 與 `Kronos CPU model is missing` 停止，不會退化成 synthetic forecast。
+細節見 [Kronos worker 的 Model preparation](./workers/kronos/README.md)。備妥後執行：
 
 ```powershell
 .\start.ps1
@@ -146,9 +155,13 @@ process 記憶體，不具交易權限；Browser 不能指定 owner、account、
 Alpha Vantage、Twelve Data、Cboe 與付費來源的 credential／display-rights／禁止自動
 擷取邊界，見[免費市場資料來源](./docs/research/free-market-data-sources.md)。
 
-API key 不會寫入 HTML、browser storage、DB、artifact 或 log；送出後欄位立即清空，
-重新啟動後需再次輸入。也可依[自訂 LLM 設定](./docs/runbooks/llm-configuration.md)
-用環境變數作本次啟動的初始設定。
+API key 不會寫入 HTML、browser storage、DB、artifact 或 log；送出後欄位立即清空。
+
+不想每次重開都重打，就把 `.env.example` 複製成根目錄 `.env`（已 gitignored）並填入
+自己的值。兩支 launcher 啟動前會載入它並注入子行程環境，GUI 會自動以該設定做一次
+structured completion 驗證。`.env` 只接受 `STONKS_*` 鍵，出現其他鍵一律拒絕啟動；
+這只是本機環境變數來源，key 仍然不進 canonical payload、DB、artifact 或 browser
+storage。其他環境變數選項見[自訂 LLM 設定](./docs/runbooks/llm-configuration.md)。
 
 Kronos 是讀取 PIT OHLCV、產生多條未來價格路徑，再由 core 決定性映射成
 `AlphaSignal` 的預測 worker，不是聊天模型，也沒有下單權限。目前 actual CPU inference

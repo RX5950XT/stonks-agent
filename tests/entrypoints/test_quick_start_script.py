@@ -118,4 +118,104 @@ def test_script_has_safe_defaults_and_stays_in_source_checkout() -> None:
     assert "Remove-Item" not in source
     assert "Invoke-Expression" not in source
     assert "STONKS_LLM_API_KEY =" not in source
-    assert ".env" not in source
+
+
+def test_local_environment_file_is_key_scoped_and_never_echoed() -> None:
+    """`.env` is a local env source only: STONKS_* keys, never printed."""
+
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'Join-Path $PSScriptRoot ".env"' in source
+    assert '$name -notmatch "^STONKS_[A-Z0-9_]+$"' in source
+    assert "Write-Output $value" not in source
+    assert "Write-Output $entry" not in source
+
+
+def test_local_environment_file_rejects_foreign_keys(tmp_path: Path) -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is unavailable")
+    env_file = ROOT / ".env"
+    if env_file.exists():
+        pytest.skip("a local .env is already present")
+
+    env_file.write_text("PATH=/evil\n", encoding="utf-8")
+    try:
+        result = _run_script("-Mode", "market", "-Check")
+    finally:
+        env_file.unlink()
+
+    assert result.returncode == 1
+    assert "only accepts STONKS_* keys" in result.stderr
+
+
+def test_local_environment_file_never_prints_its_secret() -> None:
+    if POWERSHELL is None:
+        pytest.skip("PowerShell is unavailable")
+    env_file = ROOT / ".env"
+    if env_file.exists():
+        pytest.skip("a local .env is already present")
+
+    env_file.write_text(
+        "STONKS_LLM_MODEL=local-model\nSTONKS_LLM_API_KEY=super-secret-test-value\n",
+        encoding="utf-8",
+    )
+    try:
+        result = _run_script("-Mode", "research", "-Check")
+    finally:
+        env_file.unlink()
+
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, result.stderr
+    assert "mode=research" in result.stdout
+    assert "super-secret-test-value" not in combined
+
+
+def test_shell_launcher_mirrors_the_powershell_policy() -> None:
+    source = (ROOT / "start.sh").read_text(encoding="utf-8")
+
+    assert source.isascii()
+    assert source.startswith("#!/usr/bin/env bash\n")
+    assert "set -euo pipefail" in source
+    assert 'MODE="research"' in source
+    assert "market|paper|research) ;;" in source
+    assert "uv sync --frozen" in source
+    assert "docker system prune" not in source
+    assert "rm -rf" not in source
+    assert "eval " not in source
+    assert "^STONKS_[A-Z0-9_]+$" in source
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected"),
+    [
+        ("market", "uv run --frozen stonks-gui serve --port 8787"),
+        (
+            "paper",
+            "uv run --frozen stonks-gui serve --port 8787"
+            " --with-paper --database-port 55433",
+        ),
+        (
+            "research",
+            "uv run --frozen stonks-gui serve --port 8787"
+            " --with-research --database-port 55433 --kronos-port 17200",
+        ),
+    ],
+)
+def test_shell_launcher_check_matches_powershell(mode: str, expected: str) -> None:
+    bash = shutil.which("bash")
+    if bash is None or shutil.which("uv") is None or shutil.which("docker") is None:
+        pytest.skip("bash, uv, or docker is unavailable")
+
+    result = subprocess.run(
+        [bash, "./start.sh", "--mode", mode, "--check"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+
+    if result.returncode != 0:
+        pytest.skip(f"shell launcher preconditions unmet: {result.stderr.strip()}")
+    assert f"mode={mode}" in result.stdout
+    assert expected in result.stdout

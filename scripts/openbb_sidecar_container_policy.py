@@ -337,9 +337,12 @@ def _check_source_route(inputs: Inputs) -> list[Violation]:
         "validate_isolated_runtime_environment(os.environ)",
         "_authenticator = load_static_oidc_service_authenticator(os.environ)",
         'openbb_app = importlib.import_module("openbb_core.api.rest_api").app',
-        "app = SurfaceAllowlist(",
+        "app = build_surface(",
     )
     surface_tokens = (
+        "def build_surface(",
+        "ServiceAdmissionMiddleware(",
+        "response_style=ServiceAdmissionResponseStyle.OPENBB",
         "class SurfaceAllowlist:",
         "route in _PROTECTED_HTTP_SURFACE",
         'scope_type == "websocket"',
@@ -363,6 +366,7 @@ def _check_source_route(inputs: Inputs) -> list[Violation]:
         == '</source>; rel="source"; type="application/gzip"'
         and wrapper_is_bounded
         and all(token in inputs.surface for token in surface_tokens)
+        and '"--no-proxy-headers"' in inputs.dockerfile
     )
     if not bounded:
         violations.append(

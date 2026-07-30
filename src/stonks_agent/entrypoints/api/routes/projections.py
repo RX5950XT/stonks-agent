@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, Path
@@ -15,6 +15,7 @@ from stonks_agent.application.projections.queries import (
     read_portfolio_projection,
     read_risk_projection,
 )
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import Failure, Result
 from stonks_agent.entrypoints.api.api_security import (
     ApiSecurityOptions,
@@ -58,7 +59,7 @@ def create_paper_projection_app(
     )
     install_api_telemetry(app, options=api_telemetry)
     install_authentication(app, authenticator or DenyAllAuthenticator())
-    selected_clock = clock or _utc_now
+    selected_clock = clock or utc_now
     base = "/v1/paper/accounts/{account_id}"
     for view in ("portfolio", "nav", "risk"):
         app.add_api_route(
@@ -115,7 +116,3 @@ def _error_response(result: Failure) -> JSONResponse:
     return JSONResponse(
         status_code=envelope.status, content=envelope.model_dump(mode="json")
     )
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)

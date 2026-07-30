@@ -157,6 +157,7 @@ class RecordingTool:
                 content_type="application/json",
                 byte_count=20,
                 tool_version="fixture/1",
+                materialized_evidence_ids=call.evidence_ids,
                 latency_ms=5,
                 observed_at=NOW,
             )

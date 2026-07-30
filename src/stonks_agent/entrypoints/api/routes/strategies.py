@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -17,6 +17,7 @@ from stonks_agent.application.strategies.manage import (
     read_strategy_events,
     transition_strategy,
 )
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, StructuredError
 from stonks_agent.domain.strategy import PromotionState, StrategyTransitionRequest
 from stonks_agent.entrypoints.api.api_security import (
@@ -74,7 +75,7 @@ def create_strategy_app(
     )
     install_api_telemetry(app, options=api_telemetry)
     install_authentication(app, authenticator or DenyAllAuthenticator())
-    selected_clock = clock or _utc_now
+    selected_clock = clock or utc_now
     base = "/v1/strategies/{strategy_id}/versions/{strategy_version}"
     app.add_api_route(
         base,
@@ -182,7 +183,3 @@ def _error_response(result: Failure) -> JSONResponse:
 
 def _failure(message: str) -> Failure:
     return Failure(StructuredError(code=ErrorCode.INVALID_INPUT, message=message))
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)

@@ -12,7 +12,9 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from stonks_service_auth import (
+    RequestBodyReadError,
     ServiceAccessTarget,
+    ServiceAdmissionMiddleware,
     ServiceAuthenticator,
     ServicePermission,
     ServiceReceiver,
@@ -20,6 +22,7 @@ from stonks_service_auth import (
     authorize_service_dispatch,
     exactly_one_authorization_header,
     invalid_or_oversized_content_length,
+    read_bounded_request_body,
     service_auth_source_hash,
 )
 from workers.tradingagents.adapter import (
@@ -47,6 +50,7 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+    app.add_middleware(ServiceAdmissionMiddleware)
 
     @app.get("/healthz")
     def health() -> JSONResponse:
@@ -78,30 +82,34 @@ def create_app(
         encoding = incoming.headers.get("content-encoding", "identity").lower()
         if encoding != "identity":
             return _error(415, "unsupported_content_encoding", "Encoded body denied")
-        body = await _read_bounded(incoming, max_request_bytes)
-        if body is None:
-            return _error(413, "request_too_large", "Worker request is too large")
-        try:
-            request = TradingAgentsRequest.model_validate_json(body)
-        except (ValidationError, json.JSONDecodeError):
-            return _error(400, "invalid_request", "Worker request is invalid")
-        if not authorize_service_dispatch(
-            principal,
-            permission=ServicePermission.DISPATCH_ASSIGNED_RESEARCH,
-            target=ServiceAccessTarget(
-                kind=ServiceResourceKind.JOB,
-                identifier=str(request.job_id),
-            ),
-            receiver=ServiceReceiver.TRADINGAGENTS,
-            attempt_generation=request.attempt_generation,
-            attempt_nonce=request.attempt_nonce,
-            request_payload=request.model_dump(mode="json"),
-            deadline=request.deadline,
-        ):
-            return _error(403, "forbidden", "Service target access denied")
         if not await _try_acquire(capacity):
             return _error(429, "worker_busy", "Worker is at capacity")
         try:
+            try:
+                body = await read_bounded_request_body(
+                    incoming.receive,
+                    max_bytes=max_request_bytes,
+                )
+            except RequestBodyReadError as error:
+                return _error(error.status_code, error.code, error.safe_message)
+            try:
+                request = TradingAgentsRequest.model_validate_json(body)
+            except (ValidationError, json.JSONDecodeError):
+                return _error(400, "invalid_request", "Worker request is invalid")
+            if not authorize_service_dispatch(
+                principal,
+                permission=ServicePermission.DISPATCH_ASSIGNED_RESEARCH,
+                target=ServiceAccessTarget(
+                    kind=ServiceResourceKind.JOB,
+                    identifier=str(request.job_id),
+                ),
+                receiver=ServiceReceiver.TRADINGAGENTS,
+                attempt_generation=request.attempt_generation,
+                attempt_nonce=request.attempt_nonce,
+                request_payload=request.model_dump(mode="json"),
+                deadline=request.deadline,
+            ):
+                return _error(403, "forbidden", "Service target access denied")
             result = await run_in_threadpool(worker.analyze, request)
         finally:
             capacity.release()
@@ -119,15 +127,6 @@ async def _try_acquire(capacity: asyncio.Semaphore) -> bool:
         return False
     await capacity.acquire()
     return True
-
-
-async def _read_bounded(incoming: Request, maximum: int) -> bytes | None:
-    body = bytearray()
-    async for chunk in incoming.stream():
-        if len(chunk) > maximum - len(body):
-            return None
-        body.extend(chunk)
-    return bytes(body)
 
 
 def _status_for(code: str) -> int:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -19,6 +19,7 @@ from stonks_agent.application.operations.activate_kill_switch import (
 )
 from stonks_agent.application.operations.reconcile import reconcile_paper_state
 from stonks_agent.application.operations.resume import resume_paper
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import ErrorCode, Failure, Result, StructuredError
 from stonks_agent.domain.operations import (
     ActivateKillSwitchCommand,
@@ -91,7 +92,7 @@ def create_paper_operations_app(
     )
     install_api_telemetry(app, options=api_telemetry)
     install_authentication(app, authenticator or DenyAllAuthenticator())
-    selected_clock = clock or _utc_now
+    selected_clock = clock or utc_now
     app.add_api_route(
         "/v1/paper/kill-switches/activate",
         _ActivateEndpoint(unit_of_work, selected_clock),
@@ -248,7 +249,3 @@ def _error_response(result: Failure) -> JSONResponse:
 
 def _failure(message: str) -> Failure:
     return Failure(StructuredError(code=ErrorCode.INVALID_INPUT, message=message))
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)

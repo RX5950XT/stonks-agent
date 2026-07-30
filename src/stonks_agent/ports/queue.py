@@ -9,7 +9,9 @@ from stonks_agent.domain.errors import Result
 from stonks_agent.domain.job import (
     CompleteJob,
     EnqueueJob,
+    FailJob,
     JobCompletionReceipt,
+    JobFailureReceipt,
     JobLease,
     JobRecord,
 )
@@ -38,3 +40,10 @@ class QueuePort(JobEnqueuePort, Protocol):
         now: datetime,
         artifact: ArtifactManifest | None = None,
     ) -> Result[JobCompletionReceipt]: ...
+
+    def fail(
+        self,
+        request: FailJob,
+        *,
+        now: datetime,
+    ) -> Result[JobFailureReceipt]: ...

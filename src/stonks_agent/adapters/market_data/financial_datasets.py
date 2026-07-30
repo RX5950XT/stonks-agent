@@ -29,6 +29,7 @@ from stonks_agent.adapters.market_data._http_response import (
 )
 from stonks_agent.adapters.market_data.regional.base import RegionalProviderCapability
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
 from stonks_agent.domain.errors import (
     ErrorCode,
@@ -192,7 +193,7 @@ class FinancialDatasetsAdapter:
         self._timeout = httpx.Timeout(timeout_seconds)
         self._timeout_seconds = float(timeout_seconds)
         self._max_response_bytes = max_response_bytes
-        self._clock = clock or _utc_now
+        self._clock = clock or utc_now
         self._monotonic_clock = monotonic_clock or monotonic
         self._budget_lock = Lock()
 
@@ -538,10 +539,6 @@ def _validate_limits(
         or max_response_bytes < 1
     ):
         raise ValueError("max_response_bytes must be a positive integer")
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
 
 
 def _supports_request(request: FetchDataRequest) -> bool:

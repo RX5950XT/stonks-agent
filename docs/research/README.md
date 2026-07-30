@@ -8,6 +8,7 @@
 - [`alternatives-and-licensing.md`](./alternatives-and-licensing.md)：Qlib、RD-Agent、NautilusTrader、LEAN 等替代案與授權分區。
 - [`upstream-snapshot.md`](./upstream-snapshot.md)：本次 shallow clones 的固定 commit。
 - [`verification.md`](./verification.md)：研究產物與本機 snapshots 的交叉驗證結果。
+- [`free-market-data-sources.md`](./free-market-data-sources.md)：免費來源、時效、display
+  rights 與 active／blocked composition 邊界。
 
 `.research/upstreams/` 只供研究，不是本專案 source dependency，後續必須排除版控。任何上游整合都應使用 pinned dependency、adapter 或隔離 worker，不從研究目錄直接 import。
-

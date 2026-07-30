@@ -10,6 +10,7 @@ OPENAPI_ROOT = ROOT / "schemas" / "openapi" / "v1"
 EXPECTED_SURFACES = {
     "data.openapi.json": "Stonks Agent Data API",
     "deployment.openapi.json": "Stonks Agent Deployment Health",
+    "gui.openapi.json": "Stonks Terminal",
     "paper-operations.openapi.json": "Stonks Agent Paper Operations API",
     "paper-projections.openapi.json": "Stonks Agent Paper Projection API",
     "research.openapi.json": "Stonks Agent Research API",
@@ -26,7 +27,8 @@ def test_api_index_exactly_tracks_exported_openapi_surfaces() -> None:
     for filename, title in EXPECTED_SURFACES.items():
         payload = json.loads((OPENAPI_ROOT / filename).read_text(encoding="utf-8"))
         assert payload["openapi"] == "3.1.0"
-        assert payload["info"] == {"title": title, "version": "0.1.0"}
+        version = "0.2.0" if filename == "gui.openapi.json" else "0.1.0"
+        assert payload["info"] == {"title": title, "version": version}
         assert index.count(f"../../schemas/openapi/v1/{filename}") == 1
         assert index.count(f"`{title}`") == 1
         for route in payload["paths"]:
@@ -45,7 +47,9 @@ def test_api_docs_preserve_runtime_security_and_composition_boundaries() -> None
         "text/event-stream",
         "paper-only",
         "未組合成 production business API",
-        "snapshot 未內嵌 OpenAPI security scheme 不代表匿名存取",
+        "六份 business/health snapshot 未內嵌 OpenAPI",
+        "Browser/JSON route 沒有人類 auth",
+        "GUI → OpenBB sidecar",
     ):
         assert token in index
 
@@ -56,4 +60,4 @@ def test_schema_index_links_api_contract_and_generation_check() -> None:
 
     assert "../docs/api/README.md" in schema_index
     assert "scripts/export_schemas.py --check" in schema_index
-    assert "六份 OpenAPI 3.1 snapshots" in schema_index
+    assert "七份 OpenAPI 3.1 snapshots" in schema_index

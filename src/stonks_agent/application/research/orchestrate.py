@@ -14,7 +14,7 @@ from stonks_agent.application.research.tool_loop import (
 from stonks_agent.domain.errors import Failure, Result
 from stonks_agent.domain.research import ResearchArtifact, ResearchRequest
 from stonks_agent.domain.tool_policy import ResearchPrincipal, ToolPolicy
-from stonks_agent.ports.artifact_store import ArtifactReaderPort
+from stonks_agent.ports.artifact_store import ArtifactReaderPort, ArtifactStore
 from stonks_agent.ports.llm import LLMPort
 from stonks_agent.ports.tool import ToolPort
 from stonks_contracts.evidence import EvidenceItem
@@ -41,8 +41,15 @@ def orchestrate_research(
     artifacts: ArtifactReaderPort,
     builder: ResearchArtifactBuilder,
     clock: Callable[[], datetime],
+    compact_store: ArtifactStore | None = None,
+    max_parallel_tools: int = 8,
 ) -> Result[ResearchArtifact]:
-    context = build_research_context(request, evidence_items, artifacts)
+    context = build_research_context(
+        request,
+        evidence_items,
+        artifacts,
+        compact_store=compact_store,
+    )
     if isinstance(context, Failure):
         return context
     loop = run_tool_loop(
@@ -54,6 +61,7 @@ def orchestrate_research(
         tool=tool,
         artifacts=artifacts,
         clock=clock,
+        max_parallel_tools=max_parallel_tools,
     )
     if isinstance(loop, Failure):
         return loop

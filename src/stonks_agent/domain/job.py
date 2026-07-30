@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from stonks_agent.domain.errors import ErrorCode
 from stonks_agent.domain.telemetry import TraceCarrier
 from stonks_contracts.common import (
     NonEmptyString,
@@ -90,7 +91,7 @@ class JobLease(BaseModel):
     job_type: NonEmptyString
     payload: dict[str, object]
     attempt_generation: int = Field(ge=1)
-    attempt_nonce: NonEmptyString
+    attempt_nonce: NonEmptyString = Field(repr=False)
     lease_owner: NonEmptyString
     lease_until: UTCDateTime
     attempts: int = Field(ge=1)
@@ -114,6 +115,23 @@ class CompleteJob(BaseModel):
     result_artifact_hash: Sha256
 
 
+class FailJob(BaseModel):
+    """Fenced command that terminally rejects a generic worker job."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_id: UUID
+    worker_id: NonEmptyString
+    attempt_generation: int = Field(ge=1)
+    attempt_nonce: NonEmptyString
+    error_code: ErrorCode
+    reason_code: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9_]*$",
+    )
+
+
 class JobCompletionReceipt(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -124,6 +142,23 @@ class JobCompletionReceipt(BaseModel):
     sequence: int = Field(ge=1)
     result_artifact_hash: Sha256
     completed_at: UTCDateTime
+
+
+class JobFailureReceipt(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    job_id: UUID
+    run_id: UUID
+    event_id: UUID
+    outbox_id: UUID
+    sequence: int = Field(ge=1)
+    error_code: ErrorCode
+    reason_code: str = Field(
+        min_length=1,
+        max_length=64,
+        pattern=r"^[a-z][a-z0-9_]*$",
+    )
+    failed_at: UTCDateTime
 
 
 class QuarantinedWorkerResult(BaseModel):

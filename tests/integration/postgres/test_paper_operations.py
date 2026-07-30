@@ -415,7 +415,7 @@ def test_paper_cli_uses_database_authority_for_activate_resume_and_audit(
     clean_database: Engine,
 ) -> None:
     _seed_pending_order(clean_database)
-    database = str(clean_database.url)
+    database = clean_database.url.render_as_string(hide_password=False)
     activated = RUNNER.invoke(
         cli_app,
         [

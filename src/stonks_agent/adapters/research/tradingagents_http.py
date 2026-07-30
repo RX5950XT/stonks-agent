@@ -13,6 +13,13 @@ import httpx
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from stonks_agent.adapters._worker_http import (
+    body_failure,
+    invalid_response,
+    status_failure,
+    valid_origin,
+    worker_failure,
+)
 from stonks_agent.adapters.market_data._http_response import (
     ResponseBodyError,
     read_bounded_raw,
@@ -24,7 +31,6 @@ from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
     Result,
-    StructuredError,
     Success,
 )
 from stonks_agent.ports.artifact_store import ArtifactManifest, ArtifactStore
@@ -62,7 +68,7 @@ class TradingAgentsWorkerPolicy(BaseModel):
 
     @model_validator(mode="after")
     def validate_fixed_origin(self) -> Self:
-        if not _valid_origin(self.origin) or not _valid_origin(self.artifact_origin):
+        if not valid_origin(self.origin) or not valid_origin(self.artifact_origin):
             raise ValueError("worker origin is invalid")
         return self
 
@@ -141,7 +147,9 @@ class TradingAgentsHttpAdapter:
             return scope_failure
         content = request.canonical_json().encode("utf-8")
         if len(content) > self._policy.max_request_bytes:
-            return _failure(ErrorCode.PAYLOAD_TOO_LARGE, "Worker request is too large")
+            return worker_failure(
+                ErrorCode.PAYLOAD_TOO_LARGE, "Worker request is too large"
+            )
         raw = self._send(request, content)
         if isinstance(raw, Failure):
             return raw
@@ -155,7 +163,7 @@ class TradingAgentsHttpAdapter:
     ) -> Failure | None:
         now = self._clock()
         if now.tzinfo is None or request.profile != self._policy.profile:
-            return _failure(
+            return worker_failure(
                 ErrorCode.CAPABILITY_DENIED, "Worker profile is not authorized"
             )
         expected_origin = self._policy.artifact_origin.rstrip("/")
@@ -169,7 +177,7 @@ class TradingAgentsHttpAdapter:
                 or item.expires_at <= now
                 or item.expires_at < request.deadline
             ):
-                return _failure(
+                return worker_failure(
                     ErrorCode.CAPABILITY_DENIED,
                     "Evidence artifact capability is not authorized",
                 )
@@ -182,7 +190,9 @@ class TradingAgentsHttpAdapter:
             now = self._clock()
             remaining = (request.deadline - now).total_seconds()
             if now.tzinfo is None or remaining <= 0:
-                return _failure(ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded")
+                return worker_failure(
+                    ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded"
+                )
             credential = self._credentials.issue(
                 ServiceCredentialRequest(
                     receiver=ServiceReceiver.TRADINGAGENTS,
@@ -224,14 +234,14 @@ class TradingAgentsHttpAdapter:
                         ):
                             self._backoff(retry, request.deadline)
                             continue
-                        return _status_failure(response.status_code)
+                        return status_failure(response.status_code)
                     if (
                         response.headers.get("content-type", "")
                         .split(";", 1)[0]
                         .strip()
                         != "application/json"
                     ):
-                        return _invalid_response()
+                        return invalid_response()
                     body = read_bounded_raw(
                         response,
                         max_bytes=self._policy.max_response_bytes,
@@ -239,29 +249,33 @@ class TradingAgentsHttpAdapter:
                         clock=self._monotonic,
                     )
                     if isinstance(body, ResponseBodyError):
-                        return _body_failure(body)
+                        return body_failure(body)
                     return Success(body)
             except httpx.DecodingError:
-                return _invalid_response()
+                return invalid_response()
             except httpx.HTTPError:
                 if retry < self._policy.max_transient_retries:
                     self._backoff(retry, request.deadline)
                     continue
-                return _failure(ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable")
-        return _failure(ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable")
+                return worker_failure(
+                    ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable"
+                )
+        return worker_failure(ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable")
 
     def _parse_response(
         self, request: TradingAgentsWorkerRequest, body: bytes
     ) -> Result[TradingAgentsWorkerResponse]:
         if self._clock() >= request.deadline:
-            return _failure(ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded")
+            return worker_failure(
+                ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded"
+            )
         try:
             envelope = _WorkerEnvelope.model_validate_json(body)
             if not envelope.success or envelope.status != 200 or envelope.data is None:
-                return _invalid_response()
+                return invalid_response()
             response = TradingAgentsWorkerResponse.model_validate(envelope.data)
         except (ValidationError, ValueError):
-            return _invalid_response()
+            return invalid_response()
         if (
             response.request_id != request.request_id
             or response.run_id != request.run_id
@@ -269,9 +283,13 @@ class TradingAgentsHttpAdapter:
             or response.attempt_generation != request.attempt_generation
             or response.attempt_nonce != request.attempt_nonce
         ):
-            return _failure(ErrorCode.CONFLICT, "Worker lease fence does not match")
+            return worker_failure(
+                ErrorCode.CONFLICT, "Worker lease fence does not match"
+            )
         if not _result_matches_request(request, response):
-            return _failure(ErrorCode.CONFLICT, "Worker result context does not match")
+            return worker_failure(
+                ErrorCode.CONFLICT, "Worker result context does not match"
+            )
         return Success(response)
 
     def _archive(
@@ -292,7 +310,7 @@ class TradingAgentsHttpAdapter:
         if isinstance(archived, Failure):
             return archived
         if archived.value.content_hash != response.result_artifact_hash:
-            return _failure(
+            return worker_failure(
                 ErrorCode.CONFLICT, "Worker result artifact hash does not match"
             )
         return Success(
@@ -303,51 +321,6 @@ class TradingAgentsHttpAdapter:
         delay = 0.25 * (2**retry)
         if self._clock() + timedelta(seconds=delay) < deadline:
             self._sleep(delay)
-
-
-def _status_failure(status: int) -> Failure:
-    if status in {401, 403}:
-        return _failure(ErrorCode.UNAUTHORIZED, "Worker rejected the request")
-    if status == 408:
-        return _failure(ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded")
-    if status == 413:
-        return _failure(ErrorCode.PAYLOAD_TOO_LARGE, "Worker rejected request size")
-    if status in {400, 409, 422}:
-        return _failure(ErrorCode.INVALID_INPUT, "Worker rejected the request")
-    if status == 429:
-        return _failure(ErrorCode.RATE_LIMITED, "Worker rate limit exceeded")
-    return _failure(ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable")
-
-
-def _body_failure(error: ResponseBodyError) -> Failure:
-    if error is ResponseBodyError.DEADLINE_EXCEEDED:
-        return _failure(
-            ErrorCode.DEADLINE_EXCEEDED, "Worker response deadline exceeded"
-        )
-    if error is ResponseBodyError.RESPONSE_TOO_LARGE:
-        return _failure(ErrorCode.PAYLOAD_TOO_LARGE, "Worker response is too large")
-    return _invalid_response()
-
-
-def _invalid_response() -> Failure:
-    return _failure(ErrorCode.MODEL_OUTPUT_INVALID, "Worker response is invalid")
-
-
-def _failure(code: ErrorCode, message: str) -> Failure:
-    return Failure(StructuredError(code=code, message=message))
-
-
-def _valid_origin(value: str) -> bool:
-    parsed = urlsplit(value)
-    return bool(
-        parsed.scheme in {"http", "https"}
-        and parsed.hostname
-        and parsed.path in {"", "/"}
-        and not parsed.query
-        and not parsed.fragment
-        and parsed.username is None
-        and parsed.password is None
-    )
 
 
 def _result_matches_request(

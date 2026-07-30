@@ -52,4 +52,4 @@ RUN set -eu; \
     chown -R 65532:65532 /tmp/sidecar
 USER 65532:65532
 EXPOSE 7400
-CMD ["uvicorn", "sidecars.nautilus.runtime_app:app", "--host", "0.0.0.0", "--port", "7400", "--no-access-log"]
+CMD ["uvicorn", "sidecars.nautilus.runtime_app:app", "--host", "0.0.0.0", "--port", "7400", "--no-proxy-headers", "--no-access-log"]

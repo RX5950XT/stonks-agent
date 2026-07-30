@@ -5,6 +5,8 @@ drill 或 configured workflow 升格為 production SLA／external verification�
 
 ## Default deployment 與共通控制
 
+- [Local GUI](local-gui.md)
+- [Custom LLM configuration](llm-configuration.md)
 - [Core deployment](core-deployment.md)
 - [Artifact storage](artifact-storage.md)
 - [Observability](observability.md)

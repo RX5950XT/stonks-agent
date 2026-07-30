@@ -20,6 +20,8 @@ dist/
 .coverage.*
 coverage.xml
 htmlcov/
+.playwright-cli/
+output/
 
 # Local research and runtime data
 .research/

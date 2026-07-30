@@ -1,5 +1,6 @@
 services:
   kronos-cpu:
+    image: stonks-kronos-cpu:local
     build:
       context: ..
       dockerfile: workers/kronos/Dockerfile
@@ -22,12 +23,15 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     networks: [kronos-internal]
+    ports:
+      - "127.0.0.1:${STONKS_KRONOS_CPU_PORT:-17200}:7200"
     tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
     pids_limit: 256
     mem_limit: 8g
     cpus: 4.0
 
   kronos-cuda:
+    image: stonks-kronos-cuda:local
     build:
       context: ..
       dockerfile: workers/kronos/Dockerfile
@@ -50,6 +54,8 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     networks: [kronos-internal]
+    ports:
+      - "127.0.0.1:${STONKS_KRONOS_CUDA_PORT:-17201}:7200"
     tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
     pids_limit: 256
     mem_limit: 12g

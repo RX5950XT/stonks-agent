@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from stonks_agent.entrypoints.api.deployment import create_deployment_app
+from stonks_agent.entrypoints.api.gui import create_gui_app
 from stonks_agent.entrypoints.api.routes.data import create_data_app
 from stonks_agent.entrypoints.api.routes.operations import create_paper_operations_app
 from stonks_agent.entrypoints.api.routes.projections import (
@@ -31,6 +32,7 @@ def build_documents() -> dict[str, dict[str, Any]]:
             port,
             build_revision="0" * 40,
         ),
+        "gui.openapi.json": create_gui_app(port),
         "paper-operations.openapi.json": create_paper_operations_app(port),
         "paper-projections.openapi.json": create_paper_projection_app(port),
         "research.openapi.json": create_research_app(port, port, port),
@@ -40,13 +42,23 @@ def build_documents() -> dict[str, dict[str, Any]]:
     for name, application in sorted(applications.items()):
         document = application.openapi()
         document["x-stonks-execution-mode"] = "paper"
-        document["x-stonks-surface"] = (
-            "deployed-health-reference"
-            if name == "deployment.openapi.json"
-            else "reference-contract-only"
-        )
+        document["x-stonks-surface"] = _surface(name)
+        if name == "gui.openapi.json":
+            document["x-stonks-authority"] = {
+                "mode": "bounded_research_command",
+                "runtime": "not_composed_by_default",
+                "trading": "canonical_paper_only",
+            }
         documents[name] = _canonical(document)
     return documents
+
+
+def _surface(name: str) -> str:
+    if name == "deployment.openapi.json":
+        return "deployed-health-reference"
+    if name == "gui.openapi.json":
+        return "local-actual-runtime"
+    return "reference-contract-only"
 
 
 def export(directory: Path) -> int:

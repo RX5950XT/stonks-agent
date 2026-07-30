@@ -168,6 +168,7 @@ class ToolResult(BaseModel):
     content_type: str = Field(min_length=1, max_length=128)
     byte_count: int = Field(ge=0, le=16_777_216)
     tool_version: str = Field(min_length=1, max_length=128)
+    materialized_evidence_ids: frozenset[UUID] = Field(max_length=128)
     latency_ms: int = Field(default=0, ge=0, le=120_000)
     untrusted_content: bool = True
     observed_at: UTCDateTime
@@ -258,6 +259,8 @@ def validate_tool_result(
                 details={"limit_bytes": call.output_limit_bytes},
             )
         )
+    if not result.materialized_evidence_ids <= call.evidence_ids:
+        return _invalid_result("materialized_evidence_scope_exceeded")
     return Success(result)
 
 

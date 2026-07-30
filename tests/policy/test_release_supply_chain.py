@@ -223,7 +223,7 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "signatures/verification-report.sigstore.json"
     )
     assert policy["sbom"]["expected_components_sha256"] == (
-        "bfd0eb3648273f940882eb0c2ff170b08139b2a9075dc84e260a9232469fa53c"
+        "8a07c6c3316655f15205412926abbacb1857e98503bbd50615699debdd07975b"
     )
     required = set(policy["bundle"]["required_payload_files"])
     assert {
@@ -236,20 +236,34 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "payload/release/python-corresponding-source.tar.gz",
         "payload/config/release/python-source-policy.json",
         "payload/scripts/release_source_contracts.py",
+        "payload/schemas/openapi/v1/gui.openapi.json",
     } <= required
     assert policy["python_source"] == {
         "archive": "payload/release/python-corresponding-source.tar.gz",
         "policy": "payload/config/release/python-source-policy.json",
         "uv_lock": "payload/uv.lock",
         "archive_sha256": (
-            "017ef46955edcca6a145ee61b3f15cdc0a922c40652009fd725370c4cde9136b"
+            "e26f443ae222cc61ca216a9a3f8e07d1da8b0597a575967688a22f8d29f61a98"
         ),
         "manifest_sha256": (
-            "4ceff416b7d3c6fc5c2bcf03a5039ec25a4089115233898f5e69808dfd5f94d7"
+            "300c3bcdcac4f4419b7f1cc2681f36b9a0ff53ca0b993ead4967d35f69ff4f06"
         ),
         "source_count": 3,
         "total_source_bytes": 947504,
     }
+
+
+def test_every_openapi_snapshot_is_in_the_signed_release_payload() -> None:
+    policy = json.loads(
+        (ROOT / "config" / "release-policy.json").read_text(encoding="utf-8")
+    )
+    required = set(policy["bundle"]["required_payload_files"])
+    snapshots = {
+        f"payload/schemas/openapi/v1/{path.name}"
+        for path in (ROOT / "schemas" / "openapi" / "v1").glob("*.json")
+    }
+
+    assert snapshots <= required
 
 
 def test_all_feature_notices_are_in_root_and_signed_release_policy() -> None:

@@ -14,6 +14,7 @@ from integration.postgres.test_paper_execution import (
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 from support.budgets import FixedBudgetEvaluator
+from support.paper_cycle import paper_cycle_input, paper_cycle_payload
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
 from stonks_agent.adapters.postgres.job_queue import PostgresJobQueue
@@ -40,7 +41,6 @@ pytestmark = [pytest.mark.e2e, pytest.mark.postgres]
 pytest_plugins = ["integration.postgres.conftest"]
 
 JOB_ID = UUID("47000000-0000-4000-8000-000000000301")
-INPUT_HASH = "d" * 64
 
 
 class CrashAfterReceiptCommit(BaseException):
@@ -56,9 +56,11 @@ class CanonicalPaperCycleHandler:
 
     def advance(
         self,
+        command: RunPaperCycle,
         stage: PaperCycleStage,
         state: PaperCycleState,
     ) -> Result[PaperCycleStageOutput]:
+        assert command.cycle_input.run_id == state.run_id
         if stage is PaperCycleStage.EXECUTION_RECEIPT:
             return self._execute_then_crash_once()
         if stage is PaperCycleStage.LEDGER:
@@ -188,7 +190,7 @@ def test_postgres_cycle_execution_crash_reuses_receipt_and_completes_graph(
     assert isinstance(reclaimed, Success)
 
     completed = run_paper_fund_cycle(
-        RunPaperCycle(lease=reclaimed.value, cycle_input_hash=INPUT_HASH),
+        RunPaperCycle(lease=reclaimed.value),
         handler=handler,
         store=store,
         artifacts=artifacts,
@@ -202,7 +204,7 @@ def test_postgres_cycle_execution_crash_reuses_receipt_and_completes_graph(
     assert completed.value.result_artifact_hash is not None
     assert artifacts.is_finalized(completed.value.result_artifact_hash)
     exact_replay = run_paper_fund_cycle(
-        RunPaperCycle(lease=reclaimed.value, cycle_input_hash=INPUT_HASH),
+        RunPaperCycle(lease=reclaimed.value),
         handler=handler,
         store=store,
         artifacts=artifacts,
@@ -253,6 +255,13 @@ def test_postgres_cycle_execution_crash_reuses_receipt_and_completes_graph(
 def _seed_cycle_job(engine: Engine) -> RunPaperCycle:
     now = _database_now(engine)
     run_id = execution_request().command.intent.run_id
+    deadline_at = now + timedelta(hours=1)
+    cycle_input = paper_cycle_input(
+        run_id=run_id,
+        as_of=execution_request().as_of,
+        deadline_at=deadline_at,
+    )
+    input_hash = cycle_input.cycle_input_hash
     with PostgresUnitOfWork(engine) as transaction:
         created = transaction.workflows.create(
             CreateWorkflowRun(
@@ -261,7 +270,7 @@ def _seed_cycle_job(engine: Engine) -> RunPaperCycle:
                 as_of=execution_request().as_of,
                 policy_id="paper-fund-cycle/1.0.0",
                 idempotency_key="paper-cycle:e2e",
-                input_hash=INPUT_HASH,
+                input_hash=input_hash,
                 owner_subject="system:paper-cycle",
                 created_at=now,
             )
@@ -273,10 +282,10 @@ def _seed_cycle_job(engine: Engine) -> RunPaperCycle:
             job_id=JOB_ID,
             run_id=run_id,
             job_type="paper_fund_cycle",
-            payload={"cycle_input_hash": INPUT_HASH},
+            payload=paper_cycle_payload(cycle_input),
             idempotency_key="paper-cycle:e2e:job",
             not_before=now,
-            deadline_at=now + timedelta(hours=1),
+            deadline_at=deadline_at,
             max_attempts=3,
             created_at=now,
         )
@@ -288,7 +297,7 @@ def _seed_cycle_job(engine: Engine) -> RunPaperCycle:
         lease_for=timedelta(minutes=5),
     )
     assert isinstance(claimed, Success)
-    return RunPaperCycle(lease=claimed.value, cycle_input_hash=INPUT_HASH)
+    return RunPaperCycle(lease=claimed.value)
 
 
 def _research_reference(

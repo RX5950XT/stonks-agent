@@ -458,6 +458,49 @@ class JobRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class WorkerLateResultAuditRow(Base):
+    __tablename__ = "worker_late_result_audit"
+    __table_args__ = (
+        CheckConstraint(
+            "attempt_generation > 0",
+            name="worker_late_result_generation_positive",
+        ),
+        CheckConstraint(
+            "result_artifact_hash ~ '^[0-9a-f]{64}$' "
+            "and record_hash ~ '^[0-9a-f]{64}$'",
+            name="worker_late_result_hash_format",
+        ),
+        CheckConstraint(
+            "reason ~ '^[a-z][a-z0-9_]{0,63}$'",
+            name="worker_late_result_reason_format",
+        ),
+        UniqueConstraint(
+            "job_id",
+            "attempt_generation",
+            "result_artifact_hash",
+            "reason",
+            name="uq_worker_late_result_identity",
+        ),
+        Index(
+            "ix_worker_late_result_run_observed",
+            "run_id",
+            "observed_at",
+        ),
+    )
+
+    audit_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    job_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    run_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    request_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
+    attempt_generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    result_artifact_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    record_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
 class OutboxRow(Base):
     __tablename__ = "outbox"
     __table_args__ = (

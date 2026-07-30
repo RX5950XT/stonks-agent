@@ -129,12 +129,16 @@ def test_worker_context_starts_new_trace_when_lease_has_no_carrier() -> None:
     assert context.request_id is None
 
 
-def test_worker_cli_payload_never_exposes_trace_or_correlation() -> None:
-    payload = public_lease_payload(_lease())
+def test_worker_cli_payload_never_exposes_trace_correlation_or_nonce() -> None:
+    lease = _lease()
+    payload = public_lease_payload(lease)
 
     assert "trace_carrier" not in payload
     assert "correlation_id" not in payload
+    assert "attempt_nonce" not in payload
     assert "traceparent" not in str(payload)
+    assert lease.attempt_nonce not in str(payload)
+    assert lease.attempt_nonce not in repr(lease)
     assert payload["job_id"] == str(JOB_ID)
 
 

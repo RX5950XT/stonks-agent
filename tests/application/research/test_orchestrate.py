@@ -17,20 +17,25 @@ from .helpers import (
     evidence,
     request,
 )
-from .test_tool_loop import final_turn, policy, principal
+from .test_tool_loop import final_turn, policy, principal, tool_turn
 
 
 def test_orchestrator_builds_deterministic_artifact_and_downgrades_uncited_claim() -> (
     None
 ):
-    reader = DictArtifactReader({"a" * 64: b'{"source":"filing"}'})
+    reader = DictArtifactReader(
+        {
+            "a" * 64: b'{"source":"filing"}',
+            "e" * 64: b'{"tool":"first"}',
+        }
+    )
 
     first = orchestrate_research(
         request=request(),
         evidence_items=(evidence(),),
         principal=principal(),
         policy=policy(),
-        llm=ScriptedLLM([final_turn()]),
+        llm=ScriptedLLM([tool_turn("first"), final_turn()]),
         tool=RecordingTool(),
         artifacts=reader,
         builder=DeterministicResearchArtifactBuilder(),
@@ -41,7 +46,7 @@ def test_orchestrator_builds_deterministic_artifact_and_downgrades_uncited_claim
         evidence_items=(evidence(),),
         principal=principal(),
         policy=policy(),
-        llm=ScriptedLLM([final_turn()]),
+        llm=ScriptedLLM([tool_turn("first"), final_turn()]),
         tool=RecordingTool(),
         artifacts=reader,
         builder=DeterministicResearchArtifactBuilder(),
@@ -53,7 +58,7 @@ def test_orchestrator_builds_deterministic_artifact_and_downgrades_uncited_claim
     assert first.value.artifact_id == second.value.artifact_id
     assert first.value.claims[0].kind is ResearchClaimKind.EVIDENCED
     assert first.value.claims[1].kind is ResearchClaimKind.HYPOTHESIS
-    assert first.value.raw_output_artifact_ref == f"sha256:{'c' * 64}"
+    assert first.value.raw_output_artifact_ref == f"sha256:{'d' * 64}"
 
 
 def test_final_draft_cannot_cite_evidence_outside_request_scope() -> None:

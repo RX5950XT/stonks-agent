@@ -43,4 +43,4 @@ RUN cp /opt/qlib/LICENSE /usr/share/licenses/stonks-quant-lab-worker/QLIB-LICENS
     && chown -R 65532:65532 /tmp/worker
 USER 65532:65532
 EXPOSE 7300
-CMD ["uvicorn", "workers.quant_lab.runtime_app:app", "--host", "0.0.0.0", "--port", "7300", "--no-access-log"]
+CMD ["uvicorn", "workers.quant_lab.runtime_app:app", "--host", "0.0.0.0", "--port", "7300", "--no-proxy-headers", "--no-access-log"]

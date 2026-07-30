@@ -43,7 +43,7 @@ RUN cp /opt/kronos/LICENSE /usr/share/licenses/stonks-kronos-worker/KRONOS-LICEN
     && chown -R 65532:65532 /tmp/worker
 USER 65532:65532
 EXPOSE 7200
-CMD ["uvicorn", "workers.kronos.runtime_app:app", "--host", "0.0.0.0", "--port", "7200", "--no-access-log"]
+CMD ["uvicorn", "workers.kronos.runtime_app:app", "--host", "0.0.0.0", "--port", "7200", "--no-proxy-headers", "--no-access-log"]
 
 FROM cpu AS runtime-cpu
 WORKDIR /workspace
@@ -55,4 +55,4 @@ RUN cp /opt/kronos/LICENSE /usr/share/licenses/stonks-kronos-worker/KRONOS-LICEN
     && chown -R 65532:65532 /tmp/worker
 USER 65532:65532
 EXPOSE 7200
-CMD ["uvicorn", "workers.kronos.runtime_app:app", "--host", "0.0.0.0", "--port", "7200", "--no-access-log"]
+CMD ["uvicorn", "workers.kronos.runtime_app:app", "--host", "0.0.0.0", "--port", "7200", "--no-proxy-headers", "--no-access-log"]

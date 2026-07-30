@@ -220,6 +220,7 @@ def test_tool_result_must_match_call_identity_hash_and_output_limit() -> None:
         "content_type": "application/json",
         "byte_count": 2_048,
         "tool_version": "fixture/1",
+        "materialized_evidence_ids": [str(EVIDENCE)],
         "observed_at": datetime(2026, 7, 12, tzinfo=UTC),
     }
 
@@ -233,6 +234,9 @@ def test_tool_result_must_match_call_identity_hash_and_output_limit() -> None:
         ToolResult.model_validate(valid | {"call_id": uuid4()}),
         ToolResult.model_validate(valid | {"artifact_ref": f"sha256:{'b' * 64}"}),
         ToolResult.model_validate(valid | {"byte_count": 2_049}),
+        ToolResult.model_validate(
+            valid | {"materialized_evidence_ids": [str(uuid4())]}
+        ),
     )
     for result in invalid_results:
         rejected = validate_tool_result(authorized.value, result)

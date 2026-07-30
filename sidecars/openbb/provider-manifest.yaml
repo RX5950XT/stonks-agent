@@ -22,6 +22,20 @@ rest_policy:
   methods: [GET]
   redirect_policy: deny
   arbitrary_url_policy: deny
+  query_fields: [symbol, start_date, end_date, interval, provider]
+  intervals: ["1m", "5m", "15m", "1h", "1d"]
+  intraday_timestamp_semantics: naive-exchange-local
+unsupported_capabilities:
+  reviewed_at: "2026-07-27"
+  reason: >-
+    Yahoo quoteSummary/screener endpoints require a crumb whose cookie seed host
+    fc.yahoo.com no longer resolves; yfinance 1.5.1 and 1.5.2 both fail closed
+    with HTTP 401. These routes stay off the allowlist instead of being faked.
+  routes:
+    - /api/v1/equity/price/quote
+    - /api/v1/equity/profile
+    - /api/v1/equity/fundamental/metrics
+    - /api/v1/equity/discovery/gainers
 service_identity_policy:
   verifier: stonks-service-auth==0.1.0
   protected_routes: [/api/v1/equity/price/historical]

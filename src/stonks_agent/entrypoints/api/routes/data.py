@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from stonks_agent.adapters.auth.local_token import DenyAllAuthenticator
 from stonks_agent.application.data.create_snapshot import request_snapshot
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError
 from stonks_agent.domain.snapshot import CreateSnapshotRequest
 from stonks_agent.entrypoints.api.api_security import (
@@ -66,7 +67,7 @@ def create_data_app(
     install_authentication(app, identity)
     app.add_api_route(
         "/v1/data/snapshots",
-        _CreateSnapshotEndpoint(store, clock or _utc_now),
+        _CreateSnapshotEndpoint(store, clock or utc_now),
         methods=["POST"],
         status_code=202,
     )
@@ -118,7 +119,3 @@ def _error_response(result: Failure) -> JSONResponse:
         status_code=envelope.status,
         content=envelope.model_dump(mode="json"),
     )
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)

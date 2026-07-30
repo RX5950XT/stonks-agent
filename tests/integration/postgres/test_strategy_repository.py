@@ -420,7 +420,7 @@ def test_strategy_api_and_cli_share_postgres_cas_and_verified_audit(
             "--strategy-version",
             STRATEGY_VERSION,
             "--database-url",
-            str(strategy_database.url),
+            strategy_database.url.render_as_string(hide_password=False),
         ],
         env={"STONKS_ENVIRONMENT": "test"},
     )

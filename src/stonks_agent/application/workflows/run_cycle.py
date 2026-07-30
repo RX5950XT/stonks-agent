@@ -269,7 +269,7 @@ def run_paper_fund_cycle(
             telemetry,
             component=component,
             operation=operation,
-            call=partial(handler.advance, stage, state),
+            call=partial(handler.advance, command, stage, state),
         )
         if isinstance(advanced, Failure):
             return store.fail(command, advanced.error)

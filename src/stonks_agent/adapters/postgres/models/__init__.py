@@ -22,6 +22,7 @@ from stonks_agent.adapters.postgres.models.core import (
     StrategyRegistryRow,
     TradingCalendarVersionRow,
     UsageBudgetRow,
+    WorkerLateResultAuditRow,
     WorkflowRunRow,
 )
 from stonks_agent.adapters.postgres.models.trading import (
@@ -89,5 +90,6 @@ __all__ = [
     "StrategyRegistryRow",
     "TradingCalendarVersionRow",
     "UsageBudgetRow",
+    "WorkerLateResultAuditRow",
     "WorkflowRunRow",
 ]

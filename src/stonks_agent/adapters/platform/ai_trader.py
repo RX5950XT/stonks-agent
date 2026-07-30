@@ -38,6 +38,7 @@ from stonks_agent.adapters.platform._ai_trader_contracts import (
     _WriteResponse,
 )
 from stonks_agent.domain.artifact import ArtifactMetadata
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
@@ -134,7 +135,7 @@ class AiTraderHttpAdapter:
         self._timeout = httpx.Timeout(timeout_seconds)
         self._max_request_bytes = max_request_bytes
         self._max_response_bytes = max_response_bytes
-        self._clock = clock or _utc_now
+        self._clock = clock or utc_now
         self._monotonic_clock = monotonic_clock or monotonic
         self._disabled_reason: str | None = None
         self._lock = RLock()
@@ -781,10 +782,6 @@ def _canonical_bytes(value: object) -> bytes:
 def _reject_json_constant(value: str) -> None:
     del value
     raise ValueError("non-finite JSON number")
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
 
 
 def _failure(code: ErrorCode, message: str) -> Failure:

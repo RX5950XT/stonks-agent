@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Callable, Iterable
-from datetime import UTC, datetime
+from datetime import datetime
 from threading import RLock
 
 from pydantic import BaseModel, ConfigDict
@@ -17,6 +17,7 @@ from stonks_agent.adapters.llm._common import (
     invalid_provider_envelope,
     resolve_route,
 )
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
@@ -52,7 +53,7 @@ class FakeStructuredLLMAdapter:
         self._policy = policy
         self._artifacts = artifacts
         self._outputs = deque(outputs)
-        self._clock = clock or _utc_now
+        self._clock = clock or utc_now
         self._lock = RLock()
 
     @property
@@ -125,7 +126,3 @@ class FakeStructuredLLMAdapter:
                 output_tokens=raw.output_tokens_hint,
             )
         )
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)

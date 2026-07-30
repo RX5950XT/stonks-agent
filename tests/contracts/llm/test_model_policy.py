@@ -84,6 +84,43 @@ def test_remote_route_rejects_unsafe_or_unbounded_configuration(
         route(**{field: value})
 
 
+@pytest.mark.parametrize("environment", ["local", "development"])
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://127.0.0.1:11434",
+        "http://localhost:1234",
+    ],
+)
+def test_local_development_routes_allow_exact_loopback_http(
+    environment: str,
+    origin: str,
+) -> None:
+    value = route(origin=origin, environment=environment)
+
+    assert value.origin == origin
+
+
+@pytest.mark.parametrize(
+    ("environment", "origin"),
+    [
+        ("production", "http://127.0.0.1:11434"),
+        ("staging", "http://localhost:1234"),
+        ("test", "http://127.0.0.1:11434"),
+        ("local", "http://0.0.0.0:11434"),
+        ("development", "http://127.0.0.2:11434"),
+        ("local", "http://localhost"),
+        ("local", "http://localhost:11434/path"),
+    ],
+)
+def test_plaintext_model_origin_is_restricted_to_local_loopback_port(
+    environment: str,
+    origin: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        route(origin=origin, environment=environment)
+
+
 def test_provider_specific_route_shape_and_secret_repr_are_fail_closed() -> None:
     with pytest.raises(ValidationError, match="remote model route"):
         route(secret_ref=None)

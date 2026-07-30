@@ -13,6 +13,8 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from stonks_service_auth import (
     ServiceAccessTarget,
+    ServiceAdmissionMiddleware,
+    ServiceAdmissionResponseStyle,
     ServiceAuthenticator,
     ServicePermission,
     ServiceReceiver,
@@ -38,14 +40,29 @@ ANONYMOUS_HTTP_SURFACE: Final = frozenset(
 )
 _PROTECTED_HTTP_SURFACE: Final = frozenset({("GET", HISTORICAL_PATH)})
 _ALLOWED_QUERY_FIELDS: Final = frozenset(
-    {"symbol", "start_date", "end_date", "provider"}
+    {"symbol", "start_date", "end_date", "interval", "provider"}
 )
+_ALLOWED_INTERVALS: Final = frozenset({"1m", "5m", "15m", "1h", "1d"})
 _SYMBOL: Final = re.compile(r"^[A-Z0-9][A-Z0-9.-]{0,31}$")
 _MAX_QUERY_BYTES: Final = 4096
 _NOT_FOUND_BODY: Final = b'{"detail":"Not Found"}'
 _BAD_REQUEST_BODY: Final = b'{"detail":"Invalid market request"}'
 _UNAUTHORIZED_BODY: Final = b'{"detail":"Service authentication failed"}'
 _FORBIDDEN_BODY: Final = b'{"detail":"Service target access denied"}'
+
+
+def build_surface(
+    app: ASGIApp,
+    *,
+    authenticator: ServiceAuthenticator,
+) -> ASGIApp:
+    """Compose pre-auth admission outside the governed OpenBB allowlist."""
+
+    return ServiceAdmissionMiddleware(
+        SurfaceAllowlist(app, authenticator=authenticator),
+        response_style=ServiceAdmissionResponseStyle.OPENBB,
+        extra_response_headers=((b"link", SOURCE_LINK.encode("ascii")),),
+    )
 
 
 class SurfaceAllowlist:
@@ -164,7 +181,11 @@ def _target_from_scope(scope: Scope) -> MarketDispatch | None:
     ):
         return None
     symbol = query.get("symbol", "")
-    if _SYMBOL.fullmatch(symbol) is None or not _valid_dates(query):
+    if (
+        _SYMBOL.fullmatch(symbol) is None
+        or not _valid_dates(query)
+        or query.get("interval", "1d") not in _ALLOWED_INTERVALS
+    ):
         return None
     return (
         ServiceAccessTarget(

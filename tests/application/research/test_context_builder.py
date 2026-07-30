@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import timedelta
 from uuid import uuid4
 
+from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
 from stonks_agent.application.research.context_builder import build_research_context
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
 
@@ -60,3 +61,29 @@ def test_context_does_not_turn_missing_or_invalid_artifact_into_empty_success() 
     ):
         result = build_research_context(request(), (evidence(),), reader)
         assert isinstance(result, Failure)
+
+
+def test_compact_context_archives_inventory_without_loading_repeated_raw_payload() -> (
+    None
+):
+    store = MemoryArtifactStore()
+    items = tuple(
+        evidence(evidence_id=uuid4(), raw_artifact_ref=f"sha256:{'a' * 64}")
+        for _ in range(130)
+    )
+    scoped = request(allowed_evidence_ids=frozenset(item.evidence_id for item in items))
+
+    result = build_research_context(
+        scoped,
+        items,
+        DictArtifactReader({}),
+        compact_store=store,
+    )
+
+    assert isinstance(result, Success)
+    assert len(result.value.blocks) > 1
+    assert all(
+        store.is_finalized(block.source_ref.removeprefix("sha256:"))
+        for block in result.value.blocks
+    )
+    assert result.value.total_bytes <= 262_144

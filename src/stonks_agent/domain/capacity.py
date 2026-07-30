@@ -177,9 +177,6 @@ class CapacityPolicy(_FrozenModel):
     def definition_for(self, workload: CapacityWorkload) -> CapacityWorkloadDefinition:
         return self.workloads[WORKLOAD_CATALOG.index(workload)]
 
-    def process_budget_for(self, process_id: ProcessBudgetId) -> ProcessBudget:
-        return self.process_budgets[PROCESS_BUDGET_CATALOG.index(process_id)]
-
 
 class ResourceObservation(_FrozenModel):
     cpu_millicores: int = Field(strict=True, ge=0, le=64_000)

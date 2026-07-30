@@ -22,7 +22,7 @@ dependencies = [
     "ruamel-yaml==0.18.10",
     "scikit-learn==1.7.2",
     "scipy==1.15.3",
-    "setuptools==80.9.0",
+    "setuptools==83.0.0",
     "setuptools-scm==8.3.1",
     "stonks-contracts",
     "stonks-service-auth",

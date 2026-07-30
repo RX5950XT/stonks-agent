@@ -32,9 +32,16 @@ runtime identity, and explicit seeds. Each seed runs sequentially with upstream
 artifact persistence, deterministic signal mapping, promotion, and all trading
 authority; this worker has none of those capabilities.
 
-Run the CPU container with a verified host model directory:
+The repository verifier is the supported local CPU smoke. It generates
+ephemeral service identity, starts the hardened container, performs one actual
+forecast, maps the result to a shadow alpha signal, and removes its temporary
+container/network:
 
 ```powershell
-$env:STONKS_KRONOS_MODEL_ROOT='D:\models\kronos'
-docker compose -f infra/compose.kronos.yaml up --build kronos-cpu
+uv run --frozen python scripts/verify_kronos_runtime.py
 ```
+
+It expects the verified files under `.data/models/kronos/`. Direct Compose
+startup additionally requires the complete service OIDC/JWKS environment and is
+not a supported shortcut. This smoke does not connect Kronos to GUI research or
+grant paper-trading eligibility.

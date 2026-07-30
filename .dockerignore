@@ -20,6 +20,8 @@ infra
 .github
 .claude
 .codex
+.playwright-cli
+output
 AGENTS.md
 CLAUDE.md
 CONTEXT.md

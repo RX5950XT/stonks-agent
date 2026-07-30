@@ -772,6 +772,9 @@ def test_worker_files_keep_profiles_isolated_and_runtime_hardened() -> None:
         assert service["cap_drop"] == ["ALL"]
         assert service["networks"] == ["kronos-internal"]
         assert service["volumes"][0].endswith(":/models:ro")
+        assert len(service["ports"]) == 1
+        assert service["ports"][0].startswith("127.0.0.1:")
+        assert service["ports"][0].endswith(":7200")
     assert compose["networks"]["kronos-internal"]["internal"] is True
 
 

@@ -121,11 +121,13 @@ def test_openbb_build_context_has_a_dedicated_allowlist() -> None:
         "!packages/service-auth/src/",
         "!packages/service-auth/src/stonks_service_auth/",
         "!packages/service-auth/src/stonks_service_auth/__init__.py",
+        "!packages/service-auth/src/stonks_service_auth/admission.py",
         "!packages/service-auth/src/stonks_service_auth/authorization.py",
         "!packages/service-auth/src/stonks_service_auth/environment.py",
         "!packages/service-auth/src/stonks_service_auth/headers.py",
         "!packages/service-auth/src/stonks_service_auth/oidc.py",
         "!packages/service-auth/src/stonks_service_auth/py.typed",
+        "!packages/service-auth/src/stonks_service_auth/request_body.py",
         "!packages/service-auth/src/stonks_service_auth/source_identity.py",
         "**/__pycache__/",
         "**/__pycache__/**",
@@ -275,7 +277,7 @@ def test_sidecar_exports_only_the_allowlisted_asgi_surface() -> None:
     upstream = 'importlib.import_module("openbb_core.api.rest_api")'
     assert app_source.index(isolation) < app_source.index(authentication)
     assert app_source.index(authentication) < app_source.index(upstream)
-    assert "app = SurfaceAllowlist(" in app_source
+    assert "app = build_surface(" in app_source
     assert "authenticator=" in app_source
     assert "surface.py" in dockerfile
 

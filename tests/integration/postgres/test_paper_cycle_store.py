@@ -7,6 +7,7 @@ from uuid import UUID
 
 import pytest
 from sqlalchemy import Engine, text
+from support.paper_cycle import paper_cycle_input, paper_cycle_payload
 
 from stonks_agent.adapters.postgres.job_queue import PostgresJobQueue
 from stonks_agent.adapters.postgres.paper_cycle_store import PostgresPaperCycleStore
@@ -27,7 +28,6 @@ pytestmark = pytest.mark.postgres
 
 RUN_ID = UUID("47000000-0000-4000-8000-000000000201")
 JOB_ID = UUID("47000000-0000-4000-8000-000000000202")
-INPUT_HASH = "a" * 64
 
 
 def test_checkpoint_is_hash_chained_and_stale_generation_cannot_resume(
@@ -81,9 +81,7 @@ def test_checkpoint_is_hash_chained_and_stale_generation_cannot_resume(
     )
     assert isinstance(reclaimed, Success)
     stale = store.load(command)
-    resumed = store.load(
-        RunPaperCycle(lease=reclaimed.value, cycle_input_hash=INPUT_HASH)
-    )
+    resumed = store.load(RunPaperCycle(lease=reclaimed.value))
     assert isinstance(stale, Failure)
     assert stale.error.code is ErrorCode.CONFLICT
     assert isinstance(resumed, Success)
@@ -115,7 +113,7 @@ def test_retry_and_dead_letter_are_fenced_audited_transitions(
     assert isinstance(second_lease, Success)
 
     dead = store.fail(
-        RunPaperCycle(lease=second_lease.value, cycle_input_hash=INPUT_HASH),
+        RunPaperCycle(lease=second_lease.value),
         StructuredError(
             code=ErrorCode.DATA_UNAVAILABLE,
             message="provider remains unavailable",
@@ -249,11 +247,18 @@ def _seed_and_claim(engine: Engine, *, max_attempts: int = 3) -> RunPaperCycle:
         lease_for=timedelta(minutes=5),
     )
     assert isinstance(claimed, Success)
-    return RunPaperCycle(lease=claimed.value, cycle_input_hash=INPUT_HASH)
+    return RunPaperCycle(lease=claimed.value)
 
 
 def _seed_run_and_job(engine: Engine, *, max_attempts: int = 3) -> None:
     now = _database_now(engine)
+    deadline_at = now + timedelta(hours=1)
+    cycle_input = paper_cycle_input(
+        run_id=RUN_ID,
+        as_of=now,
+        deadline_at=deadline_at,
+    )
+    input_hash = cycle_input.cycle_input_hash
     with PostgresUnitOfWork(engine) as transaction:
         created = transaction.workflows.create(
             CreateWorkflowRun(
@@ -262,7 +267,7 @@ def _seed_run_and_job(engine: Engine, *, max_attempts: int = 3) -> None:
                 as_of=now,
                 policy_id="paper-fund-cycle/1.0.0",
                 idempotency_key="paper-cycle:test",
-                input_hash=INPUT_HASH,
+                input_hash=input_hash,
                 owner_subject="system:paper-cycle",
                 created_at=now,
             )
@@ -274,10 +279,10 @@ def _seed_run_and_job(engine: Engine, *, max_attempts: int = 3) -> None:
             job_id=JOB_ID,
             run_id=RUN_ID,
             job_type="paper_fund_cycle",
-            payload={"cycle_input_hash": INPUT_HASH},
+            payload=paper_cycle_payload(cycle_input),
             idempotency_key="paper-cycle:test:job",
             not_before=now,
-            deadline_at=now + timedelta(hours=1),
+            deadline_at=deadline_at,
             max_attempts=max_attempts,
             created_at=now,
         )

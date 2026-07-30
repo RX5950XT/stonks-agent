@@ -14,9 +14,11 @@ from sqlalchemy.orm import Session
 from stonks_agent.adapters.observability.context import current_trace_context
 from stonks_agent.adapters.postgres.durable_trace import trace_carrier_from_columns
 from stonks_agent.adapters.postgres.job_queue_audit import (
+    commit_job_failure,
     commit_job_result,
     completed_job_receipt,
     dead_letter_unclaimable,
+    failed_job_receipt,
 )
 from stonks_agent.adapters.postgres.models import (
     ArtifactManifestRow,
@@ -33,7 +35,9 @@ from stonks_agent.domain.errors import (
 from stonks_agent.domain.job import (
     CompleteJob,
     EnqueueJob,
+    FailJob,
     JobCompletionReceipt,
+    JobFailureReceipt,
     JobLease,
     JobRecord,
     JobStatus,
@@ -184,6 +188,32 @@ class PostgresJobQueue:
         except SQLAlchemyError:
             return _failure(ErrorCode.INTERNAL_ERROR, "Job completion failed")
 
+    def fail(
+        self,
+        request: FailJob,
+        *,
+        now: datetime,
+    ) -> Result[JobFailureReceipt]:
+        return self._record(
+            OperationName.COMPLETE,
+            lambda: self._fail(request, now=now),
+        )
+
+    def _fail(
+        self,
+        request: FailJob,
+        *,
+        now: datetime,
+    ) -> Result[JobFailureReceipt]:
+        if now.tzinfo is None or now.utcoffset() is None:
+            return _failure(ErrorCode.INVALID_INPUT, "Failure time is invalid")
+        try:
+            return self._fail_transaction(request)
+        except (IntegrityError, ValueError):
+            return _failure(ErrorCode.CONFLICT, "Job failure audit conflicts")
+        except SQLAlchemyError:
+            return _failure(ErrorCode.INTERNAL_ERROR, "Job failure failed")
+
     def _record[T](
         self,
         operation: OperationName,
@@ -241,6 +271,27 @@ class PostgresJobQueue:
                 return completed_job_receipt(session, row, request)
             return _complete_active_job(session, row, request, artifact)
 
+    def _fail_transaction(
+        self,
+        request: FailJob,
+    ) -> Result[JobFailureReceipt]:
+        with Session(self._engine, expire_on_commit=False) as session, session.begin():
+            row = session.scalar(
+                select(JobRow).where(JobRow.job_id == request.job_id).with_for_update()
+            )
+            if row is None:
+                return _failure(ErrorCode.NOT_FOUND, "Job was not found")
+            if row.job_type == "create_snapshot":
+                return _failure(
+                    ErrorCode.CAPABILITY_DENIED,
+                    "Snapshot jobs require canonical snapshot failure",
+                )
+            if row.status == JobStatus.DEAD_LETTER.value:
+                if _database_now(session) is None:
+                    return _database_time_failure("Job failure")
+                return failed_job_receipt(session, row, request)
+            return _fail_active_job(session, row, request)
+
 
 def _complete_active_job(
     session: Session,
@@ -258,10 +309,13 @@ def _complete_active_job(
     )
     if invalid_lease or lease_until is None:
         return _failure(ErrorCode.CONFLICT, "Job lease is stale or invalid")
-    if manifest is not None and row.job_type != "tradingagents_research":
+    if manifest is not None and row.job_type not in {
+        "tradingagents_research",
+        "research_pipeline",
+    }:
         return _failure(
             ErrorCode.CAPABILITY_DENIED,
-            "Only TradingAgents research jobs may register worker artifacts",
+            "This job type may not register worker artifacts",
         )
     run = session.scalar(
         select(WorkflowRunRow)
@@ -276,7 +330,13 @@ def _complete_active_job(
     if lease_until <= database_now or row.deadline_at <= database_now:
         return _failure(ErrorCode.CONFLICT, "Job lease is stale or invalid")
     if manifest is not None:
-        registered = _register_result_artifact(session, request, manifest, database_now)
+        registered = _register_result_artifact(
+            session,
+            row,
+            request,
+            manifest,
+            database_now,
+        )
         if isinstance(registered, Failure):
             return registered
     artifact = session.scalar(
@@ -291,22 +351,58 @@ def _complete_active_job(
     return Success(receipt)
 
 
+def _fail_active_job(
+    session: Session,
+    row: JobRow,
+    request: FailJob,
+) -> Result[JobFailureReceipt]:
+    lease_until = row.lease_until
+    invalid_lease = (
+        lease_until is None
+        or row.status != JobStatus.LEASED.value
+        or row.lease_owner != request.worker_id
+        or row.attempt_generation != request.attempt_generation
+        or row.attempt_nonce != request.attempt_nonce
+        or row.result_artifact_hash is not None
+        or stable_payload_hash(row.payload) != row.payload_hash
+    )
+    if invalid_lease or lease_until is None:
+        return _failure(ErrorCode.CONFLICT, "Job lease is stale or invalid")
+    run = session.scalar(
+        select(WorkflowRunRow)
+        .where(WorkflowRunRow.run_id == row.run_id)
+        .with_for_update()
+    )
+    if run is None:
+        return _failure(ErrorCode.CONFLICT, "Owning run was not found")
+    database_now = _database_now(session)
+    if database_now is None:
+        return _database_time_failure("Job failure")
+    if lease_until <= database_now or row.deadline_at <= database_now:
+        return _failure(ErrorCode.CONFLICT, "Job lease is stale or invalid")
+    receipt = commit_job_failure(session, row, run, request, database_now)
+    session.flush()
+    return Success(receipt)
+
+
 def _register_result_artifact(
     session: Session,
+    row: JobRow,
     request: CompleteJob,
     manifest: ArtifactManifest,
     database_now: datetime,
 ) -> Result[bool]:
+    expected_source, expected_attributes = _worker_artifact_policy(row)
     if (
         manifest.content_hash != request.result_artifact_hash
         or not 1 <= manifest.size_bytes <= 2_097_152
         or manifest.finalized_at > database_now
-        or manifest.metadata.source != "tradingagents-isolated-worker"
+        or manifest.metadata.source != expected_source
         or manifest.metadata.media_type != "application/json"
         or manifest.metadata.license_tag != "Apache-2.0"
         or manifest.metadata.sensitivity.value != "internal"
-        or dict(manifest.metadata.attributes)
-        != {"schema": "tradingagents-worker-result/1.0.0"}
+        or dict(manifest.metadata.attributes) != expected_attributes
+        or len(manifest.metadata.attributes) != len(expected_attributes)
     ):
         return _failure(ErrorCode.CONFLICT, "Result artifact metadata is invalid")
     candidate = ArtifactManifestRow(
@@ -341,6 +437,23 @@ def _register_result_artifact(
     if not matches:
         return _failure(ErrorCode.CONFLICT, "Result artifact metadata conflicts")
     return Success(True)
+
+
+def _worker_artifact_policy(row: JobRow) -> tuple[str, dict[str, str]]:
+    if row.job_type == "tradingagents_research":
+        return (
+            "tradingagents-isolated-worker",
+            {"schema": "tradingagents-worker-result/1.0.0"},
+        )
+    if row.job_type == "research_pipeline":
+        return (
+            "stonks-agent-research-worker",
+            {
+                "schema": "research-worker-result/1.0.0",
+                "run_id": str(row.run_id),
+            },
+        )
+    raise ValueError("job type may not register worker artifacts")
 
 
 def _same_or_conflicting_job(

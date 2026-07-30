@@ -30,7 +30,7 @@ def test_packaged_migration_head_is_single_and_exact() -> None:
             ROOT / "alembic.ini",
             script_location=ROOT / "migrations",
         )
-        == "0017"
+        == "0018"
     )
 
 

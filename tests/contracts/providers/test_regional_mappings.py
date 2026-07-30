@@ -90,8 +90,14 @@ def test_declared_regional_capabilities_have_replay_fixture_evidence(
     assert expected == _fixture_capabilities(region.upper())
 
 
-def test_non_us_policies_do_not_route_to_us_only_adapters() -> None:
+def test_non_us_policies_only_route_to_adapters_declaring_that_market() -> None:
+    """A market may only reach an external adapter that verified that market."""
+
     policies = load_provider_policies(PROVIDER_POLICIES)
+    declared = {
+        (capability.market, capability.provider)
+        for capability in FINANCIAL_DATASETS_SUPPORT | OPENBB_REST_SUPPORT
+    }
 
     non_us_external_routes = {
         (policy.market, route.provider)
@@ -101,7 +107,9 @@ def test_non_us_policies_do_not_route_to_us_only_adapters() -> None:
         if route.provider != "replay"
     }
 
-    assert non_us_external_routes == set()
+    assert non_us_external_routes <= declared
+    assert ("TW", "financial_datasets") not in non_us_external_routes
+    assert not any(market == "HK" for market, _ in non_us_external_routes)
 
 
 def test_external_provider_routes_exactly_match_adapter_declarations() -> None:

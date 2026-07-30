@@ -37,12 +37,14 @@ from stonks_agent.adapters.market_data.openbb_rest import OPENBB_ORIGIN
 from stonks_agent.adapters.postgres.gui_research import (
     PostgresGuiResearchFacade,
 )
+from stonks_agent.composition.market_calendars import (
+    verified_market_freshness_policy,
+)
 from stonks_agent.composition.model_settings import (
     SessionModelSettings,
     build_model_connection_tester,
 )
 from stonks_agent.composition.runtime import build_local_runtime
-from stonks_agent.composition.us_market import xnas_2026_freshness_policy
 from stonks_agent.composition.worker import build_worker_composition
 from stonks_agent.domain.errors import ErrorCode, StructuredError
 from stonks_agent.entrypoints.api.envelope import (
@@ -352,7 +354,7 @@ def serve(
                         kronos_port=kronos_port,
                         kronos_composed=kronos is not None,
                     ),
-                    market_freshness=xnas_2026_freshness_policy(),
+                    market_freshness=verified_market_freshness_policy(),
                 )
                 if open_browser:
                     Timer(

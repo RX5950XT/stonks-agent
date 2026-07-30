@@ -19,6 +19,31 @@ rest_policy:
   origin: http://127.0.0.1:6900
   endpoint: /api/v1/equity/price/historical
   provider: yfinance
+  verified_markets:
+    reviewed_at: "2026-07-30"
+    method: >-
+      Each market was queried through the running sidecar with the governed
+      adapter before being listed. Symbol suffix is the only discriminator:
+      .TW/.TWO resolve to TW, .HK to HK, everything else to US.
+    markets:
+      - market: US
+        symbol_suffix: none
+        verified_symbols: [AAPL]
+        verified_intervals: ["1d", "1m", "5m", "15m", "1h"]
+      - market: TW
+        symbol_suffix: .TW
+        verified_symbols: ["2330.TW", "0050.TW", "2412.TW"]
+        verified_intervals: ["1d", "1m", "15m"]
+        note: >-
+          Intraday required the Asia/Taipei exchange zone. Before that fix a
+          13:30 Taipei bar was read as America/New_York and rejected as
+          openbb_future_data. After it, 2330.TW 1m returned 1326 bars whose
+          last event time was 05:25Z, i.e. 13:25 Taipei inside the session.
+    unverified_markets:
+      - market: HK
+        reason: >-
+          No route was exercised, so .HK symbols resolve to a market that is not
+          in the adapter capability set and fail closed.
   methods: [GET]
   redirect_policy: deny
   arbitrary_url_policy: deny
@@ -41,7 +66,7 @@ service_identity_policy:
   protected_routes: [/api/v1/equity/price/historical]
   anonymous_routes: [/healthz, /source]
   permission: dispatch_assigned_market_data
-  exact_target: MARKET:US/{symbol}
+  exact_target: MARKET:{market}/{symbol}
   receiver: openbb
   attempt_generation: 0
   request_binding: canonical-method-path-query-sha256

@@ -610,14 +610,38 @@
     if (view.kronos_forecast) {
       forecastCard(view.kronos_forecast);
     }
-    if (view.kronos_alpha) {
-      alphaCard(view.kronos_alpha);
-    }
-    if (view.paper_decision) {
-      signalCard("PAPER DECISION", view.paper_decision);
-    }
     if (!view.kronos_forecast && !view.kronos_alpha && !view.paper_decision) {
       signalCard("DECISION BOUNDARY", "未建立 model signal 或 paper decision。");
+      return;
+    }
+    if (view.kronos_alpha || view.paper_decision) {
+      renderAuthority(view);
+    }
+  }
+
+  function renderAuthority(view) {
+    const alpha = view.kronos_alpha;
+    const shadow =
+      alpha &&
+      alpha.state === "blocked" &&
+      alpha.deployment_state === "shadow" &&
+      Number(alpha.weight) === 0;
+    const strip = add(dom.signals, "aside", null, {
+      class: "authority-strip",
+      "aria-label": "交易授權狀態",
+    });
+    add(strip, "h4", "交易授權狀態");
+    add(
+      strip,
+      "p",
+      shadow
+        ? "Kronos 目前是 shadow 策略、paper 權重 0，依設計不會產生下單建議。" +
+          "上方預測與研究論點才是本次輸出；以下為授權狀態，不是執行失敗。"
+        : "以下為本次 run 的訊號授權與 paper 決策狀態。"
+    );
+    if (alpha) alphaCard(strip, alpha);
+    if (view.paper_decision) {
+      statusRow(strip, "PAPER DECISION", view.paper_decision);
     }
   }
 
@@ -630,7 +654,7 @@
       return;
     }
     const card = add(dom.signals, "article", null, { class: "signal-card" });
-    add(card, "span", "KRONOS FORECAST · ACTUAL");
+    add(card, "span", "KRONOS 預測 · 實際推論結果");
     add(card, "strong", `${formatPercent(forecast.expected_return)} expected return`);
     add(
       card,
@@ -662,18 +686,26 @@
     }
   }
 
-  function alphaCard(alpha) {
+  function alphaCard(parent, alpha) {
     if (alpha.state === "blocked") {
-      signalCard(
+      statusRow(
+        parent,
         `KRONOS ALPHA · ${String(alpha.deployment_state).toUpperCase()}`,
         `blocked · weight ${alpha.weight} · ${(alpha.reason_codes || []).join(", ")}`
       );
       return;
     }
-    signalCard(
+    statusRow(
+      parent,
       `KRONOS ALPHA · ${String(alpha.direction).toUpperCase()}`,
       `${formatPercent(alpha.value)} · confidence ${formatPercent(alpha.confidence)}`
     );
+  }
+
+  function statusRow(parent, label, value) {
+    const row = add(parent, "div", null, { class: "authority-row" });
+    add(row, "span", label);
+    add(row, "p", value);
   }
 
   function formatPercent(value) {

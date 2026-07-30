@@ -46,3 +46,10 @@ policies:
         endpoints: [/v1/prices]
         freshness_seconds: 0
         quota_floor: 0
+      # Daily bars verified against the running sidecar 2026-07-30
+      # (2330.TW, 0050.TW, 2412.TW).
+      - provider: openbb_rest
+        origin: http://127.0.0.1:6900
+        endpoints: [/api/v1/equity/price/historical]
+        freshness_seconds: 300
+        quota_floor: 0

@@ -15,21 +15,23 @@
       取代原本一刀切的 `assert ".env" not in source`，並補 `start.sh` policy 與 parity 測試。
 - [x] 重跑 verify gates。
 
-## Phase B — 台股（需外部權威與實測，另立）
+## Phase B — 台股（已完成）
 
-- [ ] `composition/tw_market.py`：XTAI 2026 `ExchangeCalendar`（09:00–13:30 Asia/Taipei）
+- [x] `composition/tw_market.py`：XTAI 2026 `ExchangeCalendar`（09:00–13:30 Asia/Taipei）
       ＋ TWSE 官方 2026 開休市表；缺權威來源前 fail closed，不得自行臆造假日。
-- [ ] `config/instruments/tw.yaml` 補 `provider: openbb` 的 `2330.TW` 對應與 `prices_daily` 能力。
-- [ ] OpenBB sidecar：`exact_target: MARKET:US/{symbol}` 改為 market-scoped；
+- [x] `config/instruments/tw.yaml` 補 `provider: openbb` 的 `2330.TW` 對應與 `prices_daily` 能力。
+- [x] OpenBB sidecar：`exact_target: MARKET:US/{symbol}` 改為 market-scoped；
       `MARKET:TW/{symbol}` 納入 allowlist **前必須實測** yfinance 對 `.TW` 的 historical 回傳。
-- [ ] 4 處硬寫 `market="US"`（`openbb_rest.py:56`、`openbb_latest.py:94`、
-      `financial_datasets.py:50`、`postgres/gui_research.py:374`）改為由 instrument 決定。
-- [ ] `gui.py:355` 的 `xnas_2026_freshness_policy()` 改為依 symbol 所屬 MIC 選 policy。
-- [ ] GUI 顯示 TW 資料的 provider／延遲／品質，延遲數據不得標成即時。
+- [x] 硬寫 `market="US"` 改為由 symbol 決定：`openbb_rest.py`（capability 宣告＋service
+      target）、`openbb_latest.py`（fetch request）、`postgres/gui_research.py`
+      （snapshot market 與 `provider_policy_id`）。`financial_datasets.py:50` 保留不動——
+      那是該 adapter 自身的 US-only capability 宣告，不是硬編碼缺陷。
+- [x] `gui.py:355` 的 `xnas_2026_freshness_policy()` 改為依 symbol 所屬 MIC 選 policy。
+- [x] GUI 顯示 TW 資料的 provider／延遲／品質，延遲數據不得標成即時。
 
-## Phase C — 研究導向輸出（使用者已表明不需自動下單）
+## Phase C — 研究導向輸出（已完成）
 
-- [ ] Kronos 維持 `shadow`／weight 0 不變；GUI 研究結果頁把 LLM research claim 與
+- [x] Kronos 維持 `shadow`／weight 0 不變；GUI 研究結果頁把 LLM research claim 與
       Kronos forecast 當成主要輸出，`blocked alpha`／`no-order` 降為次要的合規狀態列，
       不再讓使用者以為「跑完什麼都沒有」。
 

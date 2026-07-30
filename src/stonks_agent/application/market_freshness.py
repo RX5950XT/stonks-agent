@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Protocol
@@ -31,10 +32,35 @@ class MarketFreshnessPolicy(Protocol):
     def assess(
         self,
         *,
+        market: str,
         interval: BarInterval,
         latest_event_time: datetime,
         checked_at: datetime,
     ) -> MarketDataFreshness: ...
+
+
+@dataclass(frozen=True, slots=True)
+class MarketRegionFreshnessPolicy:
+    """Route each market to its own verified exchange calendar, else unknown."""
+
+    calendars: Mapping[str, ExchangeMarketFreshnessPolicy]
+
+    def assess(
+        self,
+        *,
+        market: str,
+        interval: BarInterval,
+        latest_event_time: datetime,
+        checked_at: datetime,
+    ) -> MarketDataFreshness:
+        policy = self.calendars.get(market)
+        if policy is None:
+            return MarketDataFreshness.UNKNOWN
+        return policy.assess(
+            interval=interval,
+            latest_event_time=latest_event_time,
+            checked_at=checked_at,
+        )
 
 
 @dataclass(frozen=True, slots=True)

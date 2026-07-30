@@ -4,6 +4,30 @@
 
 ## 目前狀態
 
+- P19 台股接入與研究輸出重排。Phase B（台股）：新增 `domain/market_region.py` 作為
+  market/MIC/exchange-timezone 單一來源（`evaluation/kronos.py` 的 `_MARKET_MICS` 已收斂
+  進來），market 由 provider symbol 後綴決定（`.TW`/`.TWO`→TW、`.HK`→HK、其餘 US，
+  `BRK.B` 仍為 US）。新增 `composition/tw_market.py`：XTAI 09:00-13:30 Asia/Taipei，
+  假日來自 TWSE 官方 OpenAPI `holidaySchedule`（2026-07-30 取得 27 筆），排除 3 筆
+  「開始/最後交易日」、納入 2 筆「僅辦理結算交割」、扣掉週末後為 18 個休市日。
+  `MarketFreshnessPolicy.assess` 加上 `market`，新增 `MarketRegionFreshnessPolicy`
+  依 market 路由到各自行事曆，未驗證 market 回 `unknown` 而非借用他所 session；
+  `composition/market_calendars.py` 只組合已驗證的 US＋TW。
+  修掉根因：`_normalize_event_time` 原本一律用 `America/New_York`，導致台北 13:30 的
+  bar 被當成未來而 `openbb_future_data`；改為 per-market 時區後 TW 分線可用。
+  Sidecar `exact_target` 由 `MARKET:US/{symbol}` 改為 `MARKET:{market}/{symbol}`，
+  suffix map 在 sidecar 端鏡像（isolated AGPL project 不能 import core），由
+  `tests/domain/test_market_region.py` 斷言兩邊一致。
+  實測（2026-07-30，經 running sidecar）：`2330.TW` 1d 23 bars／1m 1326 bars
+  （末筆 05:25Z = 台北 13:25，時區換算正確）／15m 396 bars、`0050.TW` 1d、`2412.TW` 1d、
+  `AAPL` 1d/1m 全部 available；`0700.HK` 正確 typed fail closed 為
+  `openbb_capability_not_supported`。GUI 端 `2330.TW` 回 `freshness=market_closed`，
+  同一筆若用 XNAS 行事曆會是 `stale`，證明確實走 XTAI。
+  Phase C（研究輸出）：Kronos 仍 shadow／weight 0，行為未變；只把 `blocked alpha` 與
+  `paper_decision` 從與 forecast 平級的卡片改成獨立的「交易授權狀態」註記區，並說明
+  這是設計上的預期而非執行失敗，避免使用者誤以為整輪研究白跑。
+  P19 gate：`scripts/verify.py --skip-audit` all gates passed（2,472 passed／6 skipped）。
+
 - P18 降低上手門檻（Phase A）。三件事：
   (1) `scripts/fetch_kronos_model.py` 是 one-shot operator provisioning，只抓
   `workers/kronos/model-manifest.json` 記載的 exact repository／revision，逐檔比對

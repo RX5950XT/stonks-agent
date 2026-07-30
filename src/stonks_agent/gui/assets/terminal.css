@@ -1010,6 +1010,54 @@ button:disabled {
   gap: var(--space-3);
 }
 
+/* Authorization state is a compliance footnote, not a peer of the forecast. */
+.authority-strip {
+  grid-column: 1 / -1;
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken, transparent);
+}
+
+.authority-strip h4 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.authority-strip > p {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.authority-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  padding-top: var(--space-1);
+}
+
+.authority-row span {
+  color: var(--color-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.authority-row p {
+  flex: 1 1 12rem;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
 .signal-card {
   padding: var(--space-3);
   border: 1px solid var(--color-border);

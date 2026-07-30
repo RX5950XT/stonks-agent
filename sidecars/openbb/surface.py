@@ -44,6 +44,7 @@ _ALLOWED_QUERY_FIELDS: Final = frozenset(
 )
 _ALLOWED_INTERVALS: Final = frozenset({"1m", "5m", "15m", "1h", "1d"})
 _SYMBOL: Final = re.compile(r"^[A-Z0-9][A-Z0-9.-]{0,31}$")
+_SUFFIX_MARKETS: Final = ((".TW", "TW"), (".TWO", "TW"), (".HK", "HK"))
 _MAX_QUERY_BYTES: Final = 4096
 _NOT_FOUND_BODY: Final = b'{"detail":"Not Found"}'
 _BAD_REQUEST_BODY: Final = b'{"detail":"Invalid market request"}'
@@ -190,7 +191,7 @@ def _target_from_scope(scope: Scope) -> MarketDispatch | None:
     return (
         ServiceAccessTarget(
             kind=ServiceResourceKind.MARKET,
-            identifier=f"US/{symbol}",
+            identifier=f"{_market_for_symbol(symbol)}/{symbol}",
         ),
         {
             "method": "GET",
@@ -198,6 +199,19 @@ def _target_from_scope(scope: Scope) -> MarketDispatch | None:
             "query": query,
         },
     )
+
+
+def _market_for_symbol(symbol: str) -> str:
+    """Mirror of stonks_agent.domain.market_region.market_for_symbol.
+
+    This sidecar is an isolated AGPL project and cannot import from core, so the
+    two must be kept identical; tests/policy asserts they agree.
+    """
+
+    for suffix, market in _SUFFIX_MARKETS:
+        if symbol.endswith(suffix):
+            return market
+    return "US"
 
 
 def _valid_dates(query: Mapping[str, str]) -> bool:

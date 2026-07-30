@@ -22,6 +22,7 @@ from stonks_agent.domain.latest_market_data import (
     LatestMarketDataObservation,
     LatestMarketDataQuery,
 )
+from stonks_agent.domain.market_region import market_for_symbol
 from stonks_agent.ports.service_credentials import ServiceCredentialProvider
 
 
@@ -91,7 +92,7 @@ def _request(query: LatestMarketDataQuery, observed_at: datetime) -> FetchDataRe
     end_date = observed_at.date()
     start_date = end_date - timedelta(days=query.lookback_days - 1)
     return FetchDataRequest(
-        market="US",
+        market=market_for_symbol(query.symbol),
         capability="prices",
         as_of=observed_at,
         query={

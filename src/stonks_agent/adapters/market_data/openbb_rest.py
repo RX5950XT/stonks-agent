@@ -39,6 +39,11 @@ from stonks_agent.domain.errors import (
 )
 from stonks_agent.domain.evidence import AvailabilityCertainty, EvidenceTimeline
 from stonks_agent.domain.market_data import OHLCBar
+from stonks_agent.domain.market_region import (
+    MARKET_EXCHANGE_TIMEZONES,
+    exchange_timezone_for_market,
+    market_for_symbol,
+)
 from stonks_agent.ports.service_credentials import (
     ServiceCredentialProvider,
     ServiceCredentialRequest,
@@ -49,15 +54,18 @@ from stonks_service_auth import canonical_request_hash
 OPENBB_ORIGIN: Final = "http://127.0.0.1:6900"
 OPENBB_HISTORICAL_ENDPOINT: Final = "/api/v1/equity/price/historical"
 OPENBB_PROVIDER: Final = "yfinance"
+# Every market here was verified against the running sidecar before listing.
+# 2026-07-30: US (AAPL 1d/1m) and TW (2330.TW 1d/1m/15m, 0050.TW and 2412.TW 1d)
+# all returned available yfinance rows. HK has no verified route and stays off
+# the list, so .HK symbols fail closed as openbb_capability_not_supported.
 OPENBB_REST_SUPPORT: Final = frozenset(
-    {
-        RegionalProviderCapability(
-            provider="openbb_rest",
-            market="US",
-            capability="prices",
-            endpoint=OPENBB_HISTORICAL_ENDPOINT,
-        )
-    }
+    RegionalProviderCapability(
+        provider="openbb_rest",
+        market=market,
+        capability="prices",
+        endpoint=OPENBB_HISTORICAL_ENDPOINT,
+    )
+    for market in ("US", "TW")
 )
 _ALLOWED_QUERY_FIELDS: Final = frozenset(
     {"symbol", "start_date", "end_date", "interval", "scenario"}
@@ -65,8 +73,11 @@ _ALLOWED_QUERY_FIELDS: Final = frozenset(
 type OpenBBInterval = Literal["1m", "5m", "15m", "1h", "1d"]
 # OpenBB serializes yfinance intraday bars as naive exchange-local timestamps
 # (verified 2026-07-27: 15:30 for the bar whose Yahoo epoch is 19:30Z), while
-# daily bars arrive as plain dates. Both must become explicit UTC instants.
-OPENBB_US_EXCHANGE_TIMEZONE: Final = "America/New_York"
+# daily bars arrive as plain dates. Both must become explicit UTC instants, and
+# the zone has to be the bar's own exchange: reading a 13:30 Asia/Taipei bar as
+# America/New_York produced a future instant and a rejected observation
+# (verified 2026-07-30 against 2330.TW 1m).
+OPENBB_US_EXCHANGE_TIMEZONE: Final = MARKET_EXCHANGE_TIMEZONES["US"]
 
 
 class OpenBBHistoricalRecord(BaseModel):
@@ -326,7 +337,7 @@ class OpenBBRestAdapter:
                 permission=Permission.DISPATCH_ASSIGNED_MARKET_DATA,
                 target=AccessTarget(
                     kind=ResourceKind.MARKET,
-                    identifier=f"US/{query.symbol}",
+                    identifier=f"{market_for_symbol(query.symbol)}/{query.symbol}",
                 ),
                 request_id=None,
                 run_id=None,
@@ -420,10 +431,11 @@ def _normalize_results(
     as_of: datetime,
     observed_at: datetime,
 ) -> tuple[OpenBBPrice, ...] | str:
+    market = market_for_symbol(query.symbol)
     normalized: list[OpenBBPrice] = []
     event_times: set[datetime] = set()
     for record in records:
-        moment = _normalize_event_time(record.date)
+        moment = _normalize_event_time(record.date, market)
         if moment is None:
             return "openbb_conflicting_data"
         event_time, session_date = moment
@@ -469,13 +481,19 @@ def _normalize_record(
     return OpenBBPrice(bar=bar, provider_record=record)
 
 
-def _normalize_event_time(value: datetime | date) -> tuple[datetime, date] | None:
+def _normalize_event_time(
+    value: datetime | date,
+    market: str,
+) -> tuple[datetime, date] | None:
     """Return the exact UTC instant plus the exchange-local session date."""
 
     if not isinstance(value, datetime):
         return datetime.combine(value, datetime.min.time(), tzinfo=UTC), value
+    timezone_name = exchange_timezone_for_market(market)
+    if timezone_name is None:
+        return None
     try:
-        zone = ZoneInfo(OPENBB_US_EXCHANGE_TIMEZONE)
+        zone = ZoneInfo(timezone_name)
     except (ZoneInfoNotFoundError, ValueError):
         return None
     if value.tzinfo is None or value.utcoffset() is None:

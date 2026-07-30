@@ -24,7 +24,7 @@ risk、reservation、execution 與 ledger。
 | 範圍 | 狀態 | 代表意義 |
 |---|---|---|
 | Canonical research／paper flow | `implemented` | contracts、PostgreSQL、replay、risk、reservation、fill 與 balanced journal 已測試 |
-| Stonks Desk 與美股行情（0.2.0 candidate） | `actual_runtime_verified` | 後端導向的 loopback AI 研究工作台；透過 isolated OpenBB／yfinance 取得 bars，另提供鍵盤可讀 OHLCV 表格、研究歷史、cited evidence 與即時 runtime health |
+| Stonks Desk 與美股／台股行情（0.2.0 candidate） | `actual_runtime_verified` | 後端導向的 loopback AI 研究工作台；透過 isolated OpenBB／yfinance 取得 US 與 TW bars，另提供鍵盤可讀 OHLCV 表格、研究歷史、cited evidence 與即時 runtime health |
 | Terminal paper 投資組合面板（0.2.0 candidate） | `actual_runtime_verified` | `--with-paper` 啟動本機 PostgreSQL；typed 唯讀顯示 NAV、cash／reservation、positions、risk、global kill switch 與 projection integrity |
 | Terminal durable research（0.2.0 candidate） | `composed / external_llm_required` | `--with-research` 會 materialize daily snapshot、執行 fenced LLM＋Kronos job並以SSE顯示typed結果；LLM endpoint／model／key可直接在GUI設定並先做structured completion驗證 |
 | Kronos CPU forecast | `gui_composed / shadow` | research mode 自動啟停 authenticated CPU worker；每次 run 封存 snapshot-bound raw response、3 paths 與 forecast，paper weight 0、不具下單 authority |
@@ -233,7 +233,7 @@ uv run stonks-worker --help
 
 | Entry point | 用途 | 額外需求 |
 |---|---|---|
-| `stonks-gui serve` | loopback AI 研究工作台、美股日／日內 bars、圖表與推導報價 | source checkout；Docker；網路；OpenBB／yfinance |
+| `stonks-gui serve` | loopback AI 研究工作台、美股與台股日／日內 bars、圖表與推導報價 | source checkout；Docker；網路；OpenBB／yfinance |
 | `stonks-gui serve --with-paper` | 同上，另加本機 PostgreSQL 與唯讀 paper 投資組合面板 | 同上；`127.0.0.1:55433` |
 | `stonks-gui serve --with-research` | live snapshot、durable LLM research、SSE 與研究報告 | 同上；自訂 LLM endpoint／model／key |
 | `stonks fake-cycle` | 離線完整 paper／replay demo | 無 |
@@ -348,7 +348,7 @@ current／market-closed／delayed／stale／unknown，不能解讀成交易所 r
 Yahoo 的 quote／profile／財報／排行端點目前需要 crumb 而
 上游 cookie 主機已無法解析，因此這些能力不提供也不以其他來源冒充。加上
 `--with-research` 後可 materialize canonical snapshot、常駐處理 research job 並顯示
-報告；HK／TW live provider 與 production ingress 仍未完成。Kronos 尚是 shadow，
+報告；HK live provider 與 production ingress 仍未完成。Kronos 尚是 shadow，
 不會為展示閉環跳過 promotion、risk 或 reservation；券商帳號與 live trading 則刻意
 不支援。
 

@@ -28,6 +28,7 @@ from stonks_agent.domain.latest_market_data import (
     MarketDataQuality,
     MarketQuoteView,
 )
+from stonks_agent.domain.market_region import market_for_symbol
 from stonks_agent.ports.latest_market_data import LatestMarketDataSource
 
 _PERCENT_QUANTUM = Decimal("0.01")
@@ -138,6 +139,7 @@ def _projection_fields(
     )
     freshness_state = _freshness(
         freshness,
+        market=market_for_symbol(observation.symbol),
         interval=observation.interval,
         latest_event_time=latest.event_time,
         checked_at=observed_at,
@@ -177,6 +179,7 @@ def refresh_cached_quote(
         raise ValueError("cached quote cannot be served before it was observed")
     freshness_state = _freshness(
         freshness,
+        market=market_for_symbol(quote.symbol),
         interval=quote.interval,
         latest_event_time=quote.latest_event_time,
         checked_at=normalized,
@@ -199,6 +202,7 @@ def refresh_cached_quote(
 def _freshness(
     policy: MarketFreshnessPolicy | None,
     *,
+    market: str,
     interval: BarInterval,
     latest_event_time: datetime,
     checked_at: datetime,
@@ -207,6 +211,7 @@ def _freshness(
         return MarketDataFreshness.UNKNOWN
     try:
         return policy.assess(
+            market=market,
             interval=interval,
             latest_event_time=latest_event_time,
             checked_at=checked_at,

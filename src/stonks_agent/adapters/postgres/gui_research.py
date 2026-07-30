@@ -54,6 +54,7 @@ from stonks_agent.domain.gui_research import (
     GuiResearchVersionView,
 )
 from stonks_agent.domain.job import JobLease, JobStatus
+from stonks_agent.domain.market_region import market_for_symbol
 from stonks_agent.domain.research_job import ResearchWorkerResult
 from stonks_agent.domain.research_pipeline import PipelineStatus
 from stonks_agent.domain.research_run import (
@@ -370,8 +371,9 @@ class PostgresGuiResearchFacade(GuiResearchFacade):
         command: GuiResearchCommand,
     ) -> Result[UUID]:
         end_date = command.requested_at.date()
+        market = market_for_symbol(command.symbol)
         request = CreateSnapshotRequest(
-            market="US",
+            market=market,
             capability="prices",
             as_of=command.requested_at + timedelta(minutes=15),
             query={
@@ -380,7 +382,7 @@ class PostgresGuiResearchFacade(GuiResearchFacade):
                 "end_date": end_date.isoformat(),
                 "interval": "1d",
             },
-            provider_policy_id="us-prices/1",
+            provider_policy_id=f"{market.lower()}-prices/1",
             idempotency_key=_request_key(command, "snapshot"),
             owner_subject=principal.subject,
             requested_at=command.requested_at,

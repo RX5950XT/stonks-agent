@@ -1,7 +1,7 @@
 # Stonks Terminal（local GUI）
 
 Stonks Desk 是 loopback-only、依後端能力設計的 AI 投資研究工作台。它透過 isolated
-OpenBB／yfinance sidecar 讀取美股日線與日內 K 線，推導延遲報價，並可選擇性組合
+OpenBB／yfinance sidecar 讀取美股與台股日線與日內 K 線，推導延遲報價，並可選擇性組合
 本機 PostgreSQL 與 durable research worker。介面沒有券商登入、直接下單或任何繞過
 canonical risk 的操作。
 
@@ -75,7 +75,8 @@ Paper 資料庫使用具名 volume，`down` 不帶 `--volumes`，因此 ledger �
 
 主要流程不需要記憶命令：
 
-1. 在頂端輸入美股代號並按「載入市場資料」。
+1. 在頂端輸入代號並按「載入市場資料」。美股直接輸入 `AAPL`，台股加交易所後綴，
+   例如 `2330.TW`；後綴同時決定 provider target 與行事曆。
 2. 預設使用 `1m`；以週期控制切換 `1m`／`5m`／`15m`／`1h`／`1d`，並先檢查
    provider、非 tick 語意、freshness／quality、latest event、served time、cache、
    資料年齡與 warnings。
@@ -230,7 +231,10 @@ GET /api/v1/research/runs/{run_id}/events
 - Paper 面板為唯讀投影。Kronos 是 shadow／paper weight 0、三個 baseline 是 draft、
   opinion mapper disabled；沒有 genuine evaluation/promotion artifact 時只能 no-order，
   不會為展示閉環偽造成交。
-- HK／TW 尚無可由 GUI 使用的真實 live provider。
+- TW 已於 2026-07-30 實測通過 OpenBB→yfinance 日線與日內（`2330.TW` 1d／1m／15m、
+  `0050.TW`、`2412.TW` 1d），並使用 TWSE 官方 2026 行事曆判定 freshness。
+- HK 尚無實測通過的 live provider；`.HK` 代號會 typed fail closed 為
+  `openbb_capability_not_supported`，不會借用其他交易所的 session。
 - 沒有 public ingress、production OIDC、TLS、trusted proxy 或 distributed rate limit。
 - 券商帳號與 live trading 不支援，且不能用設定值啟用。
 

@@ -11,3 +11,7 @@ instruments:
       - provider: replay
         symbol: "2330"
         valid_from: 1994-09-05T01:00:00Z
+      # openbb_rest daily bars verified against the running sidecar 2026-07-30.
+      - provider: openbb_rest
+        symbol: "2330.TW"
+        valid_from: 1994-09-05T01:00:00Z

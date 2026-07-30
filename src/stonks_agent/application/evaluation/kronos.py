@@ -23,6 +23,7 @@ from stonks_agent.domain.errors import (
     StructuredError,
 )
 from stonks_agent.domain.evaluation import EvaluationReport, EvaluationRequest
+from stonks_agent.domain.market_region import MARKET_MICS
 from stonks_agent.domain.signal import ForecastOutputArtifact
 from stonks_agent.domain.strategy import StrategyKind
 from stonks_contracts.common import (
@@ -36,7 +37,6 @@ from stonks_contracts.common import (
 
 Market = Literal["US", "HK", "TW"]
 AvailabilityCertainty = Literal["proven", "unknown"]
-_MARKET_MICS: dict[str, str] = {"US": "XNAS", "HK": "XHKG", "TW": "XTAI"}
 _REQUIRED_BASELINES = (
     "baseline-last-value/1.0.0",
     "baseline-moving-average/1.0.0",
@@ -84,7 +84,7 @@ class KronosEvaluationRecord(BaseModel):
         forecast = self.forecast_output.forecast
         baseline_ids = tuple(value.candidate_id for value in self.baselines)
         valid = (
-            self.mic == _MARKET_MICS[self.market]
+            self.mic == MARKET_MICS[self.market]
             and self.instrument_id == forecast.instrument_id
             and self.feature_event_at == forecast.input_window_end
             and self.feature_available_at >= self.feature_event_at
@@ -257,7 +257,7 @@ def _snapshot_structure_valid(snapshot: KronosEvaluationSnapshot) -> bool:
     baseline_ids = tuple(value.candidate_id for value in records[0].baselines)
     return (
         baseline_ids == _REQUIRED_BASELINES
-        and {value.market for value in records} == set(_MARKET_MICS)
+        and {value.market for value in records} == set(MARKET_MICS)
         and len({value.observation_id for value in records}) == len(records)
         and not any(
             current <= previous for previous, current in pairwise(prediction_times)

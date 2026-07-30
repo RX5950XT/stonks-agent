@@ -116,7 +116,12 @@ observed／served／latest event time、cache 狀態與資料年齡；loading �
 .\start.ps1 -Mode paper
 ```
 
-要從 GUI 觸發 live snapshot 與 durable LLM research，直接執行：
+要從 GUI 觸發 live snapshot 與 durable LLM research，需先備妥 pinned Kronos 權重：
+runtime 禁止自行下載，必須依
+[Kronos worker 的 Model preparation](./workers/kronos/README.md) 放進
+`.data/models/kronos/`（exact 目錄、revision 與 SHA-256 都會在啟動時檢查）。缺檔時
+launcher 會以 exit code 2 與 `Kronos CPU model or Compose runtime is incomplete`
+停止，不會退化成 synthetic forecast。備妥後執行：
 
 ```powershell
 .\start.ps1

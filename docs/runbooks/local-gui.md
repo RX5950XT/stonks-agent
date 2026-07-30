@@ -18,6 +18,12 @@ OpenBB corresponding-source build context；standalone wheel 或 core image 不�
 - 可連線至 OpenBB／yfinance 使用的外部資料來源。
 - 本機 `127.0.0.1:6900` 與 `127.0.0.1:8787` 未被占用；使用 research 時另需
   `127.0.0.1:55433` 與 Kronos `127.0.0.1:17200`。
+- Research mode 另需先備妥 `.data/models/kronos/` 下的 pinned Kronos 權重
+  （runtime 禁止自行下載）。缺檔時 launcher 會以 exit code 2 與
+  `Kronos CPU model or Compose runtime is incomplete` 直接停止。exact 目錄結構、
+  pinned Hugging Face revision 與 SHA-256 見
+  [Kronos worker 的 Model preparation](../../workers/kronos/README.md)。
+  只用 `-Mode market` 或 `-Mode paper` 時不需要模型。
 
 在 repository 根目錄執行：
 

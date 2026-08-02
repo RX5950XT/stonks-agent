@@ -4,7 +4,10 @@
 
 ## 目前狀態
 
-- P23 建立 PR #12 合併 GUI 功能分支。初次 GitHub CI 揭露兩個本機狀態掩蓋的缺陷：
+- P23 已透過 PR #12 以 merge commit `8a0c834` 合併 GUI 功能分支至 `main`，遠端功能分支
+  已刪除。PR 合併前 14/14 checks 全綠（13 個 immediate jobs＋dependent optional matrix），
+  包含 supply-chain exact core image／SBOM／High-Critical CVE gate。初次 GitHub CI 曾揭露兩個
+  本機狀態掩蓋的缺陷：
   launcher tests 暗中依賴 gitignored `.data/models/kronos`，以及 capacity probe 的 frozen
   schema revision 落後 Alembic head `0018`。測試現在以 scoped fixture 建立／清理最小模型目錄，
   並保留 clean checkout 缺模型必須 fail closed 的 regression；capacity revision 已對齊 `0018`，

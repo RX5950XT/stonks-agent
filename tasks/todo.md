@@ -186,8 +186,8 @@
 - [x] 建立 PR，確認內容、base/head、mergeability 與 required checks。
 - [x] 修正初次 CI 揭露的 hermetic launcher test 與 capacity revision drift。
 - [x] 同步 merge review 至 `CONTEXT.md` 與本檔。
-- [ ] 以 merge commit 合併至 `main` 並刪除遠端功能分支。
-- [ ] 驗證遠端 `main`、PR merged、tracked tree、敏感內容與本機狀態。
+- [x] 以 merge commit 合併至 `main` 並刪除遠端功能分支。
+- [x] 驗證遠端 `main`、PR merged、tracked tree、敏感內容與本機狀態。
 
 ## Review
 
@@ -196,4 +196,6 @@
 - 初次 checks 的 5 個 failure 來自兩個根因：clean runner 缺 Kronos model directory、capacity
   revision 停在 `0017`。兩者均以 regression 修正，未弱化 launcher fail-closed 或 CI workflow。
 - 本機 CI 等價 capacity gate為84 passed＋actual probe；完整 PostgreSQL gate為2,774 passed／
-  10 skipped、coverage 86.18%，全部 audits 通過。等待修正 commit 的 GitHub checks。
+  10 skipped、coverage 86.18%，全部 audits 通過。
+- 修正 commit `dfc3ff5` 的 GitHub 14/14 checks 全綠；PR #12 已於 `8a0c834` 以 merge commit
+  合併，遠端功能分支已刪除，本機 `main` 與 `origin/main` 對齊。

@@ -6,8 +6,18 @@ portfolio, risk, or execution credentials.
 
 ## Model preparation
 
-Runtime downloads are forbidden. Prepare this exact read-only structure outside
-the repository and verify it against `model-manifest.json`:
+Worker runtime downloads are forbidden. Provisioning is a separate one-shot
+operator step; from the repository root run:
+
+```powershell
+uv run --frozen python scripts/fetch_kronos_model.py
+```
+
+It fetches only the exact pinned repository/revision recorded below, verifies
+every file against `model-manifest.json`, deletes any mismatch and exits
+non-zero, and writes `.data/models/kronos/`. Re-running verifies in place.
+To prepare the structure by hand instead, produce exactly this and verify it
+against `model-manifest.json`:
 
 ```text
 /models/
@@ -32,9 +42,16 @@ runtime identity, and explicit seeds. Each seed runs sequentially with upstream
 artifact persistence, deterministic signal mapping, promotion, and all trading
 authority; this worker has none of those capabilities.
 
-Run the CPU container with a verified host model directory:
+The repository verifier is the supported local CPU smoke. It generates
+ephemeral service identity, starts the hardened container, performs one actual
+forecast, maps the result to a shadow alpha signal, and removes its temporary
+container/network:
 
 ```powershell
-$env:STONKS_KRONOS_MODEL_ROOT='D:\models\kronos'
-docker compose -f infra/compose.kronos.yaml up --build kronos-cpu
+uv run --frozen python scripts/verify_kronos_runtime.py
 ```
+
+It expects the verified files under `.data/models/kronos/`. Direct Compose
+startup additionally requires the complete service OIDC/JWKS environment and is
+not a supported shortcut. This smoke does not connect Kronos to GUI research or
+grant paper-trading eligibility.

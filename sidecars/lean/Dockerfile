@@ -91,4 +91,4 @@ RUN mkdir -p /tmp/sidecar /tmp/lean-jobs \
     && chown -R 65532:65532 /tmp/sidecar /tmp/lean-jobs
 USER 65532:65532
 EXPOSE 7410
-CMD ["python3", "-m", "uvicorn", "sidecars.lean.runtime_app:app", "--host", "0.0.0.0", "--port", "7410", "--no-access-log"]
+CMD ["python3", "-m", "uvicorn", "sidecars.lean.runtime_app:app", "--host", "0.0.0.0", "--port", "7410", "--no-proxy-headers", "--no-access-log"]

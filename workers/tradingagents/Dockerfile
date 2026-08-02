@@ -35,4 +35,4 @@ RUN mkdir -p /tmp/worker \
 USER 65532:65532
 EXPOSE 7100
 WORKDIR /workspace
-CMD ["uvicorn", "workers.tradingagents.runtime_app:app", "--host", "0.0.0.0", "--port", "7100", "--no-access-log"]
+CMD ["uvicorn", "workers.tradingagents.runtime_app:app", "--host", "0.0.0.0", "--port", "7100", "--no-proxy-headers", "--no-access-log"]

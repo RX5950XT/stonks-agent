@@ -8,12 +8,14 @@ from decimal import Decimal
 from math import isfinite
 from time import monotonic
 from typing import Final, Literal, Self
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    StrictBytes,
     ValidationError,
     model_validator,
 )
@@ -26,10 +28,22 @@ from stonks_agent.adapters.market_data._http_response import (
 from stonks_agent.adapters.market_data.regional.base import RegionalProviderCapability
 from stonks_agent.application.data.fetch_evidence import FetchDataRequest
 from stonks_agent.domain.auth import AccessTarget, Permission, ResourceKind
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
-from stonks_agent.domain.errors import Failure
+from stonks_agent.domain.errors import (
+    ErrorCode,
+    Failure,
+    Result,
+    StructuredError,
+    Success,
+)
 from stonks_agent.domain.evidence import AvailabilityCertainty, EvidenceTimeline
 from stonks_agent.domain.market_data import OHLCBar
+from stonks_agent.domain.market_region import (
+    MARKET_EXCHANGE_TIMEZONES,
+    exchange_timezone_for_market,
+    market_for_symbol,
+)
 from stonks_agent.ports.service_credentials import (
     ServiceCredentialProvider,
     ServiceCredentialRequest,
@@ -40,19 +54,30 @@ from stonks_service_auth import canonical_request_hash
 OPENBB_ORIGIN: Final = "http://127.0.0.1:6900"
 OPENBB_HISTORICAL_ENDPOINT: Final = "/api/v1/equity/price/historical"
 OPENBB_PROVIDER: Final = "yfinance"
+# Every market here was verified against the running sidecar before listing.
+# 2026-07-30: US (AAPL 1d/1m) and TW (2330.TW 1d/1m/15m, 0050.TW and 2412.TW 1d)
+# all returned available yfinance rows. HK has no verified route and stays off
+# the list, so .HK symbols fail closed as openbb_capability_not_supported.
 OPENBB_REST_SUPPORT: Final = frozenset(
-    {
-        RegionalProviderCapability(
-            provider="openbb_rest",
-            market="US",
-            capability="prices",
-            endpoint=OPENBB_HISTORICAL_ENDPOINT,
-        )
-    }
+    RegionalProviderCapability(
+        provider="openbb_rest",
+        market=market,
+        capability="prices",
+        endpoint=OPENBB_HISTORICAL_ENDPOINT,
+    )
+    for market in ("US", "TW")
 )
 _ALLOWED_QUERY_FIELDS: Final = frozenset(
     {"symbol", "start_date", "end_date", "interval", "scenario"}
 )
+type OpenBBInterval = Literal["1m", "5m", "15m", "1h", "1d"]
+# OpenBB serializes yfinance intraday bars as naive exchange-local timestamps
+# (verified 2026-07-27: 15:30 for the bar whose Yahoo epoch is 19:30Z), while
+# daily bars arrive as plain dates. Both must become explicit UTC instants, and
+# the zone has to be the bar's own exchange: reading a 13:30 Asia/Taipei bar as
+# America/New_York produced a future instant and a rejected observation
+# (verified 2026-07-30 against 2330.TW 1m).
+OPENBB_US_EXCHANGE_TIMEZONE: Final = MARKET_EXCHANGE_TIMEZONES["US"]
 
 
 class OpenBBHistoricalRecord(BaseModel):
@@ -103,6 +128,17 @@ class OpenBBObservation(ProviderObservation[OpenBBPrice]):
     metadata: OpenBBResponseMetadata | None = None
 
 
+class OpenBBRawFetch(BaseModel):
+    """Exact provider bytes paired with their validated observation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    symbol: str
+    interval: OpenBBInterval
+    raw_payload: StrictBytes
+    observation: OpenBBObservation
+
+
 class _OpenBBEnvelope(BaseModel):
     model_config = ConfigDict(extra="ignore", frozen=True)
 
@@ -131,7 +167,7 @@ class _OpenBBQuery(BaseModel):
     )
     start_date: date | None = None
     end_date: date | None = None
-    interval: Literal["1d"] = "1d"
+    interval: OpenBBInterval = "1d"
     scenario: Literal["canonical"] = "canonical"
 
     @model_validator(mode="after")
@@ -150,6 +186,8 @@ class _OpenBBQuery(BaseModel):
             params["start_date"] = self.start_date.isoformat()
         if self.end_date is not None:
             params["end_date"] = self.end_date.isoformat()
+        if self.interval != "1d":
+            params["interval"] = self.interval
         params["provider"] = OPENBB_PROVIDER
         return params
 
@@ -187,10 +225,39 @@ class OpenBBRestAdapter:
         self._timeout = httpx.Timeout(timeout_seconds)
         self._timeout_seconds = float(timeout_seconds)
         self._max_response_bytes = max_response_bytes
-        self._clock = clock or _utc_now
+        self._clock = clock or utc_now
         self._monotonic_clock = monotonic_clock or monotonic
 
     def fetch(self, request: FetchDataRequest) -> OpenBBObservation:
+        response = self._fetch_response(request)
+        if isinstance(response, OpenBBObservation):
+            return response
+        body, parsed, observed_at = response
+        return _parse_response(body, parsed, request.as_of, observed_at)
+
+    def fetch_raw(self, request: FetchDataRequest) -> Result[OpenBBRawFetch]:
+        """Fetch once and retain exact raw bytes for canonical archiving."""
+
+        response = self._fetch_response(request)
+        if isinstance(response, OpenBBObservation):
+            return _observation_failure(response)
+        body, parsed, observed_at = response
+        observation = _parse_response(body, parsed, request.as_of, observed_at)
+        if not observation.is_usable:
+            return _observation_failure(observation)
+        return Success(
+            OpenBBRawFetch(
+                symbol=parsed.symbol,
+                interval=parsed.interval,
+                raw_payload=body,
+                observation=observation,
+            )
+        )
+
+    def _fetch_response(
+        self,
+        request: FetchDataRequest,
+    ) -> tuple[bytes, _OpenBBQuery, datetime] | OpenBBObservation:
         observed_at = self._observed_at()
         if not _supports_request(request):
             return _failure(
@@ -210,7 +277,7 @@ class OpenBBRestAdapter:
         response = self._request(parsed, observed_at)
         if isinstance(response, OpenBBObservation):
             return response
-        return _parse_response(response, parsed, request.as_of, observed_at)
+        return response, parsed, observed_at
 
     def _request(
         self,
@@ -270,7 +337,7 @@ class OpenBBRestAdapter:
                 permission=Permission.DISPATCH_ASSIGNED_MARKET_DATA,
                 target=AccessTarget(
                     kind=ResourceKind.MARKET,
-                    identifier=f"US/{query.symbol}",
+                    identifier=f"{market_for_symbol(query.symbol)}/{query.symbol}",
                 ),
                 request_id=None,
                 run_id=None,
@@ -364,17 +431,19 @@ def _normalize_results(
     as_of: datetime,
     observed_at: datetime,
 ) -> tuple[OpenBBPrice, ...] | str:
+    market = market_for_symbol(query.symbol)
     normalized: list[OpenBBPrice] = []
     event_times: set[datetime] = set()
     for record in records:
-        event_time = _normalize_event_time(record.date)
-        if event_time is None:
+        moment = _normalize_event_time(record.date, market)
+        if moment is None:
             return "openbb_conflicting_data"
+        event_time, session_date = moment
         if event_time > as_of:
             return "openbb_future_data"
         if event_time in event_times:
             return "openbb_duplicate_time"
-        if not _within_requested_range(event_time.date(), query):
+        if not _within_requested_range(session_date, query):
             return "openbb_response_outside_requested_range"
         event_times.add(event_time)
         price = _normalize_record(record, event_time, as_of, observed_at)
@@ -412,12 +481,27 @@ def _normalize_record(
     return OpenBBPrice(bar=bar, provider_record=record)
 
 
-def _normalize_event_time(value: datetime | date) -> datetime | None:
-    if isinstance(value, datetime):
-        if value.tzinfo is None or value.utcoffset() is None:
+def _normalize_event_time(
+    value: datetime | date,
+    market: str,
+) -> tuple[datetime, date] | None:
+    """Return the exact UTC instant plus the exchange-local session date."""
+
+    if not isinstance(value, datetime):
+        return datetime.combine(value, datetime.min.time(), tzinfo=UTC), value
+    timezone_name = exchange_timezone_for_market(market)
+    if timezone_name is None:
+        return None
+    try:
+        zone = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        localized = value.replace(tzinfo=zone)
+        if localized.utcoffset() is None:
             return None
-        return value.astimezone(UTC)
-    return datetime.combine(value, datetime.min.time(), tzinfo=UTC)
+        return localized.astimezone(UTC), value.date()
+    return value.astimezone(UTC), value.astimezone(zone).date()
 
 
 def _within_requested_range(value: date, query: _OpenBBQuery) -> bool:
@@ -477,13 +561,32 @@ def _validate_limits(timeout_seconds: float, max_response_bytes: int) -> None:
         raise ValueError("max_response_bytes must be a positive integer")
 
 
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
-
-
 def _supports_request(request: FetchDataRequest) -> bool:
     return any(
         declaration.market == request.market
         and declaration.capability == request.capability
         for declaration in OPENBB_REST_SUPPORT
+    )
+
+
+def _observation_failure(observation: OpenBBObservation) -> Failure:
+    code = (
+        ErrorCode.CAPABILITY_DENIED
+        if observation.state is ProviderDataState.NOT_SUPPORTED
+        else ErrorCode.INVALID_INPUT
+        if any(
+            reason.startswith("openbb_invalid_request")
+            for reason in observation.reasons
+        )
+        else ErrorCode.DATA_UNAVAILABLE
+    )
+    return Failure(
+        StructuredError(
+            code=code,
+            message="OpenBB snapshot data is unavailable",
+            details={
+                "provider_state": observation.state.value,
+                "reasons": observation.reasons,
+            },
+        )
     )

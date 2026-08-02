@@ -20,11 +20,13 @@
 !packages/service-auth/src/
 !packages/service-auth/src/stonks_service_auth/
 !packages/service-auth/src/stonks_service_auth/__init__.py
+!packages/service-auth/src/stonks_service_auth/admission.py
 !packages/service-auth/src/stonks_service_auth/authorization.py
 !packages/service-auth/src/stonks_service_auth/environment.py
 !packages/service-auth/src/stonks_service_auth/headers.py
 !packages/service-auth/src/stonks_service_auth/oidc.py
 !packages/service-auth/src/stonks_service_auth/py.typed
+!packages/service-auth/src/stonks_service_auth/request_body.py
 !packages/service-auth/src/stonks_service_auth/source_identity.py
 **/__pycache__/
 **/__pycache__/**

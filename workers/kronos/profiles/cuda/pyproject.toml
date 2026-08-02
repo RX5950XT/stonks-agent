@@ -14,7 +14,7 @@ dependencies = [
     "safetensors==0.6.2",
     "stonks-contracts",
     "stonks-service-auth",
-    "torch==2.12.1",
+    "torch==2.13.0",
     "tqdm==4.67.1",
     "uvicorn>=0.40,<1",
 ]

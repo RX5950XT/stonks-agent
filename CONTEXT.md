@@ -1,13 +1,253 @@
 # Stonks Agent 開發交接
 
-更新日期：2026-07-26
+更新日期：2026-08-02
 
 ## 目前狀態
 
+- P23 建立 PR #12 合併 GUI 功能分支。初次 GitHub CI 揭露兩個本機狀態掩蓋的缺陷：
+  launcher tests 暗中依賴 gitignored `.data/models/kronos`，以及 capacity probe 的 frozen
+  schema revision 落後 Alembic head `0018`。測試現在以 scoped fixture 建立／清理最小模型目錄，
+  並保留 clean checkout 缺模型必須 fail closed 的 regression；capacity revision 已對齊 `0018`，
+  policy test 會直接比較 single Alembic head。CI 等價 capacity gate 在全新 digest-pinned
+  PostgreSQL 通過（84 tests＋actual probe）；完整 `scripts/verify.py --with-postgres` 在 fresh
+  disposable DB 通過：824 files formatted、Mypy 396 files、2,774 passed／10 skipped、coverage
+  86.18%，全部 schema／migration／security／license／dependency gates 全綠，DB 已清除。
+
+- P22 pre-push 獨立審查補齊 truthful GUI state：capability map 現在同時要求 route contract、
+  live research service 與 `api_key_configured && verified`，不再把 configured model 誤標為
+  已驗證；loading placeholder 不再提前完成 async section deep-link；市場標籤對齊 canonical
+  `.TW`／`.TWO`／`.HK` suffix mapping；`pagehide` 同時清空 API key 並恢復 password mode。
+  實際 Chromium 驗證 AAPL direct hash、`6488.TWO` 台灣股票、unverified／failed capability 與
+  secret lifecycle，正常 runtime console 0 error。Focused GUI suite 85 passed；完整
+  `scripts/verify.py --with-postgres` 在 fresh disposable PostgreSQL 通過：824 files formatted、
+  Mypy 396 files、2,772 passed／10 skipped、coverage 86.18%，schema／Alembic／secret／upstream
+  與 core＋全部 isolated dependency audits 全綠，無已知漏洞；驗證 DB 已清除。
+  功能 commit `6afc07f` 已推送至 `origin/feat/local-gui-research-console`；遠端 tree 無 runtime
+  output／database／private env／key artifact，高風險 token scan（排除明示測試 fixtures）為 0。
+
+- P21 完成三路 GUI 稽核與修復：UI micro-audit、安全 source-to-sink review、dead-code audit。
+  修正 quiet refresh 失敗後永久 loading、async direct hash 定位、degraded／runtime／paper state、
+  320px footer 與水平 overflow、44px touch target、Base URL placeholder 及舊 favicon。Loopback
+  `/api/` 現在會在 provider 呼叫前拒絕 cross-site `Origin`／Fetch Metadata；API key 關閉
+  autocomplete 並在 `pagehide` 清除。移除高信心未引用的 freshness rail chain、save DOM binding
+  與 catch bindings，外部 schema 風險的 `PaperCapability.rows` 保留。Playwright 實測 1440×1000／
+  320×844、direct hash、degraded、typed failure、quiet 429，乾淨 console 0 error；focused 72 passed。
+  完整 `scripts/verify.py` 通過：2,478 passed／9 skipped、coverage 86.87%，全部 dependency audits
+  無已知漏洞；GUI local assets 149,362 bytes（上限 150,000）。
+
+- P20 完成 Stonks Desk GUI 全面重設計：移除 dark-fintech 金色／霓虹模板與卡片海，改為
+  低彩度 graphite dark evidence workbench。首屏 capability map 由 actual backend 反推，
+  直接揭露市場資料、AI 研究、LLM 連線、Kronos、Paper／Risk、資料品質的可用狀態與入口；
+  不為不存在的 mutation route 製造假按鈕。介面以 instrument context、研究證據、paper safety、資料來源的
+  決策順序呈現；桌面使用固定 task rail，窄版改為底部 section navigation。保留所有既有
+  DOM/API contract、同源 CSP、typed failure、model secret、paper-only 與 deterministic
+  authority 邊界。Market state 從 hash 移至 query string，hash 專供 section anchor；
+  quiet 30 秒刷新不再清空 quote/chart 或覆寫搜尋輸入，並同步更新 bounded service probe。
+  Composite search／command control 的 focus indicator 已收斂到 wrapper 單一 ring，不再由
+  全域 `:focus-visible` 與內層 input box-shadow 疊成粗藍雙框。
+  Chromium 實測 AAPL／2330.TW、invalid model route、研究歷史、320／390／1024／1440
+  版面；320px 無水平溢位且 boot 不 autofocus，browser console 為 0 error。
+
+- P19 台股接入與研究輸出重排。Phase B（台股）：新增 `domain/market_region.py` 作為
+  market/MIC/exchange-timezone 單一來源（`evaluation/kronos.py` 的 `_MARKET_MICS` 已收斂
+  進來），market 由 provider symbol 後綴決定（`.TW`/`.TWO`→TW、`.HK`→HK、其餘 US，
+  `BRK.B` 仍為 US）。新增 `composition/tw_market.py`：XTAI 09:00-13:30 Asia/Taipei，
+  假日來自 TWSE 官方 OpenAPI `holidaySchedule`（2026-07-30 取得 27 筆），排除 3 筆
+  「開始/最後交易日」、納入 2 筆「僅辦理結算交割」、扣掉週末後為 18 個休市日。
+  `MarketFreshnessPolicy.assess` 加上 `market`，新增 `MarketRegionFreshnessPolicy`
+  依 market 路由到各自行事曆，未驗證 market 回 `unknown` 而非借用他所 session；
+  `composition/market_calendars.py` 只組合已驗證的 US＋TW。
+  修掉根因：`_normalize_event_time` 原本一律用 `America/New_York`，導致台北 13:30 的
+  bar 被當成未來而 `openbb_future_data`；改為 per-market 時區後 TW 分線可用。
+  Sidecar `exact_target` 由 `MARKET:US/{symbol}` 改為 `MARKET:{market}/{symbol}`，
+  suffix map 在 sidecar 端鏡像（isolated AGPL project 不能 import core），由
+  `tests/domain/test_market_region.py` 斷言兩邊一致。
+  實測（2026-07-30，經 running sidecar）：`2330.TW` 1d 23 bars／1m 1326 bars
+  （末筆 05:25Z = 台北 13:25，時區換算正確）／15m 396 bars、`0050.TW` 1d、`2412.TW` 1d、
+  `AAPL` 1d/1m 全部 available；`0700.HK` 正確 typed fail closed 為
+  `openbb_capability_not_supported`。GUI 端 `2330.TW` 回 `freshness=market_closed`，
+  同一筆若用 XNAS 行事曆會是 `stale`，證明確實走 XTAI。
+  Phase C（研究輸出）：Kronos 仍 shadow／weight 0，行為未變；只把 `blocked alpha` 與
+  `paper_decision` 從與 forecast 平級的卡片改成獨立的「交易授權狀態」註記區，並說明
+  這是設計上的預期而非執行失敗，避免使用者誤以為整輪研究白跑。
+  P19 gate：`scripts/verify.py --skip-audit` all gates passed（2,472 passed／6 skipped）。
+
+- P18 降低上手門檻（Phase A）。三件事：
+  (1) `scripts/fetch_kronos_model.py` 是 one-shot operator provisioning，只抓
+  `workers/kronos/model-manifest.json` 記載的 exact repository／revision，逐檔比對
+  size＋SHA-256，不符即刪檔並非零結束，寫入 `.data/models/kronos/`；重跑轉為 verify
+  in place。這不是 worker runtime download，worker 端禁令與啟動時的 exact 驗證不變。
+  實測：乾淨 target 真下載 4 檔全通過、重跑全 verified、竄改 `config.json` 後偵測並重抓。
+  (2) 新增 `start.sh` 作為 `start.ps1` 的 POSIX 對等版，檢查順序、模式、連接埠參數、
+  失敗訊息與 exit code 一致；三種模式的 `--check` 輸出已與 PowerShell 版逐字比對相同。
+  (3) 兩支 launcher 在檢查工具前載入根目錄 gitignored `.env` 並注入子行程環境，
+  只接受 `^STONKS_[A-Z0-9_]+$`，其餘鍵直接停止。**未改動 `SessionModelSettings`**——
+  `gui.py:509` 既有的 `os.environ` baseline 與 `verify_environment()` 自動接手，
+  所以 LLM 設定不必每次重打，secret 仍不進 canonical payload／DB／artifact／browser
+  storage。原 policy test 的 `assert ".env" not in source` 是刻意不變量，已換成更精確的
+  四項：key allowlist 存在、不 echo 值、外來鍵被拒（實測 exit 1）、`.env` 內的 key
+  不出現在 `-Check` 輸出（實測）。另新增 `start.sh` 的 source policy 與三模式 parity 測試。
+  Kronos 缺檔訊息改為直接指出 fetch 指令。
+  P18 gate：`scripts/verify.py --skip-audit` all gates passed。
+  待辦見 `tasks/todo.md` Phase B（台股）與 Phase C（研究導向輸出）。
+
+- P17 為純清理輪：刪除從未被引用的 `ports/instrument_repository.py`、
+  `ports/trading_calendar.py`（其職責已由 `domain/calendar.py`＋`market_freshness`
+  與 `adapters/postgres/trading_mapping.py` 實作取代）、`domain/evaluation.metric_map`、
+  `domain/journal.LedgerAccountKind`、`composition/runtime.utc_now`、
+  `regional/base.RegionalMarketDataAdapter`、`api/gui_research.INTENT_HEADER`、
+  `CapacityPolicy.process_budget_for`，以及 terminal.css 9 個未使用變數與
+  `.notice-failed`／`.paper-rows`。重複實作收斂為三處單一來源：17 份 `_utc_now`
+  →`domain/clock.utc_now`；兩個 LLM adapter 的 credential 解析→
+  `adapters/llm/_http.resolve_api_credential`；Kronos／TradingAgents 的 worker
+  HTTP failure 對映與 origin 驗證→`adapters/_worker_http.py`。行為分支零改動，
+  net 約 −250 行。`ports/repository.py` 雖僅自身測試引用，因是既有 Repository
+  Pattern 契約宣告且被 4 份 sidecar boundary denylist 參照而保留。
+  P17 gate：2,438 passed／6 skipped、coverage 86.83%、ruff format＋check、
+  strict mypy 393 files、schemas、upstream／secret policy 全綠；
+  `start.ps1 -Check`、`stonks --help`、`stonks-gui serve --help` 實測正常。
+
+- P16 將最新行情改為 backend-owned freshness／quality：XNAS 2026 calendar 輸出
+  current／market-closed／delayed／stale／unknown，API 增加 served time、quality
+  reasons 與 cache hit；cache delivery 會重算 age，warning／stale 不會被 Browser
+  升級。GUI 預設主行情與 watchlist 使用 `1m`，可見分頁每 30 秒 bounded 更新，
+  loading 先隱藏舊報價，主摘要明示「非 tick」。Provider request budget 為每分鐘
+  30 次，連續三次失敗 cooldown 15 秒。2026-07-29 actual AAPL 1m runtime：
+  `openbb:yfinance`、1,699 bars、event age 40 秒、current／available、
+  `is_real_time=false`；Chromium 1440×1000／390×844／320×800 都無 overflow、
+  0 console error，並觀察到 30 秒自動更新推進最新 bar。免費來源採 curated catalog；
+  Alpaca／Finnhub
+  需 user credential，Twelve Data Basic 是 non-display，Alpha Vantage free quote
+  是 EOD，Cboe 禁止 automated extraction，因此都未冒充 active source。P16 final
+  gate 為 2,729 passed／7 skipped、coverage 86.05%、818 files formatted、Ruff、
+  strict mypy 393 source files、schemas、Alembic、secret/upstream policy與 core＋
+  8 份 isolated dependency audits 全綠，0 known vulnerabilities。另修正三個
+  PostgreSQL CLI tests 將 SQLAlchemy redacted URL 當真密碼的既有 bug。
+- P15 新增 local GUI session-scoped LLM settings：使用者可在 AI 研究面板輸入
+  OpenAI-compatible base URL、Model ID、API key、價格與 request budgets，只有真
+  structured completion 驗證成功才原子啟用。Secret 不回傳、不進 browser storage／DB／
+  artifact／log，送出後欄位清空；worker 每筆 research lease 取得同一代 route＋secret
+  snapshot。Public HTTPS 使用 DNS/IP pinning，local HTTP 只接受 exact loopback；
+  provider exact key echo 在 parse／archive 前拒絕。模型未驗證時 GUI CTA disabled，
+  direct research POST 也回 typed 503，durable history 仍可讀；完整 env seed 會在
+  composition 啟動時自動 probe 以維持既有 launcher 相容。另修正 active-run gate
+  必須追蹤到 terminal，並補齊 Kronos forecast metadata、paper NAV／position／risk／
+  ledger 已有投影欄位。Chromium 1680×1020／390×844／320×800 為 0 overflow、
+  0 console messages，鍵盤 Escape／focus 通過。P15 final gate 為2723 passed／7 skipped、
+  coverage 86.04%、815 files formatted、Ruff、strict mypy 391 source files、schemas、
+  Alembic、secret/upstream policy與core＋8份isolated dependency audit全綠，
+  0 known vulnerabilities；本輪無使用者 LLM env，未宣稱 credentialed external success。
+- P14 把已組合後端能力收斂成可操作產品面：owner-scoped recent research 可重新開啟或
+  恢復 SSE，只顯示 final claims 實際引用的 PIT snapshot evidence；研究詳情新增 as-of、
+  model/tool versions、usage、issues 與 warnings。Paper 面板改讀 typed portfolio／NAV／
+  risk／global kill switch／projection integrity，空資料與 unavailable 分開呈現且全程唯讀。
+  服務狀態改為 bounded live probes，research start 另有 single-active／每分鐘三筆成本
+  gate；browser principal 移除 PAPER_OPERATOR，唯一 mutation 仍是 research POST。
+  GUI 資訊架構改為研究與安全決策優先，加入 section navigation、鍵盤可讀 OHLCV、
+  citation evidence explorer、collapsed expert console、ARIA／focus／reduced-motion。
+  Chromium fixture 1680×1020、390×844、320×800 皆無 page overflow、console 0。
+  P14 final gate 為 2699 passed／7 skipped、coverage 86.18%、808 files formatted、
+  Ruff、strict mypy 386 source files、schemas、Alembic、secret/upstream policy及
+  core＋8 份 isolated dependency audit 全綠，0 known vulnerabilities。
+- P13 已把 Kronos 真正接進 GUI research：research facade 固定先 materialize canonical
+  `1d` snapshot，preflight 帶入 exact manifest/content hash，production forecaster 以
+  lease generation/nonce 與 ephemeral RS256 service identity 呼叫 CPU worker，raw response、
+  3 seeded paths 與 `ForecastOutputArtifact` 一起進 `ResearchWorkerResult` 1.1 terminal
+  artifact。GUI 顯示 actual model/revision、return probability、volatility、downside與
+  quality；缺 genuine strategy evaluation 時 alpha 明示 blocked、weight 0、no-order。
+- `start.ps1` 預設 research 現在會自動 build／ready／啟停 Kronos CPU，使用 unique
+  Compose project與no-masquerade loopback bridge；停止時不刪模型、artifact或DB volume。
+  `-KronosPort` 預設17200，`-Check`維持無副作用且Windows PowerShell 5.1／PowerShell 7
+  均可解析。Actual production forecaster以pinned model完成3 paths，raw/path artifacts
+  均已封存；Chromium 1680×1020與390×844均無水平溢位且0 console error。P13 final
+  gate為2687 passed／7 skipped、coverage 86.33%、805 files format、Ruff、strict mypy
+  385 source files、schemas、Alembic、secret/upstream policy與core＋8份isolated
+  dependency audit全綠；外部真LLM success仍需使用者設定endpoint/model/key。
+- P12 新增根目錄 `start.ps1` 薄 launcher，預設 research，另支援 market／paper；
+  會檢查完整 source checkout、uv、Docker Compose／daemon 與 LLM env，API key 不接受
+  argv、不讀檔、不輸出，`-Check` 只顯示 redacted canonical command。另新增
+  exact-allowlist `scripts/clean_workspace.py`；首次 actual 清除 125 個 rebuildable
+  targets／1,773,168,421 bytes，保留模型、artifacts、GUI DB、research evidence、
+  root/OpenBB/Kronos env與Docker volumes。P12 final gate為2679 passed／7 skipped、
+  coverage 86.68%、799 files format、Ruff、strict mypy 381 source files、schemas、
+  Alembic 0018、secret/upstream policy及core＋8份isolated dependency audit全綠。
 - Git 已初始化於 `main`；`PLAN-AUTH` 已成立，依 P0 → P6 連續實作。
+- P9 已組合 env `SecretRef` OpenAI-compatible LLM、PIT-scoped read-only evidence tools、
+  fenced worker dispatcher、live OpenBB snapshot materialization、durable research handler、
+  GUI research POST／SSE 與 `--with-research` lifecycle。AAPL actual snapshot 為 30 筆
+  evidence 且無 fixture fallback；缺 LLM 設定會進 typed `configuration_invalid`，
+  不偽造成功。真 LLM success 尚待使用者提供 endpoint／model／key。
+- Kronos pinned CPU runtime 已逐檔重驗模型並完成真 inference；目前 configuration 是
+  `shadow`、paper weight 0。baseline 尚 draft、opinion mapper disabled，因此
+  artifact-backed 九階段 handler 雖已實作，`paper_fund_cycle` 仍不得註冊成可成交
+  runtime；合法終態維持 no-order，直到 genuine evaluation/promotion artifact 存在。
+- P9 repository gate：2618 passed／7 skipped、coverage 86.64%、783 files format、
+  Ruff、strict mypy 377 source files、schemas、Alembic drift、upstream／secret policy
+  與 locked dependency audit 全綠，0 known vulnerabilities。Chromium 1680×1020 與
+  390×844 皆無水平溢位且 console 0 errors／warnings；research failure 顯示 typed
+  `configuration_invalid`。
+- P10 已把 GUI 從命令列優先 terminal 重做為後端導向的 Stonks Desk：可見的 symbol
+  search、interval controls、watchlist 與主要研究按鈕；研究面板呈現四階段進度、
+  typed failure、confidence、claims＋evidence refs、counterarguments、risks、
+  Kronos／paper decision 與折疊報告。Research 在 POST 前即 single-flight，late
+  detail 以 serial fence 拒絕，terminal 後重新讀取 paper projection。
+- P10 Chromium actual 使用真 OpenBB／PostgreSQL／research composition；1680×1020
+  與 390×844 皆為 0 console errors／warnings、無水平溢位，窄版初始 `scrollY=0`
+  且不 autofocus。直接搜尋 `MSFT` 成功換標的；缺 LLM 設定顯示
+  `configuration_invalid`，沒有沿用舊 claims 或偽造 model／paper 結論。
+- P10 完整 `verify.py --with-postgres` 為 2621 passed／7 skipped、coverage 86.64%、
+  783 files format、Ruff、strict mypy 377 source files、schemas、Alembic drift、
+  upstream policy、secret scan與 locked dependency audit 全綠，0 known vulnerabilities。
+- P11 已修復研究 citation laundering、未執行的 tool timeout、raw lease nonce輸出、
+  research late-result audit缺口、worker lease過短、worker/sidecar Slowloris與JWT前
+  admission缺口。六個service surface現在使用bounded peer/credential fixed window、
+  拒絕forwarded identity、body byte/frame/deadline cap與`--no-proxy-headers`；stale
+  research result只進PostgreSQL append-only quarantine。
+- 供應鏈已將Kronos CPU/CUDA升至PyTorch 2.13.0、相關setuptools升至83.0.0，並讓
+  local/CI verify audit每份isolated lock。新版CPU image已用pinned 115MB weights完成
+  actual ready/3-path forecast與shadow alpha mapping；仍為`paper_eligible=false`、weight 0。
+  Docker Desktop對internal network不建立host publish，verifier只在smoke期間附加唯一、
+  disabled-IP-masquerade bridge，production Compose仍維持internal network。
+- P11 final gate：2671 passed／7 skipped、coverage 86.68%、796 files format、Ruff、
+  strict mypy 381 source files、schemas current、Alembic 0018無drift、upstream/secret
+  policy全綠；core及8份isolated runtime locks均為0 known vulnerabilities。
+- 目前工作樹已推進為未發布 `0.2.0` candidate，包含 P7 Local GUI；formal immutable
+  `v0.1.2` 是 GUI 之前的歷史 release，不能用其簽章或 runtime 證據替 0.2.0 背書。
 - 第一次使用請從 `README.md` 的離線 `fake-cycle` 開始；`docs/README.md` 是統一文件
   索引。專案仍是 pre-alpha、paper-only；default deployment 只有 health/readiness，
   尚未組合 production business API 或常駐 dispatcher，也不支援 live trading。
+- `uv run --frozen stonks-gui serve` 提供 Stonks Desk：直接操作的研究工作區、
+  進階命令列、canvas K 線＋成交量、關注清單與 provenance rail。Sidecar allowlist 已加入 `interval`，
+  實測可取 `1m`／`5m`／`15m`／`1h`／`1d` bars；報價由 bar 序列推導並固定
+  `is_real_time=false`。加 `--with-paper` 會啟動具名 volume 的本機 PostgreSQL、執行
+  migration、bootstrap `paper-local` 帳戶，並唯讀顯示 canonical portfolio／NAV 投影；
+  未啟用時面板明示不可用且不顯示示範數字。`--with-research` 隱含啟用 paper，
+  並只新增一條 same-origin、loopback-only research POST；其餘 route 維持 GET。
+- GUI 政策由「零 JavaScript」改為「只允許同源本地 script」：CSP 為
+  `default-src 'none'` 加全部 `'self'` 來源，禁 inline／eval／外部 origin／`data:`；
+  未引入 npm、node_modules 或打包器，supply chain 與 SBOM 邊界不變。
+- Yahoo 的 `price/quote`、`profile`、`fundamental/*`、`discovery/*` 實測全數 401
+  （yfinance cookie 種子主機 `fc.yahoo.com` 無法解析，`1.5.1`／`1.5.2` 相同），因此
+  維持不在 allowlist、不提供、也不換來源冒充；公司簡介、財報指標與漲跌幅排行未實作。
+- OpenBB 日內 bar 是 naive 交易所本地時間，adapter 依 `America/New_York` 轉 UTC，
+  並以交易所本地 session date 檢查請求範圍；已對照 Yahoo epoch 驗證（15:30 → 19:30Z）。
+- GUI launcher 只支援完整 source checkout，因為 runtime 需要 repository 內 Compose
+  與 OpenBB source build context；standalone wheel、core image 與 `v0.1.2` 不支援啟動。
+- P8 actual-runtime gate：2026-07-27 以外部 `openbb:yfinance` 取得 `AAPL` 1d／`MSFT` 1d／
+  `NVDA` 1h（133 根，最新 `2026-07-24T19:30:00Z`）／`AAPL` 5m（390 根）／`AAPL` 1m
+  （1949 根）；不存在 symbol 回 typed `data_unavailable` 且無 fixture fallback。
+  `--with-paper` 完成 migration 至 `0017` 並讀回 `paper-local` 的 USD 可用 100000.00、
+  NAV `尚未估值`。Chromium 1680×1020 與窄視窗皆無水平溢位、console 0 errors，
+  `/` 聚焦命令列、`F1`／`Esc` 開關說明、`ADD`／`DROP` 與失敗狀態皆通過。完整
+  `verify.py --with-postgres` 為 2536 passed／7 skipped、coverage 87.39%，749 files
+  format、Ruff、strict mypy 357 source files、schemas、Alembic 無 drift、upstream/
+  license、secret 與 dependency audit 全綠，0 known vulnerabilities。
+- P7 actual-runtime gate：2026-07-26以外部`openbb:yfinance`取得`AAPL`／`MSFT`各5根
+  最新可用EOD bars（latest event 2026-07-24），不存在symbol為503且無fixture fallback；
+  Chromium 1440/390/320、keyboard、success/error與無頁面overflow通過。完整gate為
+  2247 passed／6 skipped／269 deselected、coverage 87.70%，748 files format、Ruff、
+  strict mypy 356 source files、schemas、upstream/license、secret與dependency audit全綠。
+  `0.2.0`仍是unsigned worktree candidate，沒有formal release證據。
 - P0–P5 phase gates、P6.1–P6.11 repository implementation、本機 gates與GitHub外部驗證已完成；exact commit `5e9c2973b782cd1bd7274e6e6852cbe1df08a4f9`的CI run `30200612158`為13/13 jobs成功，Supply-chain run `30200612154`亦成功。Optional report重驗為4 actual、5 blocked、1 unsupported且0 canonical paper side effects。Repository已公開並配置active SemVer tag ruleset、required-reviewer `release` environment、tag-only deployment policy與immutable releases。
 - Protected `v0.1.2` release run `30200908948`的六個jobs全數成功；GHCR exact digest為`sha256:9c61a2d5dd59d07d30318b483a7a205ac8af394236662b45021574e42ff19976`。Signed artifact `8631709866`已由fixed Cosign v3.0.6 canonical verifier重驗五份evidence，GitHub provenance/SBOM、registry signature/attestation、immutable Release及兩個release asset attestations亦獨立通過；正式archive與workflow artifact共208 files且hash-identical。Windows CP950重驗暴露的CLI UTF-8解碼問題已用explicit subprocess encoding修正並以同一bundle驗證。`v0.1.0`／`v0.1.1`失敗tag保持immutable且只作診斷證據。
 - Release 後的 formal closure 文件提交 `e9095a2cecda4fbd0d22f5e0157bad2f2098fe26`
@@ -35,7 +275,7 @@
 - Prometheus新增correctness、API/worker availability、p95 latency、normalized 5m/1h/30d budget burn、hard outcome與soft usage alerts；pinned `promtool` config/rules/fixtures及三容器Collector→Prometheus exact-label smoke已通過。Correctness series會以0初始化以偵測缺失，但counter為0仍不能單獨證明100% coverage；目前只有policy routing、tmpfs狀態且無Alertmanager/paging送達。
 - Job/snapshot/outbox的claim、deadline、lease與commit timestamps使用transaction內PostgreSQL clock；generation/nonce、caller clock drift、cross-run retry與完整audit graph皆有真實PostgreSQL測試。
 - Reconciliation成功決策封存雙側raw/normalized hashes、metric/value、threshold與decision；conflict維持0 artifact writes並留下hash-chained failure event/outbox。
-- Financial Datasets與OpenBB已驗證read-only observation contracts與共用daily query；canonical materialization目前只宣稱replay source。`stonks-worker`只提供claim-once，不宣稱常駐dispatcher。
+- Financial Datasets與OpenBB已驗證read-only observation contracts與共用daily query；OpenBB另有actual local GUI observation path，canonical materialization仍只宣稱replay source。`stonks-worker`只提供claim-once，不宣稱常駐dispatcher。
 - Optional OpenBB sidecar已實測exact GET allowlist、exact service OIDC/source identity、frozen 64-package lock、SBOM/license policy、4個upstream sdists、AGPL source archive與non-root/read-only runtime。
 - P2.1新增frozen evidence-scoped research/LLM contracts、immutable usage accounting、runtime-checkable research/LLM/tool ports與deny-by-default tool authorization；principal/profile/policy、instrument/evidence scope、typed args、timeout/output cap、audit redaction及result identity/hash/bytes皆fail closed。
 - P2.2新增read-only PIT context builder、typed planning/final turn loop、pre-authorized parallel read tools與deterministic artifact builder；external content永遠維持untrusted，uncited claim降為hypothesis，budget/deadline/model/tool/scope錯誤皆hard-stop。
@@ -175,7 +415,7 @@ uv run stonks fake-cycle --symbol AAPL --as-of 2026-01-02T21:00:00Z --idempotenc
 
 ## 下一個代理的起點
 
-1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P6 與架構藍圖。
+1. 先閱讀 `AGENTS.md`、本檔、`tasks/todo.md` P7 與 local GUI runbook。
 2. Public repository、外部CI、unsigned supply-chain、bounded optional evidence與formal `v0.1.2` release均已驗證；不得移動或刪除任何protected release tag，也不得弱化required-reviewer、exact identity或五證據closure gate。
 3. Research principals只能讀canonical evidence/artifacts，不能取得DB、queue、risk或execution authority。
 4. `.research/` 只供閱讀且不進版控；不得 vendor/import Dexter、AI-Trader 或 OpenBB 至 core。

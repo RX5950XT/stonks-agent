@@ -617,3 +617,116 @@ def test_schema_content_type_and_provider_drift_fail_closed(
 
     assert observation.state is ProviderDataState.FETCH_FAILED
     assert observation.reasons == ("openbb_invalid_response",)
+
+
+def test_intraday_interval_is_forwarded_and_timestamps_bind_to_the_exchange() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        seen.append(incoming)
+        return httpx.Response(
+            200,
+            json=response_payload(
+                results=[
+                    {
+                        "date": "2026-01-02T15:30:00",
+                        "open": 100.0,
+                        "high": 105.0,
+                        "low": 99.0,
+                        "close": 104.0,
+                        "volume": 12,
+                    }
+                ]
+            ),
+            request=incoming,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(
+            request(start_date="2026-01-02", end_date="2026-01-02", interval="1h")
+        )
+
+    assert observation.state is ProviderDataState.AVAILABLE
+    # 15:30 America/New_York in January is EST (UTC-5) -> 20:30Z.
+    assert observation.data[0].bar.timeline.event_time == datetime(
+        2026, 1, 2, 20, 30, tzinfo=UTC
+    )
+    assert seen[0].url.params["interval"] == "1h"
+
+
+def test_daily_requests_stay_byte_identical_without_an_interval_parameter() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        seen.append(incoming)
+        return httpx.Response(200, json=response_payload(), request=incoming)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        _adapter(client=client, clock=lambda: NOW).fetch(
+            request(start_date="2026-01-01", end_date="2026-01-02", interval="1d")
+        )
+
+    assert "interval" not in seen[0].url.params
+
+
+def test_unknown_interval_fails_closed_before_any_request() -> None:
+    calls = 0
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(200, json=response_payload(), request=incoming)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(
+            request(interval="3m")
+        )
+
+    assert calls == 0
+    assert observation.state is ProviderDataState.FETCH_FAILED
+    assert observation.reasons == ("openbb_invalid_request:invalid_interval",)
+
+
+def test_post_session_bar_is_kept_inside_its_exchange_local_session() -> None:
+    """20:00 New York is the next UTC day; the session date must still match."""
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=response_payload(
+                results=[
+                    {
+                        "date": "2026-01-02T20:00:00",
+                        "open": 100.0,
+                        "high": 105.0,
+                        "low": 99.0,
+                        "close": 104.0,
+                        "volume": 12,
+                    }
+                ]
+            ),
+            request=incoming,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        observation = _adapter(
+            client=client,
+            clock=lambda: datetime(2026, 1, 3, 12, tzinfo=UTC),
+        ).fetch(
+            FetchDataRequest(
+                market="US",
+                capability="prices",
+                as_of=datetime(2026, 1, 3, 12, tzinfo=UTC),
+                query={
+                    "symbol": "AAPL",
+                    "start_date": "2026-01-02",
+                    "end_date": "2026-01-02",
+                    "interval": "1h",
+                },
+            )
+        )
+
+    assert observation.state is ProviderDataState.AVAILABLE
+    assert observation.data[0].bar.timeline.event_time == datetime(
+        2026, 1, 3, 1, 0, tzinfo=UTC
+    )

@@ -3,7 +3,7 @@ FROM ghcr.io/astral-sh/uv:0.9.27-python3.12-bookworm-slim@sha256:a0cb65a2dada255
 
 ARG VCS_REF
 ARG SOURCE_URL=https://github.com/stonks-agent/stonks-agent
-ARG RELEASE_VERSION=0.1.2
+ARG RELEASE_VERSION=0.2.0
 LABEL org.opencontainers.image.title="Stonks Agent OpenBB sidecar" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.vendor="Stonks Agent contributors" \
@@ -76,4 +76,4 @@ RUN mkdir -p /usr/share/licenses/openbb \
 USER 65532:65532
 EXPOSE 6900
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "6900", "--no-access-log"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "6900", "--no-proxy-headers", "--no-access-log"]

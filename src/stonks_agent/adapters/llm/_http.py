@@ -14,6 +14,7 @@ from stonks_agent.adapters.market_data._http_response import (
     read_bounded_raw,
     response_deadline,
 )
+from stonks_agent.adapters.security.ssrf import EndpointDenied
 from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
@@ -23,6 +24,12 @@ from stonks_agent.domain.errors import (
 )
 from stonks_agent.domain.model_policy import ModelRoute
 from stonks_agent.domain.research import StructuredLLMRequest
+from stonks_agent.domain.secrets import (
+    ResolvedSecret,
+    SecretAccessRequest,
+    SecretRef,
+)
+from stonks_agent.ports.secret_provider import SecretProvider
 from stonks_contracts.common import canonical_json
 
 MAX_REQUEST_BYTES = 4_194_304
@@ -111,6 +118,11 @@ def request_json(
                 ErrorCode.MODEL_OUTPUT_INVALID,
                 "Model provider response is invalid",
             )
+        except EndpointDenied:
+            return _failure(
+                ErrorCode.DATA_UNAVAILABLE,
+                "Model provider is unavailable",
+            )
         except httpx.HTTPError:
             if retry < route.max_transient_retries:
                 _backoff(retry, sleeper, clock, request.deadline_at)
@@ -130,6 +142,60 @@ def validate_api_key(value: str) -> None:
         or any(ord(character) < 33 or ord(character) > 126 for character in value)
     ):
         raise ValueError("Model provider credential is invalid")
+
+
+def resolve_api_credential(
+    *,
+    provider: SecretProvider,
+    reference: SecretRef,
+    purpose: str,
+) -> Result[ResolvedSecret]:
+    """Resolve and validate a provider API key without leaking its failure cause."""
+
+    try:
+        resolved = provider.resolve(
+            SecretAccessRequest(reference=reference, purpose=purpose)
+        )
+        if isinstance(resolved, Failure):
+            return _credential_failure(resolved.error.code)
+        try:
+            validate_api_key(resolved.value.reveal())
+        except ValueError:
+            return _credential_failure(ErrorCode.CONFIGURATION_INVALID)
+        return resolved
+    except Exception:
+        return _credential_failure(ErrorCode.INTERNAL_ERROR)
+
+
+def _credential_failure(source_code: ErrorCode) -> Failure:
+    safe_code = (
+        source_code
+        if source_code in {ErrorCode.CONFIGURATION_INVALID, ErrorCode.DATA_UNAVAILABLE}
+        else ErrorCode.INTERNAL_ERROR
+    )
+    return Failure(
+        StructuredError(
+            code=safe_code,
+            message="Model provider credential is unavailable",
+        )
+    )
+
+
+def reject_secret_echo(
+    result: Result[RawProviderResponse],
+    *,
+    secret: str,
+) -> Result[RawProviderResponse]:
+    """Reject provider output that reflects a credential before artifact archival."""
+
+    if isinstance(result, Failure):
+        return result
+    if secret.encode("ascii") in result.value.raw_body:
+        return _failure(
+            ErrorCode.MODEL_OUTPUT_INVALID,
+            "Model provider response is invalid",
+        )
+    return result
 
 
 def _backoff(

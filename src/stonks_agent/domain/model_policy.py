@@ -38,6 +38,10 @@ class ModelRoute(BaseModel):
         max_length=256,
         pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
     )
+    environment: str = Field(
+        default="production",
+        pattern=r"^[a-z][a-z0-9_-]{0,31}$",
+    )
     origin: str | None = Field(default=None, max_length=512)
     endpoint: str | None = Field(default=None, max_length=256)
     secret_ref: SecretRef | None = Field(default=None, repr=False)
@@ -69,7 +73,7 @@ class ModelRoute(BaseModel):
         host_literal = f"[{hostname}]" if hostname and ":" in hostname else hostname
         netloc = host_literal if port is None else f"{host_literal}:{port}"
         if (
-            parsed.scheme != "https"
+            parsed.scheme not in {"http", "https"}
             or not hostname
             or parsed.username is not None
             or parsed.password is not None
@@ -78,7 +82,11 @@ class ModelRoute(BaseModel):
             or parsed.query
             or parsed.fragment
         ):
-            raise ValueError("model origin must be credential-free HTTPS")
+            raise ValueError("model origin must be a credential-free origin")
+        if parsed.scheme == "http" and (
+            hostname.lower() not in {"127.0.0.1", "localhost"} or port is None
+        ):
+            raise ValueError("plaintext model origin must be exact loopback")
         return value.rstrip("/")
 
     @field_validator("endpoint")
@@ -105,6 +113,14 @@ class ModelRoute(BaseModel):
             value is None for value in network_values
         ):
             raise ValueError("remote model route requires origin, endpoint, and secret")
+        if (
+            self.origin is not None
+            and urlsplit(self.origin).scheme == "http"
+            and self.environment not in {"local", "development"}
+        ):
+            raise ValueError(
+                "plaintext model origin is restricted to local development"
+            )
         return self
 
 

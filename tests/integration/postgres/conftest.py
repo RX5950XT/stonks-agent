@@ -49,6 +49,7 @@ def clean_database(migrated_engine: Engine) -> Engine:
             text(
                 """
                 truncate table
+                    worker_late_result_audit,
                     artifact_maintenance_event, artifact_maintenance_head,
                     paper_operator_action, paper_operator_audit_head,
                     paper_portfolio_valuation,

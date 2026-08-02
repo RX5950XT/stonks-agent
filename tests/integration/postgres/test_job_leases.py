@@ -167,14 +167,15 @@ def test_completion_atomically_registers_worker_artifact_event_outbox_and_ack(
     with clean_database.connect() as connection:
         state = connection.execute(
             text(
-                "select j.status, j.result_artifact_hash, a.source, "
+                "select j.status, j.result_artifact_hash, a.source, r.status, "
                 "count(distinct e.event_id), count(distinct o.outbox_id) "
                 "from job j join artifact_manifest a "
                 "on a.content_hash = j.result_artifact_hash "
+                "join run r using (run_id) "
                 "join run_event e using (run_id) "
                 "join outbox o on o.aggregate_id = j.run_id::text "
                 "where j.job_id = :job_id "
-                "group by j.status, j.result_artifact_hash, a.source"
+                "group by j.status, j.result_artifact_hash, a.source, r.status"
             ),
             {"job_id": JOB_ID},
         ).one()
@@ -182,9 +183,160 @@ def test_completion_atomically_registers_worker_artifact_event_outbox_and_ack(
         "succeeded",
         RESULT_HASH,
         "tradingagents-isolated-worker",
+        "succeeded",
         1,
         1,
     )
+
+
+def test_research_pipeline_completion_registers_exact_worker_artifact(
+    clean_database: Engine,
+) -> None:
+    now = database_now(clean_database)
+    seed_run(clean_database, now)
+    queue = PostgresJobQueue(clean_database)
+    unwrap(
+        queue.enqueue(
+            enqueue(now=now).model_copy(update={"job_type": "research_pipeline"})
+        )
+    )
+    lease = unwrap(
+        queue.claim(
+            worker_id="core-runner",
+            now=now,
+            lease_for=timedelta(seconds=30),
+        )
+    )
+    manifest = research_manifest(now=now)
+
+    completed = queue.complete(
+        CompleteJob(
+            job_id=JOB_ID,
+            worker_id="core-runner",
+            attempt_generation=lease.attempt_generation,
+            attempt_nonce=lease.attempt_nonce,
+            result_artifact_hash=RESULT_HASH,
+        ),
+        now=now,
+        artifact=manifest,
+    )
+
+    assert isinstance(completed, Success)
+    with clean_database.connect() as connection:
+        metadata = connection.execute(
+            text(
+                "select a.source, a.metadata, r.status "
+                "from artifact_manifest a "
+                "join job j on j.result_artifact_hash = a.content_hash "
+                "join run r using (run_id) "
+                "where a.content_hash = :content_hash"
+            ),
+            {"content_hash": RESULT_HASH},
+        ).one()
+    assert metadata[0] == "stonks-agent-research-worker"
+    assert metadata[1]["attributes"] == [
+        ["run_id", str(RUN_ID)],
+        ["schema", "research-worker-result/1.0.0"],
+    ]
+    assert metadata[2] == "succeeded"
+
+
+def test_research_pipeline_completion_retry_rejects_non_terminal_run(
+    clean_database: Engine,
+) -> None:
+    now = database_now(clean_database)
+    seed_run(clean_database, now)
+    queue = PostgresJobQueue(clean_database)
+    unwrap(
+        queue.enqueue(
+            enqueue(now=now).model_copy(update={"job_type": "research_pipeline"})
+        )
+    )
+    lease = unwrap(
+        queue.claim(
+            worker_id="core-runner",
+            now=now,
+            lease_for=timedelta(seconds=30),
+        )
+    )
+    completion = CompleteJob(
+        job_id=JOB_ID,
+        worker_id="core-runner",
+        attempt_generation=lease.attempt_generation,
+        attempt_nonce=lease.attempt_nonce,
+        result_artifact_hash=RESULT_HASH,
+    )
+    unwrap(
+        queue.complete(
+            completion,
+            now=now,
+            artifact=research_manifest(now=now),
+        )
+    )
+    with clean_database.begin() as connection:
+        connection.execute(text("set local session_replication_role = replica"))
+        connection.execute(
+            text("update run set status = 'pending' where run_id = :run_id"),
+            {"run_id": RUN_ID},
+        )
+
+    retried = queue.complete(completion, now=now)
+
+    assert isinstance(retried, Failure)
+    assert retried.error.code is ErrorCode.CONFLICT
+
+
+@pytest.mark.parametrize(
+    "attributes",
+    (
+        (("schema", "research-worker-result/1.0.0"),),
+        (
+            ("run_id", "40000000-0000-4000-8000-000000000099"),
+            ("schema", "research-worker-result/1.0.0"),
+        ),
+        (
+            ("extra", "forbidden"),
+            ("run_id", str(RUN_ID)),
+            ("schema", "research-worker-result/1.0.0"),
+        ),
+    ),
+)
+def test_research_pipeline_completion_rejects_non_exact_artifact_attributes(
+    clean_database: Engine,
+    attributes: tuple[tuple[str, str], ...],
+) -> None:
+    now = database_now(clean_database)
+    seed_run(clean_database, now)
+    queue = PostgresJobQueue(clean_database)
+    unwrap(
+        queue.enqueue(
+            enqueue(now=now).model_copy(update={"job_type": "research_pipeline"})
+        )
+    )
+    lease = unwrap(
+        queue.claim(
+            worker_id="core-runner",
+            now=now,
+            lease_for=timedelta(seconds=30),
+        )
+    )
+
+    result = queue.complete(
+        CompleteJob(
+            job_id=JOB_ID,
+            worker_id="core-runner",
+            attempt_generation=lease.attempt_generation,
+            attempt_nonce=lease.attempt_nonce,
+            result_artifact_hash=RESULT_HASH,
+        ),
+        now=now,
+        artifact=research_manifest(now=now, attributes=attributes),
+    )
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.CONFLICT
+    assert table_count(clean_database, "run_event") == 0
+    assert table_count(clean_database, "outbox") == 0
 
 
 def test_idempotency_key_rejects_different_job_payload(clean_database: Engine) -> None:
@@ -201,6 +353,33 @@ def test_idempotency_key_rejects_different_job_payload(clean_database: Engine) -
     assert same.value == first.value
     assert isinstance(conflict, Failure)
     assert conflict.error.code is ErrorCode.CONFLICT
+
+
+def research_manifest(
+    *,
+    now: datetime,
+    attributes: tuple[tuple[str, str], ...] | None = None,
+) -> ArtifactManifest:
+    return ArtifactManifest(
+        content_hash=RESULT_HASH,
+        size_bytes=1,
+        metadata=ArtifactMetadata(
+            media_type="application/json",
+            license_tag="Apache-2.0",
+            sensitivity=Sensitivity.INTERNAL,
+            source="stonks-agent-research-worker",
+            attributes=(
+                attributes
+                if attributes is not None
+                else (
+                    ("run_id", str(RUN_ID)),
+                    ("schema", "research-worker-result/1.0.0"),
+                )
+            ),
+        ),
+        finalized_at=now,
+        storage_uri=f"artifact://sha256/{RESULT_HASH}",
+    )
 
 
 def test_deadline_and_attempt_limit_move_job_to_dead_letter(

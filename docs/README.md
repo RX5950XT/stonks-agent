@@ -1,13 +1,22 @@
 # Stonks Agent 文件中心
 
 本頁是 repository 文件入口。若是第一次使用，先閱讀根目錄
-[README](../README.md) 並執行離線 `fake-cycle`；若要核對完成狀態，直接查看
-[P6 handoff evidence](verification/p6-handoff-evidence.md)。
+[README](../README.md) 並執行離線 `fake-cycle`。Immutable `v0.1.2`／P6 完成狀態見
+[P6 handoff evidence](verification/p6-handoff-evidence.md)；未發布 `0.2.0`／P7 則以
+[CONTEXT](../CONTEXT.md)、[P7 todo](../tasks/todo.md) 與
+[Local GUI runbook](runbooks/local-gui.md) 為準。
+
+狀態詞彙：`implemented` 表示 repository code 與相稱測試已存在；
+`actual_runtime_verified` 表示本版曾連接所宣稱的實際 local／external runtime；
+`externally_verified` 表示另有外部 CI／publication 證據；`not_composed`、
+`unverified` 與 `unsupported` 均不能解讀為可用功能。
 
 ## 依目的選擇文件
 
 | 目的 | 起點 |
 |---|---|
+| 啟動真實美股日／日內資料 GUI | [Local GUI](runbooks/local-gui.md) |
+| 核對免費行情來源與授權／時效 | [Free market data sources](research/free-market-data-sources.md) |
 | 理解系統怎麼整合、誰有交易 authority | [Architecture index](architecture/README.md) |
 | 查看 API routes、auth、envelope 與部署限制 | [API index](api/README.md) |
 | 操作 core、optional integrations 或處理事故 | [Runbook index](runbooks/README.md) |
@@ -29,12 +38,14 @@
 - [API index](api/README.md)
 - [Wire contracts](../schemas/README.md)
 
-API snapshot 的 `info.version` 是 contract snapshot version，目前為 `0.1.0`；它與
-產品 release SemVer `v0.1.2` 是不同版本軸，不代表 release metadata 過期。
+六份既有 API snapshot 的 `info.version` 是 `0.1.0`，Local GUI snapshot 是未發布
+`0.2.0`；它們與 immutable product release `v0.1.2` 是不同版本軸。`v0.1.2`
+不含 GUI。
 
 ## Deployment 與 runbooks
 
 - [Runbook index](runbooks/README.md)
+- [Local GUI](runbooks/local-gui.md)
 - [Core deployment](runbooks/core-deployment.md)
 - [Optional integrations](runbooks/optional-integrations.md)
 - [Artifact storage](runbooks/artifact-storage.md)
@@ -63,6 +74,7 @@ fixtures，不是 production SLA。
 ## Research、legal 與 security
 
 - [Research index](research/README.md)
+- [Free market data sources](research/free-market-data-sources.md)
 - [License policy](legal/license-policy.md)
 - [Core CVE review](security/core-cve-review.md)
 - [Third-party notices](../THIRD_PARTY_NOTICES.md)

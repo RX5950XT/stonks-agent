@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from uuid import UUID
 
 import pytest
+from pydantic import ValidationError
+from support.paper_cycle import NOW, paper_cycle_input
 
 from stonks_agent.domain.paper_cycle import (
     CanonicalCycleReference,
     PaperCycleStage,
     PaperCycleStageOutput,
     PaperCycleState,
+    PaperFundCycleInput,
 )
 
 RUN_ID = UUID("47000000-0000-4000-8000-000000000001")
@@ -116,3 +120,47 @@ def test_execution_reference_count_must_match_order_count() -> None:
     )
     with pytest.raises(ValueError, match="receipt count"):
         state.advance(empty_execution)
+
+
+def test_cycle_input_binds_exact_authority_and_hashes_stably() -> None:
+    value = paper_cycle_input(run_id=RUN_ID)
+    replay = PaperFundCycleInput.model_validate(value.model_dump(mode="json"))
+
+    assert replay == value
+    assert replay.cycle_input_hash == value.cycle_input_hash
+    assert replay.stage_id(PaperCycleStage.RISK_DECISION) == UUID(
+        "72000000-0000-4000-8000-000000000005"
+    )
+    assert replay.derived_id(PaperCycleStage.ORDER_INTENT, "reservation") == (
+        value.derived_id(PaperCycleStage.ORDER_INTENT, "reservation")
+    )
+
+
+def test_cycle_input_rejects_live_mode_timeline_and_incomplete_stage_ids() -> None:
+    value = paper_cycle_input(run_id=RUN_ID)
+    payload = value.model_dump(mode="python")
+
+    with pytest.raises(ValidationError):
+        PaperFundCycleInput.model_validate(payload | {"execution_mode": "live"})
+    with pytest.raises(ValidationError, match="timeline"):
+        PaperFundCycleInput.model_validate(
+            payload | {"deadline_at": NOW - timedelta(seconds=1)}
+        )
+    with pytest.raises(ValidationError, match="canonical stage order"):
+        PaperFundCycleInput.model_validate(
+            payload | {"stage_ids": tuple(reversed(value.stage_ids))}
+        )
+
+
+def test_cycle_input_rejects_extra_fields_and_duplicate_stage_ids() -> None:
+    value = paper_cycle_input(run_id=RUN_ID)
+    payload = value.model_dump(mode="python")
+    duplicate = tuple(
+        item.model_copy(update={"stage_id": value.stage_ids[0].stage_id})
+        for item in value.stage_ids
+    )
+
+    with pytest.raises(ValidationError):
+        PaperFundCycleInput.model_validate(payload | {"api_key": "not-allowed"})
+    with pytest.raises(ValidationError, match="stage IDs must be unique"):
+        PaperFundCycleInput.model_validate(payload | {"stage_ids": duplicate})

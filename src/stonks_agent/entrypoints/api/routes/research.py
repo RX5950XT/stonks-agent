@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -17,6 +17,7 @@ from stonks_agent.application.research.request_run import (
     read_run_events,
     request_research_run,
 )
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError, Success
 from stonks_agent.domain.redaction import redact
 from stonks_agent.domain.research_run import CanonicalRunEvent, ResearchRunRequest
@@ -83,7 +84,7 @@ def create_research_app(
     install_authentication(app, identity)
     app.add_api_route(
         "/v1/research/runs",
-        _CreateResearchEndpoint(requests, clock or _utc_now),
+        _CreateResearchEndpoint(requests, clock or utc_now),
         methods=["POST"],
         status_code=202,
     )
@@ -196,7 +197,3 @@ def _error_response(result: Failure) -> JSONResponse:
 
 def _failure(code: ErrorCode, message: str) -> Failure:
     return Failure(StructuredError(code=code, message=message))
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)

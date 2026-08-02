@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "stonks-agent"
-version = "0.1.2"
+version = "0.2.0"
 description = "可稽核、paper-only 的投資研究與交易代理核心"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -44,6 +44,7 @@ dependencies = [
 [project.scripts]
 stonks = "stonks_agent.entrypoints.cli:app"
 stonks-deploy = "stonks_agent.entrypoints.deployment:app"
+stonks-gui = "stonks_agent.entrypoints.gui:app"
 stonks-worker = "stonks_agent.entrypoints.worker:app"
 
 [project.urls]

@@ -16,6 +16,7 @@ risk、reservation、execution 與 ledger。
 ## 目前完成狀態
 
 原訂 P0-P6.11 repository implementation、公開倉庫與 `v0.1.2` formal release closure 已完成。
+目前工作樹是含 Local GUI 的未發布 `0.2.0` candidate；immutable `v0.1.2` 不含 GUI。
 這裡的「完成」是指程式碼、測試、供應鏈與發行 gate 已關閉，不代表
 它已是可連接券商、直接實盤或可暴露於公網的 production 產品；目前成熟度仍是
 `pre-alpha`。
@@ -23,6 +24,10 @@ risk、reservation、execution 與 ledger。
 | 範圍 | 狀態 | 代表意義 |
 |---|---|---|
 | Canonical research／paper flow | `implemented` | contracts、PostgreSQL、replay、risk、reservation、fill 與 balanced journal 已測試 |
+| Stonks Desk 與美股／台股行情（0.2.0 candidate） | `actual_runtime_verified` | 後端導向的 loopback AI 研究工作台；透過 isolated OpenBB／yfinance 取得 US 與 TW bars，另提供鍵盤可讀 OHLCV 表格、研究歷史、cited evidence 與即時 runtime health |
+| Desk paper 投資組合面板（0.2.0 candidate） | `actual_runtime_verified` | `--with-paper` 啟動本機 PostgreSQL；typed 唯讀顯示 NAV、cash／reservation、positions、risk、global kill switch 與 projection integrity |
+| Desk durable research（0.2.0 candidate） | `composed / external_llm_required` | `--with-research` 會 materialize daily snapshot、執行 fenced LLM＋Kronos job並以SSE顯示typed結果；LLM endpoint／model／key可直接在GUI設定並先做structured completion驗證 |
+| Kronos CPU forecast | `gui_composed / shadow` | research mode 自動啟停 authenticated CPU worker；每次 run 封存 snapshot-bound raw response、3 paths 與 forecast，paper weight 0、不具下單 authority |
 | Public `v0.1.2` release | `externally_verified` | protected tag、GHCR、keyless signatures、provenance、SBOM 與 immutable assets 已重驗 |
 | Default Docker deployment | `implemented` | 單機 core／PostgreSQL health、migration、restart、outage 與 replay baseline 已驗證 |
 | Optional integrations | `mixed` | 4 個 CI runtime actual、5 個缺部署憑證而 blocked、1 個 GPU profile unsupported |
@@ -74,7 +79,7 @@ target、通過 risk、保留資金、模擬成交並寫入 ledger。
 - Git。
 - `uv`。
 - Python 3.12；不支援 3.11 或 3.13。
-- 只有執行 deployment smoke 或 optional sidecar 時才需要 Docker
+- 只有啟動真實資料 GUI、執行 deployment smoke 或 optional sidecar 時才需要 Docker
   Engine／Docker Desktop 與 Compose v2。
 
 ### 2. 取得程式碼與依賴
@@ -88,13 +93,114 @@ uv python install 3.12
 uv sync --frozen --python 3.12
 ```
 
-若要重現 formal verified release，請在 `uv sync` 前固定 tag：
+### 3. 啟動 Stonks Desk
 
 ```powershell
-git checkout v0.1.2
+.\start.ps1 -Mode market
 ```
 
-### 3. 跑完整離線 paper cycle
+Linux／macOS 使用對等的 `./start.sh --mode market`；兩支 launcher 的檢查、模式、
+連接埠參數與 `-Check`／`--check` 輸出相同。
+
+根目錄 launcher 會檢查 source checkout、`uv`、Docker Compose 與 Docker daemon，
+同步 frozen dependencies，再建立只含 public key 的暫時 JWKS、build／啟動 isolated
+OpenBB sidecar，並在
+`http://127.0.0.1:8787` 開啟 Stonks Desk。GUI 預設讀取目前可驗證最快的 `1m` historical
+bars，分頁可見時每 30 秒 bounded 更新；這是近即時 bar，不是交易所 tick。直接在頂端
+輸入 `AAPL` 即可讀取報價與走勢，底部命令列只作進階入口，
+`AAPL 5m` 切換週期（`1m` `5m` `15m` `1h` `1d`），`ADD NVDA` 加入關注清單，
+`F1` 顯示全部命令。每個面板都顯示 provider、feed 語意、backend freshness／quality、
+observed／served／latest event time、cache 狀態與資料年齡；loading 會隱藏舊報價。
+
+加上 `--with-paper` 會另外啟動本機 PostgreSQL、執行 migration、建立 paper 帳戶，
+並在終端唯讀顯示 canonical 投資組合投影：
+
+```powershell
+.\start.ps1 -Mode paper
+```
+
+要從 GUI 觸發 live snapshot 與 durable LLM research，需先備妥 pinned Kronos 權重。
+Worker runtime 仍禁止自行下載，但可用 one-shot provisioning 腳本取得：
+
+```powershell
+uv run --frozen python scripts/fetch_kronos_model.py
+```
+
+腳本只抓 `workers/kronos/model-manifest.json` 記載的 exact repository／revision，
+逐檔比對 size 與 SHA-256，不符即刪檔並以非零 exit code 停止，寫入
+`.data/models/kronos/`；重跑會驗證既有檔案而不重新下載。缺檔時 launcher 會以
+exit code 2 與 `Kronos CPU model is missing` 停止，不會退化成 synthetic forecast。
+細節見 [Kronos worker 的 Model preparation](./workers/kronos/README.md)。備妥後執行：
+
+```powershell
+.\start.ps1
+```
+
+在「AI 研究」上方的「LLM 模型連線」輸入 base URL、Model ID 與 API key，按
+「儲存並驗證」。驗證成功後，在頂端搜尋標的並按「開始 AI 研究」；`start.ps1` 會自動 build／啟動
+OpenBB、PostgreSQL、research worker 與 Kronos CPU，不需另跑 Kronos verifier。
+介面會依序呈現 snapshot、evidence、
+AI 分析與報告進度，再顯示 confidence、claims＋evidence refs、反方觀點、風險、
+actual Kronos model／revision／3-path return metrics、alpha eligibility 與 paper decision。
+最近研究可重新開啟；每條 citation 可定位到本輪 snapshot 內實際引用的 evidence，
+並顯示 as-of、usage、model/tool versions 與 degraded issues。Paper 區只讀呈現
+canonical NAV、cash、reservation、positions、risk authority、global kill switch 與
+projection hash；不存在的 NAV／risk 明示空狀態。
+行情圖週期與研究資料互相獨立；Kronos research 固定使用 canonical `1d` snapshot。
+Research mode 會隱含啟用 paper 投影；研究寫入是
+唯一 canonical workflow mutation。模型設定的 `PUT`／`DELETE` 只更新本次 server
+process 記憶體，不具交易權限；Browser 不能指定 owner、account、target 或 order。
+這條路徑不會退回 replay fixture、hard-coded quote 或假成功。
+目前 active 行情來源只有 actual runtime 通過的 OpenBB → yfinance；Alpaca、Finnhub、
+Alpha Vantage、Twelve Data、Cboe 與付費來源的 credential／display-rights／禁止自動
+擷取邊界，見[免費市場資料來源](./docs/research/free-market-data-sources.md)。
+
+API key 不會寫入 HTML、browser storage、DB、artifact 或 log；送出後欄位立即清空。
+
+不想每次重開都重打，就把 `.env.example` 複製成根目錄 `.env`（已 gitignored）並填入
+自己的值。兩支 launcher 啟動前會載入它並注入子行程環境，GUI 會自動以該設定做一次
+structured completion 驗證。`.env` 只接受 `STONKS_*` 鍵，出現其他鍵一律拒絕啟動；
+這只是本機環境變數來源，key 仍然不進 canonical payload、DB、artifact 或 browser
+storage。其他環境變數選項見[自訂 LLM 設定](./docs/runbooks/llm-configuration.md)。
+
+Kronos 是讀取 PIT OHLCV、產生多條未來價格路徑，再由 core 決定性映射成
+`AlphaSignal` 的預測 worker，不是聊天模型，也沒有下單權限。目前 actual CPU inference
+已接進 GUI research terminal artifact。策略仍是 shadow、paper weight 0；在 genuine
+evaluation／promotion authority 存在前，畫面會顯示真 forecast，但 alpha 為 typed
+`blocked`、最終 paper 決策為 no-order。`scripts/verify_kronos_runtime.py` 只保留為
+獨立診斷，不是啟動前置步驟。
+
+只檢查啟動條件與實際轉交命令、不啟動服務：
+
+```powershell
+.\start.ps1 -Mode research -Check
+```
+
+完整操作與安全邊界見 [Local GUI runbook](./docs/runbooks/local-gui.md)。
+
+GUI launcher 必須從目前 `main` 的 source checkout 執行，因為它需要 repository 內的
+Compose 與 OpenBB corresponding-source build context；standalone wheel、core image 與
+immutable `v0.1.2` 都不提供這個 launcher runtime。
+
+### 4. 清理可重建開發輸出
+
+先查看 exact allowlist plan，不變更檔案：
+
+```powershell
+uv run --frozen python scripts/clean_workspace.py --dry-run
+```
+
+清除 cache、coverage、Playwright output 與不影響快速啟動的 isolated environments：
+
+```powershell
+uv run --frozen python scripts/clean_workspace.py --include-isolated-envs
+```
+
+工具固定保留 root／OpenBB／Kronos `.venv`、`.data` 模型／artifacts／GUI 狀態、
+`.research` 上游證據、所有原始碼及 Docker images／volumes；不呼叫 `git clean` 或
+system-wide Docker prune。
+
+### 5. 跑完整離線 paper cycle
 
 ```powershell
 uv run stonks fake-cycle `
@@ -114,7 +220,7 @@ journal、report 與 replay，最後輸出統一 JSON envelope。成功輸出應
 
 這是可重播的整合示範，不是即時行情分析。
 
-### 4. 查看 CLI
+### 6. 查看 CLI
 
 ```powershell
 uv run stonks --help
@@ -127,6 +233,9 @@ uv run stonks-worker --help
 
 | Entry point | 用途 | 額外需求 |
 |---|---|---|
+| `stonks-gui serve` | loopback AI 研究工作台、美股與台股日／日內 bars、圖表與推導報價 | source checkout；Docker；網路；OpenBB／yfinance |
+| `stonks-gui serve --with-paper` | 同上，另加本機 PostgreSQL 與唯讀 paper 投資組合面板 | 同上；`127.0.0.1:55433` |
+| `stonks-gui serve --with-research` | live snapshot、durable LLM research、SSE 與研究報告 | 同上；自訂 LLM endpoint／model／key |
 | `stonks fake-cycle` | 離線完整 paper／replay demo | 無 |
 | `stonks data` | 建立 canonical data snapshot request | 本機 development/test PostgreSQL |
 | `stonks research` | 建立 research job、讀 verified run events | PostgreSQL、既有 snapshot、local scoped principal |
@@ -134,7 +243,8 @@ uv run stonks-worker --help
 | `stonks strategy` | 查詢 evaluation／audit、執行 reviewer transition | PostgreSQL、相符權限 |
 | `stonks paper` | portfolio／NAV／risk 查詢與 audited kill-switch 操作 | PostgreSQL、operator scope |
 | `stonks-deploy` | migration、health server 與 loopback probe | hardened deployment 設定 |
-| `stonks-worker claim-once` | claim 一個 fenced durable job | PostgreSQL；不是常駐 dispatcher |
+| `stonks-worker run` | 常駐 fenced dispatcher；exact 分派 snapshot／research job | PostgreSQL；未知 job fail closed |
+| `stonks-worker claim-once` | 診斷用：只 claim 一個 fenced durable job | PostgreSQL |
 
 DB-backed CLI 必須明確設定 `STONKS_ENVIRONMENT=local|development|test` 與
 `STONKS_DATABASE_URL`；staging／production 不允許使用 local principal。Default Compose
@@ -184,7 +294,8 @@ uv run python scripts/smoke_core_deployment.py
   `823dc70999557c770e7c1cd5c7857cf0d9e155147743435a5013a38a98b85434`
 
 Release archive 是含 SBOM、licenses、corresponding source 與五份 Sigstore evidence 的
-正式驗證 bundle；日常開發仍建議使用 Git checkout 加 frozen lock。
+正式驗證 bundle；它是 GUI 之前的歷史版本。若要重現該 release，請在 `uv sync`
+前執行 `git checkout v0.1.2`；若要使用 GUI，請保留目前 `main`。
 
 ## Optional integrations
 
@@ -226,7 +337,27 @@ license、SBOM 與 CVE gate。部署環境的 render、啟動方式與目前 mat
 
 它刻意使用固定 fixture，目的是證明 deterministic paper／replay flow。即時 provider
 接入必須先 materialize 成 point-in-time canonical evidence，不能讓外部 API 直接餵給
-order flow。
+order flow。若只需要查看最新可取得的真實美股日資料，使用
+`uv run --frozen stonks-gui serve`。
+
+### GUI 是即時行情或完整自動交易系統嗎？
+
+不是。終端提供真實 OpenBB／yfinance 日線與日內 bars，並由 bar 序列推導報價，但一律
+標示 `is_real_time=false`；預設 `1m` 並依 XNAS session 由後端標示
+current／market-closed／delayed／stale／unknown，不能解讀成交易所 real-time entitlement。
+Yahoo 的 quote／profile／財報／排行端點目前需要 crumb 而
+上游 cookie 主機已無法解析，因此這些能力不提供也不以其他來源冒充。加上
+`--with-research` 後可 materialize canonical snapshot、常駐處理 research job 並顯示
+報告；HK live provider 與 production ingress 仍未完成。Kronos 尚是 shadow，
+不會為展示閉環跳過 promotion、risk 或 reservation；券商帳號與 live trading 則刻意
+不支援。
+
+### 是否整合了所有免費資料來源？
+
+沒有，也不會把「免費 endpoint」直接等同可合法顯示的產品來源。目前 active 來源只有
+actual runtime 通過的 OpenBB → yfinance；其他來源若需要使用者 key、只允許
+non-display、不是免費、或禁止 automated extraction，就維持未組合。完整矩陣見
+[免費市場資料來源](./docs/research/free-market-data-sources.md)。
 
 ### 為什麼啟動 default Compose 後沒有 research API？
 
@@ -251,6 +382,7 @@ trading 不是隱藏設定。
 - [架構決策](./docs/architecture/README.md)
 - [API contracts](./docs/api/README.md)
 - [Operator runbooks](./docs/runbooks/README.md)
+- [Local GUI](./docs/runbooks/local-gui.md)
 - [P6 驗證證據](./docs/verification/p6-handoff-evidence.md)
 - [上游研究](./docs/research/README.md)
 - [Wire schemas](./schemas/README.md)

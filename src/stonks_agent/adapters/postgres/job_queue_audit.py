@@ -24,7 +24,9 @@ from stonks_agent.domain.errors import (
 )
 from stonks_agent.domain.job import (
     CompleteJob,
+    FailJob,
     JobCompletionReceipt,
+    JobFailureReceipt,
     JobStatus,
 )
 from stonks_agent.domain.workflow import WorkflowStatus
@@ -149,6 +151,95 @@ def completed_job_receipt(
     )
 
 
+def commit_job_failure(
+    session: Session,
+    job: JobRow,
+    run: WorkflowRunRow,
+    request: FailJob,
+    now: datetime,
+) -> JobFailureReceipt:
+    """Commit one explicit fenced failure and its immutable audit graph."""
+
+    if stable_payload_hash(job.payload) != job.payload_hash:
+        raise ValueError("failed job payload is not canonical")
+    if job.result_artifact_hash is not None:
+        raise ValueError("failed job already has a result")
+    _require_valid_audit_head(session, run)
+    sequence = run.version + 1
+    event_id, outbox_id = _audit_ids(job.job_id, request.attempt_generation)
+    previous_hash = _previous_hash(session, run.run_id)
+    payload = _failure_payload(job, run, request)
+    event_hash = _event_hash(event_id, sequence, previous_hash, payload)
+    _add_audit_rows(
+        session,
+        run,
+        job,
+        event_id=event_id,
+        outbox_id=outbox_id,
+        sequence=sequence,
+        event_type="job.dead_lettered",
+        payload=payload,
+        idempotency_key=f"job:{job.job_id}:dead-letter:{request.attempt_generation}",
+        occurred_at=now,
+        previous_hash=previous_hash,
+        event_hash=event_hash,
+    )
+    _mark_explicit_failure(job, run, request, sequence, now)
+    return JobFailureReceipt(
+        job_id=job.job_id,
+        run_id=run.run_id,
+        event_id=event_id,
+        outbox_id=outbox_id,
+        sequence=sequence,
+        error_code=request.error_code,
+        reason_code=request.reason_code,
+        failed_at=now,
+    )
+
+
+def failed_job_receipt(
+    session: Session,
+    job: JobRow,
+    request: FailJob,
+) -> Result[JobFailureReceipt]:
+    """Rebuild and verify an explicit failure before acknowledging a retry."""
+
+    event_id, outbox_id = _audit_ids(job.job_id, request.attempt_generation)
+    run = session.scalar(
+        select(WorkflowRunRow)
+        .where(WorkflowRunRow.run_id == job.run_id)
+        .with_for_update()
+    )
+    event = session.scalar(
+        select(RunEventRow).where(RunEventRow.event_id == event_id).with_for_update()
+    )
+    outbox = session.scalar(
+        select(OutboxRow).where(OutboxRow.outbox_id == outbox_id).with_for_update()
+    )
+    if any(value is None for value in (run, event, outbox)):
+        return _conflict("Failed job canonical graph is incomplete")
+    assert isinstance(run, WorkflowRunRow)
+    assert isinstance(event, RunEventRow)
+    assert isinstance(outbox, OutboxRow)
+    payload = _failure_payload(job, run, request)
+    if not _failed_job_is_valid(job, event, request):
+        return _conflict("Failed job command conflicts")
+    if not _failed_graph_is_valid(session, job, run, event, outbox, payload, request):
+        return _conflict("Failed job canonical graph is invalid")
+    return Success(
+        JobFailureReceipt(
+            job_id=job.job_id,
+            run_id=job.run_id,
+            event_id=event.event_id,
+            outbox_id=outbox.outbox_id,
+            sequence=event.sequence,
+            error_code=request.error_code,
+            reason_code=request.reason_code,
+            failed_at=event.occurred_at,
+        )
+    )
+
+
 def _dead_letter_job(session: Session, job: JobRow, now: datetime) -> None:
     if stable_payload_hash(job.payload) != job.payload_hash:
         raise ValueError("unclaimable job payload is not canonical")
@@ -259,6 +350,28 @@ def _mark_dead_letter(
     run.updated_at = now
 
 
+def _mark_explicit_failure(
+    job: JobRow,
+    run: WorkflowRunRow,
+    request: FailJob,
+    sequence: int,
+    now: datetime,
+) -> None:
+    job.status = JobStatus.DEAD_LETTER.value
+    job.attempt_nonce = None
+    job.lease_owner = None
+    job.lease_until = None
+    job.last_error = {
+        "code": request.error_code.value,
+        "reason": request.reason_code,
+        "attempt_generation": request.attempt_generation,
+    }
+    job.updated_at = now
+    run.status = WorkflowStatus.FAILED.value
+    run.version = sequence
+    run.updated_at = now
+
+
 def _mark_completed(
     job: JobRow,
     run: WorkflowRunRow,
@@ -268,6 +381,8 @@ def _mark_completed(
 ) -> None:
     run.version = sequence
     run.updated_at = now
+    if job.job_type in {"research_pipeline", "tradingagents_research"}:
+        run.status = WorkflowStatus.SUCCEEDED.value
     job.status = JobStatus.SUCCEEDED.value
     job.result_artifact_hash = request.result_artifact_hash
     job.updated_at = now
@@ -303,6 +418,7 @@ def _completed_graph_is_valid(
     expected_key = f"job:{job.job_id}:complete:{request.attempt_generation}"
     return (
         run.version >= event.sequence
+        and _completed_run_status_is_valid(job, run)
         and _event_chain_is_valid(session, run, event.event_id)
         and event.event_type == "job.completed"
         and event.payload == payload
@@ -310,6 +426,69 @@ def _completed_graph_is_valid(
         and outbox.aggregate_id == str(run.run_id)
         and outbox.sequence == event.sequence
         and outbox.topic == "job.completed"
+        and outbox.payload == payload
+        and outbox.idempotency_key == expected_key
+        and outbox.created_at == event.occurred_at
+        and outbox.not_before == event.occurred_at
+        and outbox.traceparent == job.traceparent
+        and outbox.tracestate == job.tracestate
+        and outbox.correlation_id == job.correlation_id
+    )
+
+
+def _completed_run_status_is_valid(
+    job: JobRow,
+    run: WorkflowRunRow,
+) -> bool:
+    if job.job_type in {"research_pipeline", "tradingagents_research"}:
+        return run.status == WorkflowStatus.SUCCEEDED.value
+    return True
+
+
+def _failed_job_is_valid(
+    job: JobRow,
+    event: RunEventRow,
+    request: FailJob,
+) -> bool:
+    return (
+        job.status == JobStatus.DEAD_LETTER.value
+        and job.lease_owner is None
+        and job.attempt_nonce is None
+        and job.lease_until is None
+        and job.attempt_generation == request.attempt_generation
+        and job.attempts == request.attempt_generation
+        and job.result_artifact_hash is None
+        and stable_payload_hash(job.payload) == job.payload_hash
+        and job.updated_at == event.occurred_at
+        and job.last_error
+        == {
+            "code": request.error_code.value,
+            "reason": request.reason_code,
+            "attempt_generation": request.attempt_generation,
+        }
+    )
+
+
+def _failed_graph_is_valid(
+    session: Session,
+    job: JobRow,
+    run: WorkflowRunRow,
+    event: RunEventRow,
+    outbox: OutboxRow,
+    payload: dict[str, object],
+    request: FailJob,
+) -> bool:
+    expected_key = f"job:{job.job_id}:dead-letter:{request.attempt_generation}"
+    return (
+        run.status == WorkflowStatus.FAILED.value
+        and run.version >= event.sequence
+        and _event_chain_is_valid(session, run, event.event_id)
+        and event.event_type == "job.dead_lettered"
+        and event.payload == payload
+        and outbox.aggregate_type == "run"
+        and outbox.aggregate_id == str(run.run_id)
+        and outbox.sequence == event.sequence
+        and outbox.topic == "job.dead_lettered"
         and outbox.payload == payload
         and outbox.idempotency_key == expected_key
         and outbox.created_at == event.occurred_at
@@ -385,6 +564,27 @@ def _completion_payload(
         "job_identity_hash": _job_identity_hash(job),
         "run_identity_hash": _run_identity_hash(run),
         "result_artifact_identity_hash": _artifact_identity_hash(artifact),
+    }
+
+
+def _failure_payload(
+    job: JobRow,
+    run: WorkflowRunRow,
+    request: FailJob,
+) -> dict[str, object]:
+    return {
+        "job_id": str(job.job_id),
+        "job_type": job.job_type,
+        "attempt_generation": request.attempt_generation,
+        "worker_id": request.worker_id,
+        "attempt_nonce_hash": stable_payload_hash(
+            {"attempt_nonce": request.attempt_nonce}
+        ),
+        "error_code": request.error_code.value,
+        "reason": request.reason_code,
+        "status": JobStatus.DEAD_LETTER.value,
+        "job_identity_hash": _job_identity_hash(job),
+        "run_identity_hash": _run_identity_hash(run),
     }
 
 

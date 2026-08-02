@@ -74,8 +74,14 @@ class ExactEndpoint(BaseModel):
     def validate_exact_shape(self) -> Self:
         if self.environment in {"staging", "production"} and self.scheme != "https":
             raise ValueError("deployed outbound endpoints require HTTPS")
-        if not _valid_canonical_host(self.host):
+        local_environment = self.environment in {"local", "development", "test"}
+        if not _valid_canonical_host(
+            self.host,
+            allow_localhost=local_environment,
+        ):
             raise ValueError("outbound host must be canonical")
+        if _is_exact_loopback_host(self.host) and not local_environment:
+            raise ValueError("loopback outbound endpoint is local-only")
         if not _valid_exact_path(self.path):
             raise ValueError("outbound path must be exact")
         return self
@@ -148,7 +154,13 @@ class SystemHostResolver:
 class OutboundEndpointGuard:
     """Authorize exact URLs and pin one stable, entirely public DNS answer."""
 
-    __slots__ = ("_endpoint", "_lock", "_pinned_addresses", "_resolver")
+    __slots__ = (
+        "_allow_loopback",
+        "_endpoint",
+        "_lock",
+        "_pinned_addresses",
+        "_resolver",
+    )
 
     def __init__(
         self,
@@ -158,6 +170,11 @@ class OutboundEndpointGuard:
     ) -> None:
         self._endpoint = endpoint
         self._resolver = resolver or SystemHostResolver()
+        self._allow_loopback = endpoint.environment in {
+            "local",
+            "development",
+            "test",
+        } and _is_exact_loopback_host(endpoint.host)
         self._lock = threading.Lock()
         self._pinned_addresses: frozenset[str] = frozenset()
 
@@ -178,14 +195,20 @@ class OutboundEndpointGuard:
             raise
         except Exception as error:
             raise EndpointDenied from error
-        addresses = _validated_addresses(resolved)
+        addresses = _validated_addresses(
+            resolved,
+            allow_loopback=self._allow_loopback,
+        )
         with self._lock:
             if self._pinned_addresses and self._pinned_addresses != addresses:
                 raise EndpointDenied
             self._pinned_addresses = addresses
 
     def authorize_connected_address(self, value: str) -> None:
-        address = _public_address(value)
+        address = _authorized_address(
+            value,
+            allow_loopback=self._allow_loopback,
+        )
         with self._lock:
             if not self._pinned_addresses or address not in self._pinned_addresses:
                 raise EndpointDenied
@@ -394,9 +417,11 @@ def _matches(endpoint: ExactEndpoint, value: str) -> bool:
     )
 
 
-def _valid_canonical_host(value: str) -> bool:
+def _valid_canonical_host(value: str, *, allow_localhost: bool = False) -> bool:
     if value != value.lower() or value.endswith(".") or "%" in value:
         return False
+    if value == "localhost":
+        return allow_localhost
     try:
         parsed = ipaddress.ip_address(value)
     except ValueError:
@@ -433,11 +458,17 @@ def _valid_exact_path(value: str) -> bool:
     return all(segment not in {".", ".."} for segment in value.split("/"))
 
 
-def _validated_addresses(values: Iterable[str]) -> frozenset[str]:
+def _validated_addresses(
+    values: Iterable[str],
+    *,
+    allow_loopback: bool = False,
+) -> frozenset[str]:
     bounded = tuple(values)
     if not 1 <= len(bounded) <= _MAX_ADDRESSES:
         raise EndpointDenied
-    addresses = frozenset(_public_address(value) for value in bounded)
+    addresses = frozenset(
+        _authorized_address(value, allow_loopback=allow_loopback) for value in bounded
+    )
     if not addresses or len(addresses) > _MAX_ADDRESSES:
         raise EndpointDenied
     return addresses
@@ -459,6 +490,22 @@ def _public_address(value: str) -> str:
     ):
         raise EndpointDenied
     return str(address)
+
+
+def _authorized_address(value: str, *, allow_loopback: bool) -> str:
+    if not allow_loopback:
+        return _public_address(value)
+    try:
+        address = ipaddress.ip_address(value)
+    except ValueError as error:
+        raise EndpointDenied from error
+    if not address.is_loopback:
+        raise EndpointDenied
+    return str(address)
+
+
+def _is_exact_loopback_host(value: str) -> bool:
+    return value in {"127.0.0.1", "::1", "localhost"}
 
 
 def _header(headers: list[tuple[bytes, bytes]], name: bytes) -> str | None:

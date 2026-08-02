@@ -14,13 +14,16 @@ from pydantic import ValidationError
 from sidecars.nautilus.adapter import NautilusAdapter, WorkerFailure
 from stonks_contracts.backtest import BacktestJob
 from stonks_service_auth import (
+    RequestBodyReadError,
     ServiceAccessTarget,
+    ServiceAdmissionMiddleware,
     ServiceAuthenticator,
     ServicePermission,
     ServiceReceiver,
     ServiceResourceKind,
     authorize_service_dispatch,
     exactly_one_authorization_header,
+    read_bounded_request_body,
 )
 
 
@@ -42,6 +45,7 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+    app.add_middleware(ServiceAdmissionMiddleware)
 
     @app.get("/healthz")
     def health() -> JSONResponse:
@@ -67,32 +71,36 @@ def create_app(
         rejection = _validate_headers(incoming, max_request_bytes)
         if rejection is not None:
             return rejection
-        body = await _read_bounded(incoming, max_request_bytes)
-        if body is None:
-            return _error(413, "request_too_large", "Backtest request is too large")
-        try:
-            job = BacktestJob.model_validate_json(body)
-        except (ValidationError, json.JSONDecodeError):
-            return _error(400, "invalid_request", "Backtest request is invalid")
-        if not authorize_service_dispatch(
-            principal,
-            permission=ServicePermission.DISPATCH_ASSIGNED_BACKTEST,
-            target=ServiceAccessTarget(
-                kind=ServiceResourceKind.BACKTEST_JOB,
-                identifier=str(job.job_id),
-            ),
-            receiver=ServiceReceiver.NAUTILUS,
-            attempt_generation=job.attempt_generation,
-            attempt_nonce=job.attempt_nonce,
-            request_payload=job.model_dump(mode="json"),
-            deadline=job.deadline,
-        ):
-            return _error(403, "forbidden", "Service target access denied")
         try:
             await asyncio.wait_for(capacity.acquire(), timeout=0.1)
         except TimeoutError:
             return _error(429, "worker_busy", "Nautilus worker is at capacity")
         try:
+            try:
+                body = await read_bounded_request_body(
+                    incoming.receive,
+                    max_bytes=max_request_bytes,
+                )
+            except RequestBodyReadError as error:
+                return _error(error.status_code, error.code, error.safe_message)
+            try:
+                job = BacktestJob.model_validate_json(body)
+            except (ValidationError, json.JSONDecodeError):
+                return _error(400, "invalid_request", "Backtest request is invalid")
+            if not authorize_service_dispatch(
+                principal,
+                permission=ServicePermission.DISPATCH_ASSIGNED_BACKTEST,
+                target=ServiceAccessTarget(
+                    kind=ServiceResourceKind.BACKTEST_JOB,
+                    identifier=str(job.job_id),
+                ),
+                receiver=ServiceReceiver.NAUTILUS,
+                attempt_generation=job.attempt_generation,
+                attempt_nonce=job.attempt_nonce,
+                request_payload=job.model_dump(mode="json"),
+                deadline=job.deadline,
+            ):
+                return _error(403, "forbidden", "Service target access denied")
             outcome = await run_in_threadpool(adapter.run, job)
         finally:
             capacity.release()
@@ -124,15 +132,6 @@ def _validate_headers(incoming: Request, maximum: int) -> JSONResponse | None:
     if incoming.headers.get("content-encoding", "identity").lower() != "identity":
         return _error(415, "unsupported_content_encoding", "Encoded body denied")
     return None
-
-
-async def _read_bounded(incoming: Request, maximum: int) -> bytes | None:
-    body = bytearray()
-    async for chunk in incoming.stream():
-        if len(chunk) > maximum - len(body):
-            return None
-        body.extend(chunk)
-    return bytes(body)
 
 
 def _status_for(code: str) -> int:

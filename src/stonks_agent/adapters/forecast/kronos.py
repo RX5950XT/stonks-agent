@@ -9,13 +9,19 @@ from decimal import Decimal
 from pathlib import Path
 from time import monotonic, sleep
 from typing import Literal, Self
-from urllib.parse import urlsplit
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 import httpx
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from stonks_agent.adapters._worker_http import (
+    body_failure,
+    invalid_response,
+    status_failure,
+    valid_origin,
+    worker_failure,
+)
 from stonks_agent.adapters.market_data._http_response import (
     ResponseBodyError,
     read_bounded_raw,
@@ -28,7 +34,6 @@ from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
     Result,
-    StructuredError,
     Success,
 )
 from stonks_agent.domain.signal import ForecastOutputArtifact, ForecastRequest
@@ -80,7 +85,7 @@ class KronosHttpPolicy(BaseModel):
 
     @model_validator(mode="after")
     def validate_origin(self) -> Self:
-        if not _valid_origin(self.origin):
+        if not valid_origin(self.origin):
             raise ValueError("worker origin is invalid")
         return self
 
@@ -146,9 +151,9 @@ def build_kronos_worker_request(
     if mismatch is not None:
         return mismatch
     if request.interval != "1d" or series.interval != "1d":
-        return _failure(ErrorCode.INVALID_INPUT, "Kronos requires daily bars")
+        return worker_failure(ErrorCode.INVALID_INPUT, "Kronos requires daily bars")
     if request.horizon_bars > 256:
-        return _failure(ErrorCode.INVALID_INPUT, "Kronos horizon is too large")
+        return worker_failure(ErrorCode.INVALID_INPUT, "Kronos horizon is too large")
     try:
         bars = tuple(_to_worker_bar(bar, volume_quality) for bar in series.bars)
         future_timestamps = _future_session_closes(
@@ -175,7 +180,7 @@ def build_kronos_worker_request(
             deadline=request.deadline_at,
         )
     except (LookupError, ValidationError, ValueError):
-        return _failure(ErrorCode.INVALID_INPUT, "Kronos request is invalid")
+        return worker_failure(ErrorCode.INVALID_INPUT, "Kronos request is invalid")
     return Success(worker_request)
 
 
@@ -187,7 +192,7 @@ def _builder_mismatch(
     runtime: KronosRuntimeIdentity,
 ) -> Failure | None:
     if mic != calendar.mic:
-        return _failure(ErrorCode.CONFLICT, "Calendar MIC does not match")
+        return worker_failure(ErrorCode.CONFLICT, "Calendar MIC does not match")
     if (
         series.instrument_id != request.instrument_id
         or series.as_of != request.as_of
@@ -196,11 +201,13 @@ def _builder_mismatch(
         or series.bars[0].event_time != request.input_window_start
         or series.bars[-1].event_time != request.input_window_end
     ):
-        return _failure(
+        return worker_failure(
             ErrorCode.CONFLICT, "Bar series does not match forecast request"
         )
     if not _runtime_matches_request(runtime, request):
-        return _failure(ErrorCode.CONFLICT, "Runtime does not match forecast request")
+        return worker_failure(
+            ErrorCode.CONFLICT, "Runtime does not match forecast request"
+        )
     return None
 
 
@@ -270,7 +277,9 @@ class KronosHttpAdapter:
             return mismatch
         content = worker_request.canonical_json().encode("utf-8")
         if len(content) > self._policy.max_request_bytes:
-            return _failure(ErrorCode.PAYLOAD_TOO_LARGE, "Worker request is too large")
+            return worker_failure(
+                ErrorCode.PAYLOAD_TOO_LARGE, "Worker request is too large"
+            )
         raw = self._send(worker_request, content)
         if isinstance(raw, Failure):
             return raw
@@ -308,7 +317,9 @@ class KronosHttpAdapter:
             now = self._clock()
             remaining = (request.deadline - now).total_seconds()
             if now.tzinfo is None or remaining <= 0:
-                return _failure(ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded")
+                return worker_failure(
+                    ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded"
+                )
             credential = self._credentials.issue(
                 ServiceCredentialRequest(
                     receiver=ServiceReceiver.KRONOS,
@@ -350,9 +361,9 @@ class KronosHttpAdapter:
                         ):
                             self._backoff(retry, request.deadline)
                             continue
-                        return _status_failure(response.status_code)
+                        return status_failure(response.status_code)
                     if _media_type(response) != "application/json":
-                        return _invalid_response()
+                        return invalid_response()
                     body = read_bounded_raw(
                         response,
                         max_bytes=self._policy.max_response_bytes,
@@ -360,29 +371,33 @@ class KronosHttpAdapter:
                         clock=self._monotonic,
                     )
                     if isinstance(body, ResponseBodyError):
-                        return _body_failure(body)
+                        return body_failure(body)
                     return Success(body)
             except httpx.DecodingError:
-                return _invalid_response()
+                return invalid_response()
             except httpx.HTTPError:
                 if retry < self._policy.max_transient_retries:
                     self._backoff(retry, request.deadline)
                     continue
-                return _failure(ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable")
-        return _failure(ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable")
+                return worker_failure(
+                    ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable"
+                )
+        return worker_failure(ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable")
 
     def _parse_response(
         self, request: KronosWorkerRequest, body: bytes
     ) -> Result[KronosWorkerResponse]:
         if self._clock() >= request.deadline:
-            return _failure(ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded")
+            return worker_failure(
+                ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded"
+            )
         try:
             envelope = _WorkerEnvelope.model_validate_json(body)
             if not envelope.success or envelope.status != 200 or envelope.data is None:
-                return _invalid_response()
+                return invalid_response()
             response = KronosWorkerResponse.model_validate(envelope.data)
         except (ValidationError, ValueError):
-            return _invalid_response()
+            return invalid_response()
         return Success(response)
 
     def _archive(
@@ -422,7 +437,7 @@ def replay_kronos_forecast(
     try:
         artifact = KronosSamplePathsArtifact.model_validate_json(stored.value)
     except ValidationError:
-        return _failure(ErrorCode.CONFLICT, "Sample paths artifact is invalid")
+        return worker_failure(ErrorCode.CONFLICT, "Sample paths artifact is invalid")
     return _map_forecast(
         request,
         artifact,
@@ -463,7 +478,7 @@ def _map_forecast(
     policy: KronosHttpPolicy,
 ) -> Result[ForecastOutputArtifact]:
     if not _artifact_matches_request(artifact, request, policy):
-        return _failure(ErrorCode.CONFLICT, "Sample paths do not match request")
+        return worker_failure(ErrorCode.CONFLICT, "Sample paths do not match request")
     path_validation = _validate_path_jumps(artifact, policy.max_absolute_step_return)
     if path_validation is not None:
         return path_validation
@@ -529,7 +544,9 @@ def _map_forecast(
             payload, context={"request": request}
         )
     except ValidationError:
-        return _failure(ErrorCode.MODEL_OUTPUT_INVALID, "Forecast mapping is invalid")
+        return worker_failure(
+            ErrorCode.MODEL_OUTPUT_INVALID, "Forecast mapping is invalid"
+        )
     return Success(output)
 
 
@@ -553,7 +570,9 @@ def _request_pair_mismatch(
     policy: KronosHttpPolicy,
 ) -> Failure | None:
     if worker.profile != policy.profile:
-        return _failure(ErrorCode.CAPABILITY_DENIED, "Worker profile is unauthorized")
+        return worker_failure(
+            ErrorCode.CAPABILITY_DENIED, "Worker profile is unauthorized"
+        )
     if (
         worker.request_id != request.request_id
         or worker.run_id != request.run_id
@@ -569,7 +588,9 @@ def _request_pair_mismatch(
         or worker.deadline != request.deadline_at
         or not _runtime_matches_request(worker.runtime, request)
     ):
-        return _failure(ErrorCode.CONFLICT, "Worker request binding does not match")
+        return worker_failure(
+            ErrorCode.CONFLICT, "Worker request binding does not match"
+        )
     return None
 
 
@@ -589,9 +610,11 @@ def _response_mismatch(
     request: KronosWorkerRequest, response: KronosWorkerResponse
 ) -> Failure | None:
     if not _lease_matches(request, response):
-        return _failure(ErrorCode.CONFLICT, "Worker lease fence does not match")
+        return worker_failure(ErrorCode.CONFLICT, "Worker lease fence does not match")
     if not _result_matches_worker_request(request, response):
-        return _failure(ErrorCode.CONFLICT, "Worker result context does not match")
+        return worker_failure(
+            ErrorCode.CONFLICT, "Worker result context does not match"
+        )
     return None
 
 
@@ -650,7 +673,7 @@ def _validate_path_jumps(
         previous = artifact.input_last_close
         for point in path.points:
             if abs(point.close / previous - 1) > maximum:
-                return _failure(
+                return worker_failure(
                     ErrorCode.MODEL_OUTPUT_INVALID,
                     "Kronos path exceeds the configured jump bound",
                 )
@@ -718,48 +741,3 @@ def _quantile(values: tuple[Decimal, ...], probability: Decimal) -> Decimal:
 
 def _media_type(response: httpx.Response) -> str:
     return str(response.headers.get("content-type", "")).split(";", 1)[0].strip()
-
-
-def _valid_origin(value: str) -> bool:
-    parsed = urlsplit(value)
-    return bool(
-        parsed.scheme in {"http", "https"}
-        and parsed.hostname
-        and parsed.path in {"", "/"}
-        and not parsed.query
-        and not parsed.fragment
-        and parsed.username is None
-        and parsed.password is None
-    )
-
-
-def _status_failure(status: int) -> Failure:
-    if status in {401, 403}:
-        return _failure(ErrorCode.UNAUTHORIZED, "Worker rejected the request")
-    if status == 408:
-        return _failure(ErrorCode.DEADLINE_EXCEEDED, "Worker deadline exceeded")
-    if status == 413:
-        return _failure(ErrorCode.PAYLOAD_TOO_LARGE, "Worker rejected request size")
-    if status in {400, 409, 422}:
-        return _failure(ErrorCode.INVALID_INPUT, "Worker rejected the request")
-    if status == 429:
-        return _failure(ErrorCode.RATE_LIMITED, "Worker rate limit exceeded")
-    return _failure(ErrorCode.DATA_UNAVAILABLE, "Worker is unavailable")
-
-
-def _body_failure(error: ResponseBodyError) -> Failure:
-    if error is ResponseBodyError.DEADLINE_EXCEEDED:
-        return _failure(
-            ErrorCode.DEADLINE_EXCEEDED, "Worker response deadline exceeded"
-        )
-    if error is ResponseBodyError.RESPONSE_TOO_LARGE:
-        return _failure(ErrorCode.PAYLOAD_TOO_LARGE, "Worker response is too large")
-    return _invalid_response()
-
-
-def _invalid_response() -> Failure:
-    return _failure(ErrorCode.MODEL_OUTPUT_INVALID, "Worker response is invalid")
-
-
-def _failure(code: ErrorCode, message: str) -> Failure:
-    return Failure(StructuredError(code=code, message=message))

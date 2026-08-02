@@ -1,17 +1,31 @@
 from __future__ import annotations
 
+import sys
 import tomllib
 from pathlib import Path
 
 import yaml
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from stonks_agent.config.capacity import load_capacity_policy
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from scripts.capacity_probe_common import EXPECTED_SCHEMA_REVISION  # noqa: E402
+
 POSTGRES_IMAGE = (
     "postgres:17.10-alpine@sha256:"
     "742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193"
 )
+
+
+def test_capacity_probe_revision_tracks_the_single_alembic_head() -> None:
+    config = Config(ROOT / "alembic.ini")
+    heads = ScriptDirectory.from_config(config).get_heads()
+
+    assert heads == [EXPECTED_SCHEMA_REVISION]
 
 
 def test_capacity_runbook_states_measured_boundary_and_stop_conditions() -> None:
@@ -40,6 +54,12 @@ def test_capacity_ci_uses_test_only_postgres_and_read_only_authority() -> None:
     workflow = yaml.safe_load(content)
     job = workflow["jobs"]["capacity"]
     service = job["services"]["postgres"]
+    audit_step = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Audit heavy-worker frozen runtime dependencies"
+    )
+    audit_commands = " ".join(str(audit_step["run"]).replace("\\", "").split())
 
     assert job["permissions"] == {"contents": "read"}
     assert job["runs-on"] == "ubuntu-latest"
@@ -59,6 +79,8 @@ def test_capacity_ci_uses_test_only_postgres_and_read_only_authority() -> None:
         "workers/quant_lab",
     ):
         assert f"uv lock --check --project {project}" in content
+        assert f"scripts/audit_python_project.py --project {project}" in audit_commands
+    assert content.count("--standard-identity-package torch") == 2
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in content
     assert "id-token: write" not in str(job)
     assert "packages: write" not in str(job)

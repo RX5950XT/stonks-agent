@@ -1,5 +1,12 @@
 """Target-scoped service authentication shared by isolated runtimes."""
 
+from .admission import (
+    AdmissionDecision,
+    FixedWindowAdmissionStore,
+    ServiceAdmissionMiddleware,
+    ServiceAdmissionPolicy,
+    ServiceAdmissionResponseStyle,
+)
 from .authorization import (
     ServiceAccessTarget,
     ServiceAuthenticator,
@@ -23,10 +30,30 @@ from .oidc import (
     StaticOIDCServiceAuthenticator,
     load_static_oidc_service_authenticator,
 )
+from .request_body import (
+    DEFAULT_MAX_REQUEST_FRAMES,
+    DEFAULT_REQUEST_BODY_TIMEOUT_SECONDS,
+    RequestBodyProtocolError,
+    RequestBodyReadError,
+    RequestBodyTimeoutError,
+    RequestBodyTooLargeError,
+    read_bounded_request_body,
+)
 from .source_identity import service_auth_source_hash
 
 __all__ = [
+    "DEFAULT_MAX_REQUEST_FRAMES",
+    "DEFAULT_REQUEST_BODY_TIMEOUT_SECONDS",
+    "AdmissionDecision",
+    "FixedWindowAdmissionStore",
+    "RequestBodyProtocolError",
+    "RequestBodyReadError",
+    "RequestBodyTimeoutError",
+    "RequestBodyTooLargeError",
     "ServiceAccessTarget",
+    "ServiceAdmissionMiddleware",
+    "ServiceAdmissionPolicy",
+    "ServiceAdmissionResponseStyle",
     "ServiceAuthenticator",
     "ServiceIdentity",
     "ServiceOIDCSettings",
@@ -41,6 +68,7 @@ __all__ = [
     "exactly_one_authorization_header",
     "invalid_or_oversized_content_length",
     "load_static_oidc_service_authenticator",
+    "read_bounded_request_body",
     "service_auth_source_hash",
     "service_nonce_hash",
     "validate_isolated_runtime_environment",

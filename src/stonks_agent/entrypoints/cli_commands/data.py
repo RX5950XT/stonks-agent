@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+import re
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import typer
@@ -27,8 +28,9 @@ app = typer.Typer(add_completion=False, no_args_is_help=True)
 def request_snapshot_command(
     market: Annotated[str, typer.Option()] = "US",
     capability: Annotated[str, typer.Option()] = "prices",
-    as_of: Annotated[str, typer.Option()] = "2026-01-02T21:00:00Z",
-    query_json: Annotated[str, typer.Option()] = '{"symbol":"AAPL"}',
+    symbol: Annotated[str, typer.Option()] = "AAPL",
+    as_of: Annotated[str, typer.Option()] = "",
+    query_json: Annotated[str, typer.Option()] = "",
     provider_policy_id: Annotated[str, typer.Option()] = "us-prices/1",
     idempotency_key: Annotated[str, typer.Option()] = "cli-snapshot",
     database_url: Annotated[
@@ -42,10 +44,13 @@ def request_snapshot_command(
     if not database_url:
         raise typer.BadParameter("STONKS_DATABASE_URL is required")
     try:
-        parsed_query = json.loads(query_json)
-        if not isinstance(parsed_query, dict):
-            raise ValueError
-        decision_time = datetime.fromisoformat(as_of)
+        requested_at = datetime.now(UTC)
+        parsed_query = _query(symbol, query_json)
+        decision_time = (
+            datetime.fromisoformat(as_of)
+            if as_of
+            else requested_at + timedelta(minutes=15)
+        )
         request = CreateSnapshotRequest(
             market=market,
             capability=capability,
@@ -54,7 +59,7 @@ def request_snapshot_command(
             provider_policy_id=provider_policy_id,
             idempotency_key=idempotency_key,
             owner_subject=principal.subject,
-            requested_at=datetime.now(UTC),
+            requested_at=requested_at,
         )
     except (ValueError, ValidationError, json.JSONDecodeError) as error:
         raise typer.BadParameter("snapshot request input is invalid") from error
@@ -71,6 +76,18 @@ def request_snapshot_command(
         _emit(error_envelope(result.error))
         raise typer.Exit(code=2)
     _emit(success_envelope(result.value, status=202))
+
+
+def _query(symbol: str, query_json: str) -> dict[str, object]:
+    if query_json:
+        parsed = json.loads(query_json)
+        if not isinstance(parsed, dict):
+            raise ValueError
+        return parsed
+    normalized = symbol.strip().upper()
+    if re.fullmatch(r"[A-Z0-9][A-Z0-9.-]{0,15}", normalized) is None:
+        raise ValueError
+    return {"symbol": normalized}
 
 
 def _emit(value: BaseModel) -> None:

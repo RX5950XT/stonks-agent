@@ -1,0 +1,4078 @@
+{
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Code",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "message": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ApiError",
+        "type": "object"
+      },
+      "BarInterval": {
+        "description": "Exact provider bar resolutions this system is proven to serve.",
+        "enum": [
+          "1m",
+          "5m",
+          "15m",
+          "1h",
+          "1d"
+        ],
+        "title": "BarInterval",
+        "type": "string"
+      },
+      "ClearGuiModelSettingsBody": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "ClearGuiModelSettingsBody",
+        "type": "object"
+      },
+      "ConfigureGuiModelSettings": {
+        "additionalProperties": false,
+        "description": "One transient browser submission; secret serialization stays masked.",
+        "properties": {
+          "api_key": {
+            "format": "password",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Api Key",
+            "type": "string",
+            "writeOnly": true
+          },
+          "base_url": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "cache_write_input_cost_per_million": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "1.25",
+            "title": "Cache Write Input Cost Per Million"
+          },
+          "cached_input_cost_per_million": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0.625",
+            "title": "Cached Input Cost Per Million"
+          },
+          "endpoint": {
+            "default": "/v1/chat/completions",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "input_cost_per_million": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "1.25",
+            "title": "Input Cost Per Million"
+          },
+          "max_cost_usd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "1",
+            "title": "Max Cost Usd"
+          },
+          "max_output_tokens": {
+            "default": 4096,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Output Tokens",
+            "type": "integer"
+          },
+          "max_repairs": {
+            "default": 1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Max Repairs",
+            "type": "integer"
+          },
+          "max_response_bytes": {
+            "default": 1048576,
+            "maximum": 16777216.0,
+            "minimum": 1.0,
+            "title": "Max Response Bytes",
+            "type": "integer"
+          },
+          "max_total_tokens": {
+            "default": 32768,
+            "maximum": 10000000.0,
+            "minimum": 1.0,
+            "title": "Max Total Tokens",
+            "type": "integer"
+          },
+          "max_transient_retries": {
+            "default": 1,
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Max Transient Retries",
+            "type": "integer"
+          },
+          "model_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "output_cost_per_million": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "5",
+            "title": "Output Cost Per Million"
+          },
+          "timeout_seconds": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 120.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "30",
+            "title": "Timeout Seconds"
+          }
+        },
+        "required": [
+          "base_url",
+          "model_id",
+          "api_key"
+        ],
+        "title": "ConfigureGuiModelSettings",
+        "type": "object"
+      },
+      "CreateGuiResearchRunBody": {
+        "additionalProperties": false,
+        "description": "The browser cannot choose owner, account, model, mode, target, or order.",
+        "properties": {
+          "interval": {
+            "$ref": "#/components/schemas/BarInterval"
+          },
+          "profile": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$",
+            "title": "Profile",
+            "type": "string"
+          },
+          "symbol": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9.-]{0,15}$",
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol",
+          "interval",
+          "profile"
+        ],
+        "title": "CreateGuiResearchRunBody",
+        "type": "object"
+      },
+      "ErrorEnvelope": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "title": "Data",
+            "type": "null"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "maximum": 599.0,
+            "minimum": 400.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": false,
+            "default": false,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status",
+          "error"
+        ],
+        "title": "ErrorEnvelope",
+        "type": "object"
+      },
+      "FeedType": {
+        "enum": [
+          "end_of_day_historical",
+          "intraday_historical"
+        ],
+        "type": "string"
+      },
+      "GuiCapabilities": {
+        "additionalProperties": false,
+        "description": "What this console can honestly do right now, service by service.",
+        "properties": {
+          "model_settings": {
+            "$ref": "#/components/schemas/GuiModelSettingsView"
+          },
+          "paper": {
+            "$ref": "#/components/schemas/PaperCapability"
+          },
+          "research": {
+            "$ref": "#/components/schemas/GuiResearchCapability"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceStatus"
+            },
+            "maxItems": 8,
+            "title": "Services",
+            "type": "array"
+          }
+        },
+        "required": [
+          "services",
+          "paper",
+          "research",
+          "model_settings"
+        ],
+        "title": "GuiCapabilities",
+        "type": "object"
+      },
+      "GuiKronosAlphaView": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "deployment_state": {
+            "enum": [
+              "shadow",
+              "paper_eligible"
+            ],
+            "title": "Deployment State",
+            "type": "string"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "enum": [
+                  "long",
+                  "short",
+                  "neutral"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "eligible": {
+            "title": "Eligible",
+            "type": "boolean"
+          },
+          "reason_codes": {
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Reason Codes",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "blocked",
+              "mapped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "weight": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Weight",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "deployment_state",
+          "eligible",
+          "weight",
+          "reason_codes"
+        ],
+        "title": "GuiKronosAlphaView",
+        "type": "object"
+      },
+      "GuiKronosForecastView": {
+        "additionalProperties": false,
+        "description": "Browser-safe projection; raw/sample artifact references stay server-side.",
+        "properties": {
+          "actual_model_inference": {
+            "title": "Actual Model Inference",
+            "type": "boolean"
+          },
+          "direction_probability": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction Probability"
+          },
+          "downside_quantile": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downside Quantile"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "expected_return": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Return"
+          },
+          "expected_volatility": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Volatility"
+          },
+          "forecast_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Id"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "horizon_bars": {
+            "anyOf": [
+              {
+                "maximum": 256.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Bars"
+          },
+          "max_drawdown_quantile": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown Quantile"
+          },
+          "median_return": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Return"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "model_revision": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Revision"
+          },
+          "path_count": {
+            "anyOf": [
+              {
+                "maximum": 32.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path Count"
+          },
+          "quality_status": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Status"
+          },
+          "state": {
+            "enum": [
+              "succeeded",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "state",
+          "actual_model_inference"
+        ],
+        "title": "GuiKronosForecastView",
+        "type": "object"
+      },
+      "GuiModelConnectionTest": {
+        "additionalProperties": false,
+        "properties": {
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "elapsed_ms": {
+            "maximum": 120000.0,
+            "minimum": 0.0,
+            "title": "Elapsed Ms",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "maximum": 10000000.0,
+            "minimum": 0.0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "provider_model": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Provider Model",
+            "type": "string"
+          },
+          "tested_at": {
+            "format": "date-time",
+            "title": "Tested At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider_model",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "elapsed_ms",
+          "tested_at"
+        ],
+        "title": "GuiModelConnectionTest",
+        "type": "object"
+      },
+      "GuiModelPublicConfig": {
+        "additionalProperties": false,
+        "description": "Model route, price, and budgets that are safe to return to the browser.",
+        "properties": {
+          "base_url": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "cache_write_input_cost_per_million": {
+            "default": "1.25",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cache Write Input Cost Per Million",
+            "type": "string"
+          },
+          "cached_input_cost_per_million": {
+            "default": "0.625",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cached Input Cost Per Million",
+            "type": "string"
+          },
+          "endpoint": {
+            "default": "/v1/chat/completions",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "input_cost_per_million": {
+            "default": "1.25",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Input Cost Per Million",
+            "type": "string"
+          },
+          "max_cost_usd": {
+            "default": "1",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Max Cost Usd",
+            "type": "string"
+          },
+          "max_output_tokens": {
+            "default": 4096,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Output Tokens",
+            "type": "integer"
+          },
+          "max_repairs": {
+            "default": 1,
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Max Repairs",
+            "type": "integer"
+          },
+          "max_response_bytes": {
+            "default": 1048576,
+            "maximum": 16777216.0,
+            "minimum": 1.0,
+            "title": "Max Response Bytes",
+            "type": "integer"
+          },
+          "max_total_tokens": {
+            "default": 32768,
+            "maximum": 10000000.0,
+            "minimum": 1.0,
+            "title": "Max Total Tokens",
+            "type": "integer"
+          },
+          "max_transient_retries": {
+            "default": 1,
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Max Transient Retries",
+            "type": "integer"
+          },
+          "model_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$",
+            "title": "Model Id",
+            "type": "string"
+          },
+          "output_cost_per_million": {
+            "default": "5",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Output Cost Per Million",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "default": "30",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Timeout Seconds",
+            "type": "string"
+          }
+        },
+        "required": [
+          "base_url",
+          "model_id"
+        ],
+        "title": "GuiModelPublicConfig",
+        "type": "object"
+      },
+      "GuiModelSettingsView": {
+        "additionalProperties": false,
+        "description": "Secret-free current state; `configured` does not imply trading authority.",
+        "properties": {
+          "api_key_configured": {
+            "title": "Api Key Configured",
+            "type": "boolean"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiModelPublicConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connection_test": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiModelConnectionTest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "detail": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "generation": {
+            "minimum": 0.0,
+            "title": "Generation",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "environment",
+              "session",
+              "none"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "configured",
+              "unconfigured",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "verified": {
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "state",
+          "source",
+          "detail",
+          "api_key_configured",
+          "verified",
+          "generation"
+        ],
+        "title": "GuiModelSettingsView",
+        "type": "object"
+      },
+      "GuiPaperCashView": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Available",
+            "type": "string"
+          },
+          "currency": {
+            "pattern": "^[A-Z][A-Z0-9]{1,11}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "reserved": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Reserved",
+            "type": "string"
+          },
+          "settled": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Settled",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "settled",
+          "reserved",
+          "available"
+        ],
+        "title": "GuiPaperCashView",
+        "type": "object"
+      },
+      "GuiPaperIntegrityView": {
+        "additionalProperties": false,
+        "properties": {
+          "account_sequence": {
+            "minimum": 0.0,
+            "title": "Account Sequence",
+            "type": "integer"
+          },
+          "ledger_hash": {
+            "anyOf": [
+              {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Hash"
+          },
+          "ledger_sequence": {
+            "minimum": 0.0,
+            "title": "Ledger Sequence",
+            "type": "integer"
+          },
+          "portfolio_sequence": {
+            "minimum": 0.0,
+            "title": "Portfolio Sequence",
+            "type": "integer"
+          },
+          "projection_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Projection Hash",
+            "type": "string"
+          },
+          "state": {
+            "const": "verified",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "account_sequence",
+          "portfolio_sequence",
+          "ledger_sequence",
+          "projection_hash"
+        ],
+        "title": "GuiPaperIntegrityView",
+        "type": "object"
+      },
+      "GuiPaperNavView": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "base_currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z][A-Z0-9]{1,11}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Currency"
+          },
+          "cash_value": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cash Value"
+          },
+          "cumulative_fees": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cumulative Fees"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "nav": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nav"
+          },
+          "position_value": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Value"
+          },
+          "realized_pnl": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realized Pnl"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "empty",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "GuiPaperNavView",
+        "type": "object"
+      },
+      "GuiPaperPortfolioView": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "base_currency": {
+            "pattern": "^[A-Z][A-Z0-9]{1,11}$",
+            "title": "Base Currency",
+            "type": "string"
+          },
+          "cash": {
+            "items": {
+              "$ref": "#/components/schemas/GuiPaperCashView"
+            },
+            "maxItems": 64,
+            "title": "Cash",
+            "type": "array"
+          },
+          "latest_target": {
+            "title": "Latest Target",
+            "type": "boolean"
+          },
+          "pending_order_count": {
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Pending Order Count",
+            "type": "integer"
+          },
+          "position_count": {
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Position Count",
+            "type": "integer"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/GuiPaperPositionView"
+            },
+            "maxItems": 128,
+            "title": "Positions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "base_currency",
+          "as_of",
+          "cash",
+          "positions",
+          "position_count",
+          "pending_order_count",
+          "latest_target"
+        ],
+        "title": "GuiPaperPortfolioView",
+        "type": "object"
+      },
+      "GuiPaperPositionView": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Available",
+            "type": "string"
+          },
+          "instrument_id": {
+            "format": "uuid",
+            "title": "Instrument Id",
+            "type": "string"
+          },
+          "quantity": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Quantity",
+            "type": "string"
+          },
+          "reserved": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Reserved",
+            "type": "string"
+          },
+          "sellable": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Sellable",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "quantity",
+          "sellable",
+          "reserved",
+          "available"
+        ],
+        "title": "GuiPaperPositionView",
+        "type": "object"
+      },
+      "GuiPaperRiskView": {
+        "additionalProperties": false,
+        "properties": {
+          "approved": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved"
+          },
+          "currently_authorized": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currently Authorized"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "failed_checks": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Failed Checks",
+            "type": "array"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "empty",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "GuiPaperRiskView",
+        "type": "object"
+      },
+      "GuiPaperSafetyView": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_.-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "title": "GuiPaperSafetyView",
+        "type": "object"
+      },
+      "GuiResearchCapability": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_profiles": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Allowed Profiles",
+            "type": "array"
+          },
+          "default_profile": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Default Profile",
+            "type": "string"
+          },
+          "detail": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "intent_token": {
+            "maxLength": 256,
+            "minLength": 32,
+            "title": "Intent Token",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ready",
+              "unavailable"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "detail",
+          "allowed_profiles",
+          "default_profile",
+          "intent_token"
+        ],
+        "title": "GuiResearchCapability",
+        "type": "object"
+      },
+      "GuiResearchClaim": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "text": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "evidence_ids"
+        ],
+        "title": "GuiResearchClaim",
+        "type": "object"
+      },
+      "GuiResearchEvidenceField": {
+        "additionalProperties": false,
+        "description": "One safe scalar field, never an arbitrary raw provider payload.",
+        "properties": {
+          "name": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
+        "title": "GuiResearchEvidenceField",
+        "type": "object"
+      },
+      "GuiResearchEvidenceItem": {
+        "additionalProperties": false,
+        "properties": {
+          "available_at": {
+            "title": "Available At",
+            "type": "string"
+          },
+          "completeness": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Completeness",
+            "type": "string"
+          },
+          "content_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "event_time": {
+            "title": "Event Time",
+            "type": "string"
+          },
+          "evidence_id": {
+            "format": "uuid",
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "fields": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GuiResearchEvidenceField"
+            },
+            "maxItems": 16,
+            "title": "Fields",
+            "type": "array"
+          },
+          "kind": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "quality_status": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$",
+            "title": "Quality Status",
+            "type": "string"
+          },
+          "source": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "evidence_id",
+          "kind",
+          "source",
+          "provider",
+          "event_time",
+          "available_at",
+          "quality_status",
+          "completeness",
+          "content_hash"
+        ],
+        "title": "GuiResearchEvidenceItem",
+        "type": "object"
+      },
+      "GuiResearchEvidenceView": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GuiResearchEvidenceItem"
+            },
+            "maxItems": 128,
+            "title": "Items",
+            "type": "array"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "items"
+        ],
+        "title": "GuiResearchEvidenceView",
+        "type": "object"
+      },
+      "GuiResearchHistoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "issue_count": {
+            "default": 0,
+            "maximum": 256.0,
+            "minimum": 0.0,
+            "title": "Issue Count",
+            "type": "integer"
+          },
+          "profile": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$",
+            "title": "Profile",
+            "type": "string"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "stage": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "degraded",
+              "failed",
+              "succeeded",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbol": {
+            "pattern": "^[A-Z0-9][A-Z0-9.-]{0,15}$",
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "symbol",
+          "profile",
+          "status",
+          "stage",
+          "as_of",
+          "updated_at"
+        ],
+        "title": "GuiResearchHistoryItem",
+        "type": "object"
+      },
+      "GuiResearchHistoryView": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GuiResearchHistoryItem"
+            },
+            "maxItems": 20,
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "GuiResearchHistoryView",
+        "type": "object"
+      },
+      "GuiResearchIssueView": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^[a-z][a-z0-9_]{0,127}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "stage": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "code"
+        ],
+        "title": "GuiResearchIssueView",
+        "type": "object"
+      },
+      "GuiResearchRunRef": {
+        "additionalProperties": false,
+        "properties": {
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "GuiResearchRunRef",
+        "type": "object"
+      },
+      "GuiResearchRunView": {
+        "additionalProperties": false,
+        "description": "Safe structured projection; raw job payloads never cross this boundary.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "claims": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GuiResearchClaim"
+            },
+            "maxItems": 64,
+            "title": "Claims",
+            "type": "array"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "counterarguments": {
+            "default": [],
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Counterarguments",
+            "type": "array"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "evidence_count": {
+            "default": 0,
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Evidence Count",
+            "type": "integer"
+          },
+          "issues": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GuiResearchIssueView"
+            },
+            "maxItems": 256,
+            "title": "Issues",
+            "type": "array"
+          },
+          "kronos_alpha": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiKronosAlphaView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kronos_forecast": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiKronosForecastView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "paper_decision": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Decision"
+          },
+          "report_content": {
+            "anyOf": [
+              {
+                "maxLength": 131072,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Content"
+          },
+          "risks": {
+            "default": [],
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Risks",
+            "type": "array"
+          },
+          "run_id": {
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "stage": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+            "title": "Stage",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "degraded",
+              "failed",
+              "succeeded",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "symbol": {
+            "pattern": "^[A-Z0-9][A-Z0-9.-]{0,15}$",
+            "title": "Symbol",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "string"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiResearchUsageView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GuiResearchVersionView"
+            },
+            "maxItems": 64,
+            "title": "Versions",
+            "type": "array"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run_id",
+          "symbol",
+          "status",
+          "stage",
+          "updated_at"
+        ],
+        "title": "GuiResearchRunView",
+        "type": "object"
+      },
+      "GuiResearchUsageView": {
+        "additionalProperties": false,
+        "description": "Bounded cost/latency summary; prompts and provider envelopes stay sealed.",
+        "properties": {
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "elapsed_ms": {
+            "minimum": 0.0,
+            "title": "Elapsed Ms",
+            "type": "integer"
+          },
+          "input_tokens": {
+            "minimum": 0.0,
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "iterations": {
+            "maximum": 64.0,
+            "minimum": 0.0,
+            "title": "Iterations",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "minimum": 0.0,
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "tool_calls": {
+            "maximum": 256.0,
+            "minimum": 0.0,
+            "title": "Tool Calls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "iterations",
+          "tool_calls",
+          "input_tokens",
+          "output_tokens",
+          "cost_usd",
+          "elapsed_ms"
+        ],
+        "title": "GuiResearchUsageView",
+        "type": "object"
+      },
+      "GuiResearchVersionView": {
+        "additionalProperties": false,
+        "properties": {
+          "component": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$",
+            "title": "Component",
+            "type": "string"
+          },
+          "version": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "component",
+          "version"
+        ],
+        "title": "GuiResearchVersionView",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "LatestMarketBar": {
+        "additionalProperties": false,
+        "properties": {
+          "close": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "title": "Close",
+            "type": "string"
+          },
+          "event_time": {
+            "title": "Event Time",
+            "type": "string"
+          },
+          "high": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "title": "High",
+            "type": "string"
+          },
+          "low": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "title": "Low",
+            "type": "string"
+          },
+          "open": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "title": "Open",
+            "type": "string"
+          },
+          "volume": {
+            "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+            "title": "Volume",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_time",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume"
+        ],
+        "title": "LatestMarketBar",
+        "type": "object"
+      },
+      "LatestMarketDataView": {
+        "additionalProperties": false,
+        "description": "Full bar-series projection used by charts and provenance panels.",
+        "properties": {
+          "bars": {
+            "items": {
+              "$ref": "#/components/schemas/LatestMarketBar"
+            },
+            "maxItems": 3000,
+            "minItems": 1,
+            "title": "Bars",
+            "type": "array"
+          },
+          "cache_hit": {
+            "default": false,
+            "title": "Cache Hit",
+            "type": "boolean"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "change_percent": {
+            "anyOf": [
+              {
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "data_age_seconds": {
+            "minimum": 0.0,
+            "title": "Data Age Seconds",
+            "type": "integer"
+          },
+          "feed_type": {
+            "$ref": "#/components/schemas/FeedType"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/MarketDataFreshness"
+          },
+          "interval": {
+            "$ref": "#/components/schemas/BarInterval"
+          },
+          "is_real_time": {
+            "const": false,
+            "default": false,
+            "title": "Is Real Time",
+            "type": "boolean"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/LatestMarketBar"
+          },
+          "latest_event_time": {
+            "title": "Latest Event Time",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "previous_close": {
+            "anyOf": [
+              {
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Close"
+          },
+          "provider": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.:-]*$",
+            "title": "Provider",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/MarketDataQuality"
+          },
+          "quality_reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Quality Reasons",
+            "type": "array"
+          },
+          "served_at": {
+            "title": "Served At",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Z0-9][A-Z0-9.-]*$",
+            "title": "Symbol",
+            "type": "string"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "symbol",
+          "provider",
+          "feed_type",
+          "interval",
+          "observed_at",
+          "served_at",
+          "latest_event_time",
+          "data_age_seconds",
+          "freshness",
+          "quality",
+          "latest",
+          "bars"
+        ],
+        "title": "LatestMarketDataView",
+        "type": "object"
+      },
+      "MarketDataFreshness": {
+        "description": "Session-aware age of the latest event, separate from feed entitlement.",
+        "enum": [
+          "current",
+          "market_closed",
+          "delayed",
+          "stale",
+          "unknown"
+        ],
+        "title": "MarketDataFreshness",
+        "type": "string"
+      },
+      "MarketDataQuality": {
+        "description": "Backend-owned presentation quality; Browser code must not promote it.",
+        "enum": [
+          "available",
+          "degraded",
+          "unknown"
+        ],
+        "title": "MarketDataQuality",
+        "type": "string"
+      },
+      "MarketQuoteView": {
+        "additionalProperties": false,
+        "description": "Compact derived quote; never a real-time tick and always says so.",
+        "properties": {
+          "cache_hit": {
+            "default": false,
+            "title": "Cache Hit",
+            "type": "boolean"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          },
+          "change_percent": {
+            "anyOf": [
+              {
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Percent"
+          },
+          "data_age_seconds": {
+            "minimum": 0.0,
+            "title": "Data Age Seconds",
+            "type": "integer"
+          },
+          "feed_type": {
+            "$ref": "#/components/schemas/FeedType"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/MarketDataFreshness"
+          },
+          "interval": {
+            "$ref": "#/components/schemas/BarInterval"
+          },
+          "is_real_time": {
+            "const": false,
+            "default": false,
+            "title": "Is Real Time",
+            "type": "boolean"
+          },
+          "latest": {
+            "$ref": "#/components/schemas/LatestMarketBar"
+          },
+          "latest_event_time": {
+            "title": "Latest Event Time",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "previous_close": {
+            "anyOf": [
+              {
+                "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Close"
+          },
+          "provider": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9_.:-]*$",
+            "title": "Provider",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/MarketDataQuality"
+          },
+          "quality_reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Quality Reasons",
+            "type": "array"
+          },
+          "served_at": {
+            "title": "Served At",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Z0-9][A-Z0-9.-]*$",
+            "title": "Symbol",
+            "type": "string"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "symbol",
+          "provider",
+          "feed_type",
+          "interval",
+          "observed_at",
+          "served_at",
+          "latest_event_time",
+          "data_age_seconds",
+          "freshness",
+          "quality",
+          "latest"
+        ],
+        "title": "MarketQuoteView",
+        "type": "object"
+      },
+      "Pagination": {
+        "additionalProperties": false,
+        "properties": {
+          "page": {
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total_items": {
+            "minimum": 0.0,
+            "title": "Total Items",
+            "type": "integer"
+          },
+          "total_pages": {
+            "readOnly": true,
+            "title": "Total Pages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "page_size",
+          "total_items",
+          "total_pages"
+        ],
+        "title": "Pagination",
+        "type": "object"
+      },
+      "PaperCapability": {
+        "additionalProperties": false,
+        "properties": {
+          "account_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Id"
+          },
+          "detail": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "integrity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiPaperIntegrityView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nav": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiPaperNavView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "portfolio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiPaperPortfolioView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiPaperRiskView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rows": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PaperRow"
+            },
+            "maxItems": 32,
+            "title": "Rows",
+            "type": "array"
+          },
+          "safety": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GuiPaperSafetyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "pattern": "^(ready|unavailable)$",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "detail"
+        ],
+        "title": "PaperCapability",
+        "type": "object"
+      },
+      "PaperRow": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 48,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "PaperRow",
+        "type": "object"
+      },
+      "ResponseMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "pagination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Pagination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{32}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          }
+        },
+        "title": "ResponseMetadata",
+        "type": "object"
+      },
+      "ServiceStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Detail",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "state": {
+            "pattern": "^(ready|absent|failed)$",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "detail",
+          "state"
+        ],
+        "title": "ServiceStatus",
+        "type": "object"
+      },
+      "SuccessEnvelope_GuiCapabilities_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GuiCapabilities"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[GuiCapabilities]",
+        "type": "object"
+      },
+      "SuccessEnvelope_GuiModelSettingsView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GuiModelSettingsView"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[GuiModelSettingsView]",
+        "type": "object"
+      },
+      "SuccessEnvelope_GuiResearchEvidenceView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GuiResearchEvidenceView"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[GuiResearchEvidenceView]",
+        "type": "object"
+      },
+      "SuccessEnvelope_GuiResearchHistoryView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GuiResearchHistoryView"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[GuiResearchHistoryView]",
+        "type": "object"
+      },
+      "SuccessEnvelope_GuiResearchRunRef_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GuiResearchRunRef"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[GuiResearchRunRef]",
+        "type": "object"
+      },
+      "SuccessEnvelope_GuiResearchRunView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GuiResearchRunView"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[GuiResearchRunView]",
+        "type": "object"
+      },
+      "SuccessEnvelope_LatestMarketDataView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LatestMarketDataView"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[LatestMarketDataView]",
+        "type": "object"
+      },
+      "SuccessEnvelope_WatchlistView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WatchlistView"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[WatchlistView]",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WatchlistEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApiError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarketQuoteView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          }
+        },
+        "required": [
+          "symbol"
+        ],
+        "title": "WatchlistEntry",
+        "type": "object"
+      },
+      "WatchlistView": {
+        "additionalProperties": false,
+        "properties": {
+          "quotes": {
+            "items": {
+              "$ref": "#/components/schemas/WatchlistEntry"
+            },
+            "maxItems": 12,
+            "title": "Quotes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "quotes"
+        ],
+        "title": "WatchlistView",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Stonks Terminal",
+    "version": "0.2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/capabilities": {
+      "get": {
+        "operationId": "_CapabilitiesEndpoint_api_v1_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_GuiCapabilities_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Capabilitiesendpoint"
+      }
+    },
+    "/api/v1/market-data/latest": {
+      "get": {
+        "operationId": "_BarsEndpoint_api_v1_market_data_latest_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9.\\-]*$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "interval",
+            "required": false,
+            "schema": {
+              "default": "1d",
+              "enum": [
+                "1m",
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lookback_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 366,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_LatestMarketDataView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Barsendpoint"
+      }
+    },
+    "/api/v1/market/bars": {
+      "get": {
+        "operationId": "_BarsEndpoint_api_v1_market_bars_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9.\\-]*$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "interval",
+            "required": false,
+            "schema": {
+              "default": "1d",
+              "enum": [
+                "1m",
+                "5m",
+                "15m",
+                "1h",
+                "1d"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lookback_days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 366,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_LatestMarketDataView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Barsendpoint"
+      }
+    },
+    "/api/v1/market/quotes": {
+      "get": {
+        "operationId": "_WatchlistEndpoint_api_v1_market_quotes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbols",
+            "required": true,
+            "schema": {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9.,\\-]*$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_WatchlistView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Watchlistendpoint"
+      }
+    },
+    "/api/v1/research/runs": {
+      "get": {
+        "operationId": "_ListEndpoint_api_v1_research_runs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_GuiResearchHistoryView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Listendpoint"
+      },
+      "post": {
+        "operationId": "_CreateEndpoint_api_v1_research_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGuiResearchRunBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_GuiResearchRunRef_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Createendpoint"
+      }
+    },
+    "/api/v1/research/runs/{run_id}": {
+      "get": {
+        "operationId": "_DetailEndpoint_api_v1_research_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_GuiResearchRunView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Detailendpoint"
+      }
+    },
+    "/api/v1/research/runs/{run_id}/events": {
+      "get": {
+        "operationId": "_EventsEndpoint_api_v1_research_runs__run_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Canonical research run events"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Eventsendpoint"
+      }
+    },
+    "/api/v1/research/runs/{run_id}/evidence": {
+      "get": {
+        "operationId": "_EvidenceEndpoint_api_v1_research_runs__run_id__evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_GuiResearchEvidenceView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Evidenceendpoint"
+      }
+    },
+    "/api/v1/settings/llm": {
+      "delete": {
+        "operationId": "_ClearEndpoint_api_v1_settings_llm_delete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearGuiModelSettingsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_GuiModelSettingsView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Clearendpoint"
+      },
+      "get": {
+        "operationId": "_ReadEndpoint_api_v1_settings_llm_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_GuiModelSettingsView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Readendpoint"
+      },
+      "put": {
+        "operationId": "_ConfigureEndpoint_api_v1_settings_llm_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureGuiModelSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_GuiModelSettingsView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Configureendpoint"
+      }
+    }
+  },
+  "x-stonks-authority": {
+    "mode": "bounded_research_command",
+    "runtime": "not_composed_by_default",
+    "trading": "canonical_paper_only"
+  },
+  "x-stonks-execution-mode": "paper",
+  "x-stonks-surface": "local-actual-runtime"
+}

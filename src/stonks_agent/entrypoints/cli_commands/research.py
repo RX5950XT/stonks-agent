@@ -38,12 +38,12 @@ def _principal(target: AccessTarget) -> LocalPrincipal:
 
 @app.command("request")
 def request_command(
-    instrument_id: Annotated[str, typer.Option()] = "instrument-aapl",
+    instrument_id: Annotated[str, typer.Option()] = "instrument:aapl",
     symbol: Annotated[str, typer.Option()] = "AAPL",
     as_of: Annotated[str, typer.Option()] = "2026-01-02T21:00:00Z",
     snapshot_id: Annotated[str, typer.Option()] = "",
     research_profile_id: Annotated[str, typer.Option()] = "balanced/1",
-    model_policy_id: Annotated[str, typer.Option()] = "research-models/1",
+    model_policy_id: Annotated[str, typer.Option()] = "research-models-v1",
     language: Annotated[str, typer.Option()] = "zh-TW",
     idempotency_key: Annotated[str, typer.Option()] = "cli-research",
     database_url: Annotated[str, typer.Option(envvar="STONKS_DATABASE_URL")] = "",

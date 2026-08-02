@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Self
 from urllib.parse import urlsplit
 
@@ -15,6 +15,7 @@ from starlette.datastructures import Headers
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import ErrorCode, StructuredError
 from stonks_agent.entrypoints.api.envelope import error_envelope
 from stonks_agent.entrypoints.api.rate_limits import (
@@ -27,8 +28,10 @@ from stonks_agent.entrypoints.api.request_limits import (
     RequestBodyLimitMiddleware,
 )
 from stonks_agent.entrypoints.api.web_protection import (
+    CONTENT_SECURITY_POLICY,
     CookieAuthPolicy,
     install_web_protection,
+    validate_content_security_policy,
 )
 from stonks_agent.ports.rate_limit_store import RateLimitStore
 
@@ -54,6 +57,12 @@ class ApiSecurityPolicy(BaseModel):
     rate_limit_window_seconds: int = Field(default=60, ge=1, le=86_400)
     rate_limit_max_keys: int = Field(default=10_000, ge=1, le=1_000_000)
     request_body_max_frames: int = Field(default=256, ge=1, le=4096)
+    content_security_policy: str = CONTENT_SECURITY_POLICY
+
+    @field_validator("content_security_policy")
+    @classmethod
+    def validate_policy(cls, value: str) -> str:
+        return validate_content_security_policy(value)
 
     @field_validator("allowed_cors_origins")
     @classmethod
@@ -157,7 +166,7 @@ def install_api_security(
             if runtime.rate_limit_store is not None
             else InMemoryRateLimitStore(max_keys=selected.rate_limit_max_keys)
         ),
-        clock=runtime.clock or _utc_now,
+        clock=runtime.clock or utc_now,
         limit=selected.rate_limit_requests,
         direct_peer_edge_limit=selected.direct_peer_edge_requests,
         window_seconds=selected.rate_limit_window_seconds,
@@ -186,6 +195,7 @@ def install_api_security(
         app,
         cookie_auth=runtime.cookie_auth,
         boundary_installer=install_outer_boundaries,
+        content_security_policy=selected.content_security_policy,
     )
 
 
@@ -224,7 +234,3 @@ def _validate_origin(value: str) -> None:
         raise ValueError("non-local CORS origins require HTTPS")
     if port is not None and not 1 <= port <= 65_535:
         raise ValueError("CORS origin port is invalid")
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)

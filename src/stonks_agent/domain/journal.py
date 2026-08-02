@@ -28,14 +28,6 @@ class JournalSide(StrEnum):
     CREDIT = "credit"
 
 
-class LedgerAccountKind(StrEnum):
-    ASSET = "asset"
-    INVENTORY = "inventory"
-    FEE = "fee"
-    PNL = "pnl"
-    CLEARING = "clearing"
-
-
 class JournalPosting(TradingModel):
     posting_id: UUID
     ledger_account: str = Field(

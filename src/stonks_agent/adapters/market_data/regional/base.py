@@ -7,12 +7,10 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol
 
 import yaml
 from pydantic import ConfigDict, Field
 
-from stonks_agent.application.data.fetch_evidence import FetchDataRequest
 from stonks_agent.domain.data_quality import ProviderDataState, ProviderObservation
 from stonks_agent.domain.instrument import Instrument
 
@@ -38,16 +36,6 @@ class RegionalInstrumentMapping(Instrument):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     supported_capabilities: frozenset[RegionalCapability] = Field(min_length=1)
-
-
-class RegionalMarketDataAdapter(Protocol):
-    @property
-    def provider(self) -> str: ...
-
-    @property
-    def capabilities(self) -> frozenset[RegionalCapability]: ...
-
-    def fetch(self, request: FetchDataRequest) -> ProviderObservation[object]: ...
 
 
 def unsupported_observation[T](

@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import Request
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.responses import FileResponse, JSONResponse, Response
-from surface import SurfaceAllowlist
+from surface import build_surface
 
 from stonks_service_auth import (
     load_static_oidc_service_authenticator,
@@ -74,7 +74,7 @@ async def healthz() -> JSONResponse:
     )
 
 
-app = SurfaceAllowlist(
+app = build_surface(
     openbb_app,
     authenticator=_authenticator,
 )

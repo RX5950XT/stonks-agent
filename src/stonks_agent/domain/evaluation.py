@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from enum import StrEnum
 from typing import Self
 from uuid import UUID
@@ -184,7 +183,3 @@ class EvaluationReport(BaseModel):
             exclude={"report_id", "report_artifact_ref", "created_at", "valid_until"},
         )
         return stable_payload_hash(payload)
-
-
-def metric_map(report: EvaluationReport) -> dict[tuple[str, str], Decimal]:
-    return {(metric.name, metric.segment): metric.value for metric in report.metrics}

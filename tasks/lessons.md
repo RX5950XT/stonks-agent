@@ -1,5 +1,65 @@
 # Lessons
 
+## 2026-08-02
+
+- CI hermeticity 不能由本機 clean worktree 推論；gitignored `.data`／`.research` 仍會掩蓋缺少
+  prerequisite 的測試。需要 runtime artifact 的 test 必須自行建立 scoped state，只清理由它建立的路徑，
+  並另保留 clean checkout 的 fail-closed regression。
+- Migration 新增 head 後，所有 frozen runtime revision 都必須由 regression 對照 Alembic single head；
+  只測設定檔內容會讓 capacity 等獨立 gate 在執行期才發現 drift。
+- Capability route 存在不等於 runtime ready；GUI 必須同時合成 route contract、live service state
+  與 model `api_key_configured && verified`，不得把 `configured` 翻成「已驗證」。
+- Async deep-link 不能由 loading placeholder event 宣告完成；只允許真實 market success 或 typed
+  terminal failure 觸發最後一次 layout 校正。
+- UI market label 不得自行只判斷 `.TW`；必須跟 canonical suffix mapping 對齊 `.TW`、`.TWO`、
+  `.HK` 與 US fallback，成功／失敗畫面都使用同一 helper。
+- Secret field 在 `pagehide` 不只清值，也要恢復 `type=password` 與 reveal control state，避免
+  BFCache 返回後讓下一次輸入以明文顯示。
+
+## 2026-08-01
+
+- Quiet refresh 的每個 success／failure／preserve-last-data exit 都必須集中釋放 loading 與
+  `aria-busy`；只保留上一筆 quote 不代表狀態機已完成，永久 busy 是獨立 bug。
+- Loopback 不等於 same-origin；昂貴 browser GET 仍可被跨站觸發，必須在 provider 前拒絕
+  cross-site `Origin`／Fetch Metadata。Secret input 同時要關閉 autocomplete 並在 page exit 清除。
+- Direct hash 目標若位於 async capability render 下方，初次 layout 完成後必須重新校正；
+  320px viewport 不可再疊 `html min-width: 20rem` 與 scrollbar，固定底部 navigation 要預留 footer
+  空間，所有互動 target 至少 44px。
+- Dead-code 清理只刪除有靜態與 runtime 證據的 consumer-free chain；外部 API schema 欄位即使
+  前端未讀取也不是安全刪除對象，應保留並記錄相容性理由。
+- 全域 `:focus-visible` 不可再疊加 composite control 的 `:focus-within` box-shadow；搜尋列、
+  secret input 與命令列只能有一個清楚的 focus indicator，避免內層輸入框出現第二圈粗框。
+- 使用者否定的是廉價的 dark-fintech 模板感，不代表偏好亮色；theme 偏好與視覺品質是兩個
+  維度。這個產品固定採低彩度 graphite dark mode，靠資訊密度、分隔線與單一 cobalt accent
+  建立層級，不用金色、霓虹、glow、glass 或卡片海。
+- 介面資訊架構必須從實際 backend capability 反推；每個已組合功能要在首屏功能總覽或
+  一次點擊內可見，並顯示 truthful ready／blocked／degraded 狀態。沒有 backend route 的
+  buy/sell、kill-switch mutation、cancel run 或 Kronos promotion 不得畫假按鈕。
+- 使用者明確指出現有 GUI「看起來就是 AI 垃圾」時，不能把 dark fintech、金色 CTA、
+  uppercase tracked kicker、rounded card grid、狀態側條換色後再交付；要先改資訊架構與
+  component vocabulary，採真正 task-first 的 product workbench，並以實際桌面／窄版畫面
+  通過 anti-AI-slop review 才能稱為重新設計。
+- 完全重設計仍要保留 provider freshness、typed failure、paper-only、secret 與 deterministic
+  authority 邊界；視覺重寫不是刪掉可信度資訊，也不能用新框架擴大 CSP 或供應鏈範圍。
+
+## 2026-07-28
+
+- 內建安全掃描工作區若需要使用者按鈕啟動，不能把互動式 setup 當成唯一執行路徑，
+  更不能把工具逾時轉嫁給使用者；應立即改用 repo 原生 CLI、既有 security gates 與
+  source-to-sink 稽核自主完成，只有缺少不可推導的產品決策時才停下詢問。
+- Typed contracts、worker service 與完整單元測試都存在，不代表功能已可使用；每個外部能力
+  都必須有 composition root、durable dispatcher、實際入口與 external runtime gate，
+  否則 README／GUI 必須明示「未組合」，不能把「程式寫好了」當成整合完成。
+- 研究或 forecast 成功不等於可交易。建立 `PortfolioTarget` 前必須重驗 strategy registry、
+  evaluation validity 與 `paper_eligible`；shadow weight 0、draft baseline或 disabled mapper
+  都不能為了展示閉環而臨時升級、偽造 signal 或製造 paper fill。
+- API、SSE 與命令列都接好仍不等於 GUI 好用；主要任務要有直接操作入口，研究結論、
+  evidence、risk 與 paper 狀態依決策順序呈現，命令列只保留為 power-user 路徑。
+  窄版必須重新排序主要內容且禁止 boot autofocus，不能只把桌面卡片垂直堆疊。
+- 長時間 research UI 必須在第一個 `await` 前鎖定 single-flight，用 run serial 阻止舊
+  detail 覆蓋新 run，terminal 後重讀 paper projection；否則即使後端 fenced，
+  前端仍可能重複建立工作或顯示跨 run／跨時間點的不一致結果。
+
 ## 2026-07-10
 
 - 子代理從 live list 消失或出現 usage limit 時，先檢查已落盤 artifacts 與最後訊息；只續跑缺失的同一子任務，不從頭重做，也不能因子代理中止讓主任務停住。
@@ -46,3 +106,76 @@
 - 使用者明示 `AGENTS.md` replacement 時，先逐條比對目前落盤版本並立即同步 `AGENTS.md`／`CLAUDE.md`；即使內容已一致，也要把新增或重申的不變量納入完成稽核，不能沿用較早的對話版本。
 - 使用者追問「事情做完了嗎」時，必須明確區分repository公開、GHCR image存在與formal release closure；只要signature、attestation、immutable release或獨立驗證仍缺一項，就只能回報未完成並持續收尾。
 - Cosign major-version行為不能由舊CLI記憶推定：v3 image bundle是DSSE attestation，saved bundle要用`verify-blob-attestation`綁exact digest/predicate驗證，並確認同一bundle確實附加至registry後再用`verify`重驗。
+- 使用者要求「真實功能不是玩具」時，contract、mock、fixture 或 configured manifest 不能當成功證據；能力宣稱必須綁定 actual external runtime，並明列資料時效、fallback、持久化與 composition 缺口。
+
+## 2026-07-27
+
+- Provider 能力必須逐端點實測後才可規劃：OpenBB sidecar 容器內有 26 條路由，但 Yahoo 的
+  `quote`／`profile`／`fundamental`／`discovery` 全數 401，因為 yfinance 取 cookie 的
+  `fc.yahoo.com` 已無法解析（`1.5.1` 與 `1.5.2` 皆同）。升級套件前先讀上游原始碼確認
+  修復點，否則會白做一輪版本升級與 lock/SBOM 重建。
+- 「安全」政策若擋住產品本身的目的（零 JavaScript 讓終端只能是表單），要改的是政策的
+  表述而不是產品：把「沒有 script」換成可驗證的「只允許同源 script、CSP 全 `'self'`、
+  禁 inline/eval/`data:`/字串產生 markup」，安全性沒有下降而能力解鎖。
+- 外部時間戳沒有時區時不能直接當 UTC：OpenBB 的日內 bar 是 naive 交易所本地時間，
+  必須先對照上游 epoch 驗證換算（15:30 對應 19:30Z）再綁 `America/New_York`，
+  並用交易所本地日期而非 UTC 日期做請求範圍檢查。
+- 部分推導欄位要嘛全有要嘛全無：previous close 為 0 時只給絕對變化而略過百分比，
+  會讓畫面看起來像一筆完整比較。無法完整推導就三個欄位一起省略。
+- GUI server 在啟動時把 asset 讀進記憶體，改 CSS/JS 後必須重啟才會生效；瀏覽器端
+  `ignoreCache` 重新載入不會讓舊 process 吐出新檔案，否則會誤判成版面 bug。
+- 用 hash-only 的網址導覽不會重新載入文件，頁面仍綁在舊 server 的回應上；驗證新
+  composition 必須真的 reload 或開新分頁。
+- Evidence allowlist只代表可存取範圍，不代表模型真的看過內容；claim citation必須綁
+  本輪tool實際materialize的IDs，inventory metadata不能冒充evidence reading。
+- Tool contract宣告`timeout_ms`仍不等於已限制執行；執行器必須用monotonic deadline
+  強制中止canonical等待，逾時thread結果不得再被採納。
+- Worker處理lease要以最長handler/model budget設定安全下限，public payload與repr不得
+  暴露attempt nonce；commit conflict要保存secret-free append-only quarantine evidence。
+- Worker/sidecar不能只做body byte cap；JWT前需要bounded peer/credential admission，
+  forwarded headers fail closed，body另需frame與total deadline cap，Uvicorn必須關閉
+  proxy-header採信。
+- Dependency gate必須audit每份isolated runtime lock；`uv lock --check`只證明lock新鮮，
+  local-build版本還要用public package identity查advisory，不能只掃core lock。
+- Docker Desktop的internal network可能保留HostConfig卻不建立實際port publish；local
+  verifier可附加唯一且停用IP masquerade的短命bridge，完成後刪除，不能弱化production
+  internal network來讓smoke通過。
+
+## 2026-07-29
+
+- 專業產品不能只把最新接線功能放上一張卡片；每輪 GUI 工作都要先做
+  backend capability → visible journey matrix，區分「已 composition 可安全操作」、
+  「只能 read-only 投影」、「需要高權限不能放進 local GUI」與「只有 contract 尚未可用」。
+  已有後端資料若缺 history、evidence drill-down、risk/integrity、loading/empty/error
+  與可見 navigation，測試全綠仍不算 product closure。
+- 可獨立通過 actual runtime 的模型不等於已接進產品主流程；使用文件與 GUI 必須分開標示
+  「worker 可驗證」與「本次 run 有 snapshot-bound artifact」，不能用固定摘要讓使用者
+  誤以為 Kronos 已參與研究或 paper 決策。
+- 本機產品若需要一長串 CLI 才能啟動，根目錄應提供受測的薄 launcher，精確轉交 canonical
+  entrypoint；secret 只從 process environment 讀取，preflight 不得輸出值或產生副作用。
+- 清理 dirty worktree 前要先把內容分成 source changes、可重建 cache、昂貴 runtime env、
+  模型／資料庫狀態與研究證據；禁止用廣域 `git clean`／Docker prune。先驗證 exact path
+  位於 workspace，再只刪明確可重建項，才能避免把未提交實作或 external evidence 當垃圾。
+- 使用者要求「Kronos 接入 GUI／直接按 start」時，不能只把 worker readiness 或獨立
+  verifier 包進 launcher；done definition 必須包含同一次 snapshot-bound run 的 durable
+  forecast artifact、typed GUI projection，以及 launcher-owned start／ready／cleanup。
+- Windows 根目錄 launcher 若要同時支援 Windows PowerShell 5.1 與 PowerShell 7，無 BOM
+  的 `.ps1` 必須維持 ASCII；否則 5.1 會以 ANSI 誤解 UTF-8 中文字串，甚至吞掉後續
+  function definition。Regression 必須實際用兩個 host 執行 `-Check`，不能只測 `pwsh`。
+- 把 API key 搬進 GUI 不能只加 password input：route 必須使用 pinned transport 防
+  private／metadata SSRF與DNS rebinding，provider exact key echo要在parse與artifact
+  archive前拒絕；secret不得回傳、持久化或留在browser storage。
+- Capability composed 不等於模型可用；新的研究必須同時要求 runtime ready 與本次
+  session structured completion verified，前端 disabled 之外，POST 邊界也要 fail closed。
+  Durable history 則應維持可讀，避免設定問題阻斷既有研究。
+- Single-flight gate 不能在 queue submit 成功後立即釋放；必須記住 active run ID，
+  讀到 terminal state 才開放下一筆，讀取失敗時維持 fail closed。
+- 「整合所有免費資料」不是遍歷 endpoint：免費額度不代表允許 automated access、
+  display、storage 或 redistribution。先建立 curated legal/runtime catalog，只有完成
+  credential、entitlement、PIT、rate limit 與 actual smoke 的來源才能 active。
+- 行情 freshness 不能由 Browser 用固定秒數猜測；backend 必須依 exchange session、
+  interval、event time 與 verified calendar輸出 typed state。Cache hit 要重算 served
+  age，loading 要先隱藏舊 symbol，近即時 historical bar 仍須明示 `非 tick`。
+- SQLAlchemy `str(engine.url)` 會把密碼渲染為 `***`；需要把同一測試連線交給 CLI 時
+  必須使用 `render_as_string(hide_password=False)`，且不得把結果寫入 assertion、
+  log 或錯誤訊息。

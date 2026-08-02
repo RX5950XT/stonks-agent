@@ -27,7 +27,9 @@ EXPECTED_PROVIDER: Final = "yfinance"
 EXPECTED_ADAPTER: Final = "openbb_rest"
 EXPECTED_SERVICE: Final = "stonks-openbb-sidecar"
 EXPECTED_LICENSE: Final = "AGPL-3.0-only"
-EXPECTED_MARKETS: Final = frozenset({"US"})
+# Markets whose OpenBB->yfinance route was verified against the running sidecar
+# before being routed here (2026-07-30: US via AAPL, TW via 2330/0050/2412.TW).
+EXPECTED_MARKETS: Final = frozenset({"US", "TW"})
 EXPECTED_ALLOWED_LICENSE_EXPRESSIONS: Final = frozenset(
     {
         "Apache-2.0",

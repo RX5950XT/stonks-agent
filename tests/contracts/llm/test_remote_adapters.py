@@ -648,6 +648,41 @@ def test_invalid_resolved_api_keys_fail_before_network_without_echoing_secret(
     assert calls == 0
 
 
+@pytest.mark.parametrize("provider_name", ["openai", "anthropic"])
+def test_provider_response_that_echoes_api_key_is_rejected_before_archive(
+    provider_name: str,
+) -> None:
+    secret = (
+        "top-secret-openai" if provider_name == "openai" else "top-secret-anthropic"
+    )
+    raw = (
+        openai_body(f'{{"answer":"{secret}"}}')
+        if provider_name == "openai"
+        else anthropic_body(f'{{"answer":"{secret}"}}')
+    )
+
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=raw,
+            headers={"content-type": "application/json"},
+            request=incoming,
+        )
+
+    store = MemoryArtifactStore()
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = (
+            openai_adapter(client, store)
+            if provider_name == "openai"
+            else anthropic_adapter(client, store)
+        ).complete(request(_request_model(provider_name)))
+
+    assert isinstance(result, Failure)
+    assert result.error.code is ErrorCode.MODEL_OUTPUT_INVALID
+    assert secret not in str(result.error)
+    assert not store.is_finalized(hashlib.sha256(raw).hexdigest())
+
+
 def test_openai_secret_resolves_once_across_retries_and_rotates_next_request() -> None:
     provider = ScriptedSecretProvider(
         ("rotated-openai-v1", "version-1"),

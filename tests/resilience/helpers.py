@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from support.paper_cycle import paper_cycle_input, paper_cycle_payload
+
 from stonks_agent.domain.errors import (
     ErrorCode,
     Failure,
@@ -25,8 +27,14 @@ from stonks_agent.ports.artifact_store import ArtifactManifest
 NOW = datetime(2026, 7, 22, 1, 0, tzinfo=UTC)
 RUN_ID = UUID("69000000-0000-4000-8000-000000000001")
 JOB_ID = UUID("69000000-0000-4000-8000-000000000002")
-INPUT_HASH = "a" * 64
 MAX_ATTEMPTS = 3
+CYCLE_DEADLINE = NOW + timedelta(hours=1)
+CYCLE_INPUT = paper_cycle_input(
+    run_id=RUN_ID,
+    as_of=NOW,
+    deadline_at=CYCLE_DEADLINE,
+)
+INPUT_HASH = CYCLE_INPUT.cycle_input_hash
 
 _REFERENCE_TYPES = {
     PaperCycleStage.EVIDENCE: "evidence",
@@ -46,15 +54,15 @@ def cycle_command(*, generation: int = 1) -> RunPaperCycle:
         job_id=JOB_ID,
         run_id=RUN_ID,
         job_type="paper_fund_cycle",
-        payload={"cycle_input_hash": INPUT_HASH},
+        payload=paper_cycle_payload(CYCLE_INPUT),
         attempt_generation=generation,
         attempt_nonce=f"fault-attempt-{generation}",
         lease_owner="core-runner",
         lease_until=NOW + timedelta(minutes=5),
         attempts=generation,
-        deadline_at=NOW + timedelta(hours=1),
+        deadline_at=CYCLE_DEADLINE,
     )
-    return RunPaperCycle(lease=lease, cycle_input_hash=INPUT_HASH)
+    return RunPaperCycle(lease=lease)
 
 
 def stage_output(stage: PaperCycleStage) -> PaperCycleStageOutput:
@@ -84,9 +92,11 @@ class FaultingStageHandler:
 
     def advance(
         self,
+        command: RunPaperCycle,
         stage: PaperCycleStage,
         state: PaperCycleState,
     ) -> Result[PaperCycleStageOutput]:
+        assert command.cycle_input == CYCLE_INPUT
         del state
         self.calls.append(stage)
         if stage is self.fail_at:

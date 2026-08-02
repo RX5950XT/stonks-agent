@@ -5,6 +5,7 @@ from uuid import UUID
 
 import pytest
 from support.budgets import FixedBudgetEvaluator
+from support.paper_cycle import paper_cycle_input, paper_cycle_payload
 from support.telemetry import RecordingOperationRecorder
 
 from stonks_agent.adapters.artifacts.memory import MemoryArtifactStore
@@ -37,6 +38,12 @@ from stonks_agent.ports.artifact_store import ArtifactManifest
 NOW = datetime(2026, 7, 13, 18, 0, tzinfo=UTC)
 RUN_ID = UUID("47000000-0000-4000-8000-000000000101")
 JOB_ID = UUID("47000000-0000-4000-8000-000000000102")
+CYCLE_DEADLINE = NOW + timedelta(hours=1)
+CYCLE_INPUT = paper_cycle_input(
+    run_id=RUN_ID,
+    as_of=NOW,
+    deadline_at=CYCLE_DEADLINE,
+)
 
 REFERENCE_TYPES = {
     PaperCycleStage.EVIDENCE: "evidence",
@@ -56,18 +63,18 @@ def lease(*, generation: int = 1) -> JobLease:
         job_id=JOB_ID,
         run_id=RUN_ID,
         job_type="paper_fund_cycle",
-        payload={"cycle_input_hash": "a" * 64},
+        payload=paper_cycle_payload(CYCLE_INPUT),
         attempt_generation=generation,
         attempt_nonce=f"attempt-{generation}",
         lease_owner="core-runner",
         lease_until=NOW + timedelta(minutes=5),
         attempts=generation,
-        deadline_at=NOW + timedelta(hours=1),
+        deadline_at=CYCLE_DEADLINE,
     )
 
 
 def request(*, generation: int = 1) -> RunPaperCycle:
-    return RunPaperCycle(lease=lease(generation=generation), cycle_input_hash="a" * 64)
+    return RunPaperCycle(lease=lease(generation=generation))
 
 
 def stage_output(stage: PaperCycleStage) -> PaperCycleStageOutput:
@@ -90,8 +97,12 @@ class FakeHandler:
         self.calls: list[PaperCycleStage] = []
 
     def advance(
-        self, stage: PaperCycleStage, state: PaperCycleState
+        self,
+        command: RunPaperCycle,
+        stage: PaperCycleStage,
+        state: PaperCycleState,
     ) -> Result[PaperCycleStageOutput]:
+        assert command.cycle_input.run_id == RUN_ID
         self.calls.append(stage)
         if stage is self.fail_at:
             return Failure(
@@ -115,10 +126,13 @@ class CrashAfterExecutionHandler(FakeHandler):
         self.crashed = False
 
     def advance(
-        self, stage: PaperCycleStage, state: PaperCycleState
+        self,
+        command: RunPaperCycle,
+        stage: PaperCycleStage,
+        state: PaperCycleState,
     ) -> Result[PaperCycleStageOutput]:
         if stage is not PaperCycleStage.EXECUTION_RECEIPT:
-            return super().advance(stage, state)
+            return super().advance(command, stage, state)
         self.calls.append(stage)
         if not self.receipt_exists:
             self.execution_side_effects += 1
@@ -131,7 +145,7 @@ class CrashAfterExecutionHandler(FakeHandler):
 
 class FakeCycleStore:
     def __init__(self) -> None:
-        self.state = PaperCycleState.genesis(RUN_ID, "a" * 64)
+        self.state = PaperCycleState.genesis(RUN_ID, CYCLE_INPUT.cycle_input_hash)
         self.failures: list[ErrorCode] = []
         self.completed_manifest: ArtifactManifest | None = None
 
@@ -346,3 +360,33 @@ def test_cancel_use_case_delegates_to_audited_store() -> None:
 
     assert isinstance(result, Success)
     assert result.value.status is PaperCycleRunStatus.CANCELLED
+
+
+def test_run_command_restores_exact_cycle_input_from_lease_payload() -> None:
+    command = request()
+
+    assert command.cycle_input.run_id == RUN_ID
+    assert command.cycle_input_hash == command.cycle_input.cycle_input_hash
+    assert command.lease.payload["cycle_input"] == command.cycle_input.model_dump(
+        mode="json"
+    )
+
+
+@pytest.mark.parametrize("tampering", ["hash", "input", "extra"])
+def test_run_command_rejects_tampered_or_ambiguous_lease_payload(
+    tampering: str,
+) -> None:
+    original = lease()
+    payload = dict(original.payload)
+    if tampering == "hash":
+        payload["cycle_input_hash"] = "f" * 64
+    elif tampering == "input":
+        candidate = dict(payload["cycle_input"])  # type: ignore[arg-type]
+        candidate["account_id"] = "another-account"
+        payload["cycle_input"] = candidate
+    else:
+        payload["untrusted"] = True
+    changed = original.model_copy(update={"payload": payload})
+
+    with pytest.raises(ValueError, match="paper cycle"):
+        RunPaperCycle(lease=changed)

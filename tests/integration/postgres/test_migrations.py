@@ -55,6 +55,7 @@ EXPECTED_TABLES = {
     "paper_operator_action",
     "paper_operator_audit_head",
     "paper_portfolio_valuation",
+    "worker_late_result_audit",
 }
 ROLE_NAMES = {"stonks_app", "stonks_reader", "stonks_worker"}
 APP_MUTABLE_TABLES = {

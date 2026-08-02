@@ -12,11 +12,24 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
+_PROFILE_AUDITS = (
+    ("workers/tradingagents", ()),
+    ("workers/kronos", ("--standard-identity-package", "torch")),
+    (
+        "workers/kronos/profiles/cuda",
+        ("--standard-identity-package", "torch"),
+    ),
+    ("workers/quant_lab", ()),
+    ("workers/quant_lab/rd_agent", ()),
+    ("sidecars/openbb", ()),
+    ("sidecars/nautilus", ()),
+    ("sidecars/lean", ()),
+)
 
 
 def commands(*, with_postgres: bool) -> tuple[tuple[str, ...], ...]:
     python = sys.executable
-    pytest_command = (python, "-m", "pytest", "-q")
+    pytest_command: tuple[str, ...] = (python, "-m", "pytest", "-q")
     if not with_postgres:
         pytest_command += (
             "-m",
@@ -99,7 +112,31 @@ def _audit_dependencies(environment: dict[str, str]) -> int:
             str(requirements),
         )
         print("\n[verify] audit locked runtime dependencies", flush=True)
-        return subprocess.run(audit, cwd=ROOT, env=environment, check=False).returncode
+        audited = subprocess.run(audit, cwd=ROOT, env=environment, check=False)
+        if audited.returncode != 0:
+            return audited.returncode
+    for command in profile_audit_commands(sys.executable):
+        project = command[command.index("--project") + 1]
+        print(f"\n[verify] audit isolated runtime: {project}", flush=True)
+        audited = subprocess.run(command, cwd=ROOT, env=environment, check=False)
+        if audited.returncode != 0:
+            return audited.returncode
+    return 0
+
+
+def profile_audit_commands(python: str) -> tuple[tuple[str, ...], ...]:
+    """Return frozen audit commands for every isolated Python runtime lock."""
+
+    return tuple(
+        (
+            python,
+            "scripts/audit_python_project.py",
+            "--project",
+            project,
+            *extra,
+        )
+        for project, extra in _PROFILE_AUDITS
+    )
 
 
 def main() -> int:

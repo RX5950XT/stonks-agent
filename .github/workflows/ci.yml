@@ -1030,6 +1030,16 @@ jobs:
           uv lock --check --project workers/kronos/profiles/cuda
           uv lock --check --project workers/quant_lab
 
+      - name: Audit heavy-worker frozen runtime dependencies
+        run: |
+          uv run python scripts/audit_python_project.py --project workers/tradingagents
+          uv run python scripts/audit_python_project.py --project workers/kronos \
+            --standard-identity-package torch
+          uv run python scripts/audit_python_project.py \
+            --project workers/kronos/profiles/cuda \
+            --standard-identity-package torch
+          uv run python scripts/audit_python_project.py --project workers/quant_lab
+
       - name: Migrate dedicated capacity database
         env:
           STONKS_DATABASE_URL: ${{ env.STONKS_CAPACITY_DATABASE_URL }}

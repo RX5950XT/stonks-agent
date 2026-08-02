@@ -27,6 +27,44 @@ CONTENT_SECURITY_POLICY = (
     "frame-ancestors 'none'; object-src 'none'; script-src 'none'; "
     "style-src 'self'"
 )
+# Same-origin script/fetch for the local console. Every source stays 'self':
+# no inline code, no eval, no remote origin, no data: URL can ever load.
+LOCAL_CONSOLE_CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; base-uri 'none'; connect-src 'self'; form-action 'self'; "
+    "frame-ancestors 'none'; img-src 'self'; object-src 'none'; script-src 'self'; "
+    "style-src 'self'"
+)
+_REQUIRED_CSP_DIRECTIVES = (
+    "default-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+)
+_FORBIDDEN_CSP_TOKENS = (
+    "unsafe-inline",
+    "unsafe-eval",
+    "unsafe-hashes",
+    "strict-dynamic",
+    "data:",
+    "blob:",
+    "http://",
+    "https://",
+    "*",
+)
+
+
+def validate_content_security_policy(value: str) -> str:
+    """Reject any policy that could admit remote or inline code."""
+
+    rendered = value.strip()
+    if not rendered or len(rendered) > 512 or not rendered.isascii():
+        raise ValueError("content security policy is invalid")
+    if any(directive not in rendered for directive in _REQUIRED_CSP_DIRECTIVES):
+        raise ValueError("content security policy must deny by default")
+    if any(token in rendered for token in _FORBIDDEN_CSP_TOKENS):
+        raise ValueError("content security policy must not admit untrusted sources")
+    return rendered
+
 
 _COOKIE_NAME = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,128}$")
 _COOKIE_VALUE = re.compile(r"^[A-Za-z0-9._~+/=-]+$")
@@ -35,19 +73,25 @@ _CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _ORIGIN_OPTIONAL_METHODS = frozenset({"GET", "HEAD"})
 _MAX_COOKIE_HEADER_BYTES = 8192
 _INSTALLED_STATE_KEY = "_stonks_web_protection_policy"
-SECURITY_RESPONSE_HEADERS = MappingProxyType(
-    {
-        "content-security-policy": CONTENT_SECURITY_POLICY,
-        "x-content-type-options": "nosniff",
-        "x-frame-options": "DENY",
-        "referrer-policy": "no-referrer",
-        "permissions-policy": "camera=(), geolocation=(), microphone=()",
-    }
-)
-_SECURITY_HEADERS = tuple(
-    (name.encode("ascii"), value.encode("ascii"))
-    for name, value in SECURITY_RESPONSE_HEADERS.items()
-)
+
+
+def security_response_headers(
+    content_security_policy: str = CONTENT_SECURITY_POLICY,
+) -> MappingProxyType[str, str]:
+    return MappingProxyType(
+        {
+            "content-security-policy": validate_content_security_policy(
+                content_security_policy
+            ),
+            "x-content-type-options": "nosniff",
+            "x-frame-options": "DENY",
+            "referrer-policy": "no-referrer",
+            "permissions-policy": "camera=(), geolocation=(), microphone=()",
+        }
+    )
+
+
+SECURITY_RESPONSE_HEADERS = security_response_headers()
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,10 +123,15 @@ def install_web_protection(
     *,
     cookie_auth: CookieAuthPolicy | None = None,
     boundary_installer: Callable[[FastAPI], None] | None = None,
+    content_security_policy: str = CONTENT_SECURITY_POLICY,
 ) -> None:
     """Install one idempotent browser and exception security boundary."""
 
-    signature = (cookie_auth, boundary_installer)
+    headers = tuple(
+        (name.encode("ascii"), value.encode("ascii"))
+        for name, value in security_response_headers(content_security_policy).items()
+    )
+    signature = (cookie_auth, boundary_installer, content_security_policy)
     installed = getattr(app.state, _INSTALLED_STATE_KEY, None)
     if installed is not None:
         if installed != signature:
@@ -96,12 +145,18 @@ def install_web_protection(
     if boundary_installer is not None:
         boundary_installer(app)
     app.add_middleware(_ExceptionBoundaryMiddleware)
-    app.add_middleware(_SecurityHeadersMiddleware)
+    app.add_middleware(_SecurityHeadersMiddleware, headers=headers)
 
 
 class _SecurityHeadersMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        headers: tuple[tuple[bytes, bytes], ...],
+    ) -> None:
         self._app = app
+        self._headers = headers
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -112,14 +167,14 @@ class _SecurityHeadersMiddleware:
             if message["type"] != "http.response.start":
                 await send(message)
                 return
-            protected = {name for name, _ in _SECURITY_HEADERS}
+            protected = {name for name, _ in self._headers}
             headers = [
                 (name, value)
                 for name, value in message.get("headers", [])
                 if name.lower() not in protected
             ]
             updated = dict(message)
-            updated["headers"] = [*headers, *_SECURITY_HEADERS]
+            updated["headers"] = [*headers, *self._headers]
             await send(updated)
 
         await self._app(scope, receive, send_with_security_headers)

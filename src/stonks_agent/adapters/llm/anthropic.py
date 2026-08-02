@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 from time import monotonic, sleep
 from typing import Literal
 
@@ -17,18 +17,21 @@ from stonks_agent.adapters.llm._common import (
     complete_structured,
     invalid_provider_envelope,
 )
-from stonks_agent.adapters.llm._http import request_json, validate_api_key
+from stonks_agent.adapters.llm._http import (
+    reject_secret_echo,
+    request_json,
+    resolve_api_credential,
+)
 from stonks_agent.adapters.llm._messages import provider_messages, system_text
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import (
-    ErrorCode,
     Failure,
     Result,
-    StructuredError,
     Success,
 )
 from stonks_agent.domain.model_policy import ModelPolicy, ModelProvider, ModelRoute
 from stonks_agent.domain.research import StructuredLLMRequest, StructuredLLMResponse
-from stonks_agent.domain.secrets import ResolvedSecret, SecretAccessRequest, SecretRef
+from stonks_agent.domain.secrets import ResolvedSecret, SecretRef
 from stonks_agent.ports.artifact_store import ArtifactStore
 from stonks_agent.ports.secret_provider import SecretProvider
 
@@ -107,7 +110,7 @@ class AnthropicAdapter:
         self._secret_provider = secret_provider
         self._secret_ref = secret_ref
         self._artifacts = artifacts
-        self._clock = clock or _utc_now
+        self._clock = clock or utc_now
         self._monotonic_clock = monotonic_clock or monotonic
         self._sleeper = sleeper or sleep
 
@@ -144,38 +147,29 @@ class AnthropicAdapter:
         repair: RepairContext | None,
         api_key: str,
     ) -> Result[RawProviderResponse]:
-        return request_json(
-            client=self._client,
-            route=self._route,
-            request=request,
-            payload=_anthropic_payload(request, self._route, repair),
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-            },
-            clock=self._clock,
-            monotonic_clock=self._monotonic_clock,
-            sleeper=self._sleeper,
+        return reject_secret_echo(
+            request_json(
+                client=self._client,
+                route=self._route,
+                request=request,
+                payload=_anthropic_payload(request, self._route, repair),
+                headers={
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                },
+                clock=self._clock,
+                monotonic_clock=self._monotonic_clock,
+                sleeper=self._sleeper,
+            ),
+            secret=api_key,
         )
 
     def _resolve_credential(self) -> Result[ResolvedSecret]:
-        try:
-            resolved = self._secret_provider.resolve(
-                SecretAccessRequest(
-                    reference=self._secret_ref,
-                    purpose=_SECRET_PURPOSE,
-                )
-            )
-            if isinstance(resolved, Failure):
-                return _credential_failure(resolved.error.code)
-            api_key = resolved.value.reveal()
-            try:
-                validate_api_key(api_key)
-            except ValueError:
-                return _credential_failure(ErrorCode.CONFIGURATION_INVALID)
-            return resolved
-        except Exception:
-            return _credential_failure(ErrorCode.INTERNAL_ERROR)
+        return resolve_api_credential(
+            provider=self._secret_provider,
+            reference=self._secret_ref,
+            purpose=_SECRET_PURPOSE,
+        )
 
 
 def _anthropic_payload(
@@ -225,23 +219,5 @@ def _parse_anthropic(raw: RawProviderResponse) -> Result[ParsedProviderOutput]:
             cache_write_input_tokens=envelope.usage.cache_creation_input_tokens,
             terminal_reason=terminal_reason,
             terminal_repairable=repairable,
-        )
-    )
-
-
-def _utc_now() -> datetime:
-    return datetime.now(UTC)
-
-
-def _credential_failure(source_code: ErrorCode) -> Failure:
-    safe_code = (
-        source_code
-        if source_code in {ErrorCode.CONFIGURATION_INVALID, ErrorCode.DATA_UNAVAILABLE}
-        else ErrorCode.INTERNAL_ERROR
-    )
-    return Failure(
-        StructuredError(
-            code=safe_code,
-            message="Model provider credential is unavailable",
         )
     )

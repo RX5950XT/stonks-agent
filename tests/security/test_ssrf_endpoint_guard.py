@@ -61,6 +61,47 @@ def test_exact_endpoint_authorizes_and_pins_public_resolution() -> None:
 
 
 @pytest.mark.parametrize(
+    ("url", "answers"),
+    (
+        ("http://127.0.0.1:11434/v1/chat/completions", ("127.0.0.1",)),
+        ("http://localhost:11434/v1/chat/completions", ("127.0.0.1", "::1")),
+    ),
+)
+def test_exact_local_model_endpoint_allows_only_pinned_loopback(
+    url: str,
+    answers: tuple[str, ...],
+) -> None:
+    endpoint = ExactEndpoint.from_url(url, environment="local")
+    guard = OutboundEndpointGuard(
+        endpoint,
+        resolver=SequenceResolver([answers]),
+    )
+
+    guard.authorize(url)
+    for address in answers:
+        guard.authorize_connected_address(address)
+
+    assert guard.pinned_addresses == frozenset(answers)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["10.0.0.1", "169.254.169.254", "192.168.1.1", "127.0.0.1", "::1"],
+)
+def test_public_model_hostname_cannot_resolve_to_private_or_loopback(
+    answer: str,
+) -> None:
+    url = "https://models.example.com/v1/chat/completions"
+    guard = OutboundEndpointGuard(
+        ExactEndpoint.from_url(url, environment="local"),
+        resolver=SequenceResolver([(answer,)]),
+    )
+
+    with pytest.raises(EndpointDenied, match="Outbound endpoint is denied"):
+        guard.authorize(url)
+
+
+@pytest.mark.parametrize(
     "url",
     [
         "https://api.example.test:0/v1/reports",

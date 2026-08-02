@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from enum import StrEnum
-from typing import Self
-from uuid import UUID
+from typing import Literal, Self
+from uuid import UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from stonks_agent.domain.job import JobLease
-from stonks_contracts.common import NonEmptyString, Sha256, stable_payload_hash
+from stonks_contracts.common import (
+    NonEmptyString,
+    Sha256,
+    UTCDateTime,
+    stable_payload_hash,
+)
 
 
 class PaperCycleStage(StrEnum):
@@ -30,6 +35,106 @@ class PaperCycleRunStatus(StrEnum):
     SUCCEEDED = "succeeded"
     DEAD_LETTERED = "dead_lettered"
     CANCELLED = "cancelled"
+
+
+class PaperCyclePolicyHashes(BaseModel):
+    """Exact immutable configuration authority for one paper cycle."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    research_profile_hash: Sha256
+    model_policy_hash: Sha256
+    tool_policy_hash: Sha256
+    kronos_configuration_hash: Sha256
+    portfolio_policy_hash: Sha256
+    risk_policy_hash: Sha256
+    execution_policy_hash: Sha256
+    ledger_policy_hash: Sha256
+    report_policy_hash: Sha256
+
+
+class PaperCycleStageIdentity(BaseModel):
+    """Deterministic identity assigned to one canonical cycle stage."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    stage: PaperCycleStage
+    stage_id: UUID
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> Self:
+        if self.stage_id.int == 0:
+            raise ValueError("paper cycle stage ID cannot be zero")
+        return self
+
+
+class PaperFundCycleInput(BaseModel):
+    """Complete frozen authority restored from the leased job payload."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    run_id: UUID
+    snapshot_id: UUID
+    research_run_id: UUID
+    research_artifact_id: UUID
+    account_id: NonEmptyString
+    owner_subject: str = Field(
+        min_length=1,
+        max_length=255,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:@/+=-]{0,254}$",
+    )
+    instrument_id: UUID
+    symbol: str = Field(pattern=r"^[A-Z0-9][A-Z0-9.-]{0,15}$")
+    as_of: UTCDateTime
+    created_at: UTCDateTime
+    deadline_at: UTCDateTime
+    execution_mode: Literal["paper"] = "paper"
+    execution_model_version: str = Field(pattern=r"^paper-v[0-9]+$")
+    policy_hashes: PaperCyclePolicyHashes
+    stage_ids: tuple[PaperCycleStageIdentity, ...] = Field(
+        min_length=len(PaperCycleStage),
+        max_length=len(PaperCycleStage),
+    )
+
+    @model_validator(mode="after")
+    def validate_authority(self) -> Self:
+        if not self.as_of <= self.created_at < self.deadline_at:
+            raise ValueError("paper cycle input timeline is invalid")
+        primary_ids = (
+            self.run_id,
+            self.snapshot_id,
+            self.research_run_id,
+            self.research_artifact_id,
+            self.instrument_id,
+        )
+        if any(value.int == 0 for value in primary_ids):
+            raise ValueError("paper cycle authority IDs cannot be zero")
+        stages = tuple(item.stage for item in self.stage_ids)
+        if stages != tuple(PaperCycleStage):
+            raise ValueError("paper cycle stage IDs must follow canonical stage order")
+        identities = tuple(item.stage_id for item in self.stage_ids)
+        if len(identities) != len(set(identities)):
+            raise ValueError("paper cycle stage IDs must be unique")
+        return self
+
+    @property
+    def cycle_input_hash(self) -> str:
+        return stable_payload_hash(self.model_dump(mode="json"))
+
+    def stage_id(self, stage: PaperCycleStage) -> UUID:
+        return self.stage_ids[tuple(PaperCycleStage).index(stage)].stage_id
+
+    def derived_id(self, stage: PaperCycleStage, purpose: str) -> UUID:
+        if (
+            not purpose
+            or purpose.strip() != purpose
+            or len(purpose) > 64
+            or any(
+                not (character.isalnum() or character in "._-") for character in purpose
+            )
+        ):
+            raise ValueError("paper cycle derived ID purpose is invalid")
+        return uuid5(self.stage_id(stage), f"stonks:paper-cycle:{purpose}")
 
 
 class CanonicalCycleReference(BaseModel):
@@ -211,15 +316,61 @@ class RunPaperCycle(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     lease: JobLease
-    cycle_input_hash: Sha256
+    cycle_input: PaperFundCycleInput
+
+    @model_validator(mode="before")
+    @classmethod
+    def restore_cycle_input(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+        lease = value.get("lease")
+        payload_value: object
+        if isinstance(lease, JobLease):
+            payload_value = lease.payload
+        elif isinstance(lease, Mapping):
+            payload_value = lease.get("payload")
+        else:
+            raise ValueError("paper cycle lease is invalid")
+        if not isinstance(payload_value, Mapping):
+            raise ValueError("paper cycle lease payload is invalid")
+        payload = payload_value
+        candidate = payload.get("cycle_input")
+        if not isinstance(candidate, Mapping):
+            raise ValueError("paper cycle lease payload has no exact input")
+        supplied = value.get("cycle_input")
+        if supplied is not None:
+            supplied_json = (
+                supplied.model_dump(mode="json")
+                if isinstance(supplied, PaperFundCycleInput)
+                else supplied
+            )
+            if supplied_json != candidate:
+                raise ValueError(
+                    "paper cycle supplied input differs from lease payload"
+                )
+        return {**value, "cycle_input": candidate}
 
     @model_validator(mode="after")
     def validate_authority(self) -> Self:
         if self.lease.job_type != "paper_fund_cycle":
             raise ValueError("paper cycle requires the canonical job type")
-        if self.lease.payload.get("cycle_input_hash") != self.cycle_input_hash:
-            raise ValueError("paper cycle input hash differs from leased command")
+        expected_payload = {
+            "cycle_input": self.cycle_input.model_dump(mode="json"),
+            "cycle_input_hash": self.cycle_input_hash,
+        }
+        if set(self.lease.payload) != set(expected_payload):
+            raise ValueError("paper cycle lease payload is ambiguous")
+        if self.lease.payload != expected_payload:
+            raise ValueError("paper cycle input differs from leased command")
+        if self.cycle_input.run_id != self.lease.run_id:
+            raise ValueError("paper cycle run identity differs from leased command")
+        if self.cycle_input.deadline_at != self.lease.deadline_at:
+            raise ValueError("paper cycle deadline differs from leased command")
         return self
+
+    @property
+    def cycle_input_hash(self) -> str:
+        return self.cycle_input.cycle_input_hash
 
 
 class CancelPaperCycle(BaseModel):

@@ -13,7 +13,9 @@ from pydantic import ValidationError
 
 from stonks_contracts.kronos import KronosWorkerRequest
 from stonks_service_auth import (
+    RequestBodyReadError,
     ServiceAccessTarget,
+    ServiceAdmissionMiddleware,
     ServiceAuthenticator,
     ServicePermission,
     ServiceReceiver,
@@ -21,6 +23,7 @@ from stonks_service_auth import (
     authorize_service_dispatch,
     exactly_one_authorization_header,
     invalid_or_oversized_content_length,
+    read_bounded_request_body,
 )
 from workers.kronos.adapter import KronosPreflightRequest, KronosWorker
 
@@ -43,6 +46,7 @@ def create_app(
         redoc_url=None,
         openapi_url=None,
     )
+    app.add_middleware(ServiceAdmissionMiddleware)
 
     @app.get("/healthz")
     def health() -> JSONResponse:
@@ -69,33 +73,42 @@ def create_app(
         rejection = _validate_headers(incoming, max_request_bytes)
         if rejection is not None:
             return rejection
-        body = await _read_bounded(incoming, max_request_bytes)
-        if body is None:
-            return _error(413, "request_too_large", "Worker request is too large")
+        if not await _try_acquire(capacity):
+            return _error(429, "worker_busy", "Worker is at capacity")
         try:
-            request = KronosPreflightRequest.model_validate_json(body)
-        except (ValidationError, json.JSONDecodeError):
-            return _error(400, "invalid_request", "Worker request is invalid")
-        if not authorize_service_dispatch(
-            principal,
-            permission=ServicePermission.PREFLIGHT_ASSIGNED_RESEARCH,
-            target=ServiceAccessTarget(
-                kind=ServiceResourceKind.JOB,
-                identifier=str(request.request_id),
-            ),
-            receiver=ServiceReceiver.KRONOS,
-            attempt_generation=0,
-            attempt_nonce="",
-            request_payload=request.model_dump(mode="json"),
-            deadline=None,
-        ):
-            return _error(403, "forbidden", "Service target access denied")
-        outcome = worker.preflight(request)
-        if outcome.error is not None:
-            status = 503 if outcome.error.code == "model_not_ready" else 409
-            return _error(status, outcome.error.code, outcome.error.message)
-        assert outcome.value is not None
-        return _envelope(200, data=outcome.value.model_dump(mode="json"))
+            try:
+                body = await read_bounded_request_body(
+                    incoming.receive,
+                    max_bytes=max_request_bytes,
+                )
+            except RequestBodyReadError as error:
+                return _error(error.status_code, error.code, error.safe_message)
+            try:
+                request = KronosPreflightRequest.model_validate_json(body)
+            except (ValidationError, json.JSONDecodeError):
+                return _error(400, "invalid_request", "Worker request is invalid")
+            if not authorize_service_dispatch(
+                principal,
+                permission=ServicePermission.PREFLIGHT_ASSIGNED_RESEARCH,
+                target=ServiceAccessTarget(
+                    kind=ServiceResourceKind.JOB,
+                    identifier=str(request.request_id),
+                ),
+                receiver=ServiceReceiver.KRONOS,
+                attempt_generation=0,
+                attempt_nonce="",
+                request_payload=request.model_dump(mode="json"),
+                deadline=None,
+            ):
+                return _error(403, "forbidden", "Service target access denied")
+            outcome = worker.preflight(request)
+            if outcome.error is not None:
+                status = 503 if outcome.error.code == "model_not_ready" else 409
+                return _error(status, outcome.error.code, outcome.error.message)
+            assert outcome.value is not None
+            return _envelope(200, data=outcome.value.model_dump(mode="json"))
+        finally:
+            capacity.release()
 
     @app.post("/v1/forecast")
     async def forecast(incoming: Request) -> JSONResponse:
@@ -107,30 +120,34 @@ def create_app(
         rejection = _validate_headers(incoming, max_request_bytes)
         if rejection is not None:
             return rejection
-        body = await _read_bounded(incoming, max_request_bytes)
-        if body is None:
-            return _error(413, "request_too_large", "Worker request is too large")
-        try:
-            request = KronosWorkerRequest.model_validate_json(body)
-        except (ValidationError, json.JSONDecodeError):
-            return _error(400, "invalid_request", "Worker request is invalid")
-        if not authorize_service_dispatch(
-            principal,
-            permission=ServicePermission.DISPATCH_ASSIGNED_RESEARCH,
-            target=ServiceAccessTarget(
-                kind=ServiceResourceKind.JOB,
-                identifier=str(request.job_id),
-            ),
-            receiver=ServiceReceiver.KRONOS,
-            attempt_generation=request.attempt_generation,
-            attempt_nonce=request.attempt_nonce,
-            request_payload=request.model_dump(mode="json"),
-            deadline=request.deadline,
-        ):
-            return _error(403, "forbidden", "Service target access denied")
         if not await _try_acquire(capacity):
             return _error(429, "worker_busy", "Worker is at capacity")
         try:
+            try:
+                body = await read_bounded_request_body(
+                    incoming.receive,
+                    max_bytes=max_request_bytes,
+                )
+            except RequestBodyReadError as error:
+                return _error(error.status_code, error.code, error.safe_message)
+            try:
+                request = KronosWorkerRequest.model_validate_json(body)
+            except (ValidationError, json.JSONDecodeError):
+                return _error(400, "invalid_request", "Worker request is invalid")
+            if not authorize_service_dispatch(
+                principal,
+                permission=ServicePermission.DISPATCH_ASSIGNED_RESEARCH,
+                target=ServiceAccessTarget(
+                    kind=ServiceResourceKind.JOB,
+                    identifier=str(request.job_id),
+                ),
+                receiver=ServiceReceiver.KRONOS,
+                attempt_generation=request.attempt_generation,
+                attempt_nonce=request.attempt_nonce,
+                request_payload=request.model_dump(mode="json"),
+                deadline=request.deadline,
+            ):
+                return _error(403, "forbidden", "Service target access denied")
             outcome = await run_in_threadpool(worker.forecast, request)
         finally:
             capacity.release()
@@ -160,15 +177,6 @@ def _validate_headers(incoming: Request, maximum: int) -> JSONResponse | None:
     if incoming.headers.get("content-encoding", "identity").lower() != "identity":
         return _error(415, "unsupported_content_encoding", "Encoded body denied")
     return None
-
-
-async def _read_bounded(incoming: Request, maximum: int) -> bytes | None:
-    body = bytearray()
-    async for chunk in incoming.stream():
-        if len(chunk) > maximum - len(body):
-            return None
-        body.extend(chunk)
-    return bytes(body)
 
 
 def _error(status: int, code: str, message: str) -> JSONResponse:

@@ -153,7 +153,7 @@ def test_paper_cli_reads_portfolio_nav_and_risk_projections(
         record_nav_projection(valuation, lambda: PostgresUnitOfWork(clean_database)),
         Success,
     )
-    database = str(clean_database.url)
+    database = clean_database.url.render_as_string(hide_password=False)
 
     portfolio = RUNNER.invoke(
         cli_app,

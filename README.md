@@ -25,8 +25,8 @@ risk、reservation、execution 與 ledger。
 |---|---|---|
 | Canonical research／paper flow | `implemented` | contracts、PostgreSQL、replay、risk、reservation、fill 與 balanced journal 已測試 |
 | Stonks Desk 與美股／台股行情（0.2.0 candidate） | `actual_runtime_verified` | 後端導向的 loopback AI 研究工作台；透過 isolated OpenBB／yfinance 取得 US 與 TW bars，另提供鍵盤可讀 OHLCV 表格、研究歷史、cited evidence 與即時 runtime health |
-| Terminal paper 投資組合面板（0.2.0 candidate） | `actual_runtime_verified` | `--with-paper` 啟動本機 PostgreSQL；typed 唯讀顯示 NAV、cash／reservation、positions、risk、global kill switch 與 projection integrity |
-| Terminal durable research（0.2.0 candidate） | `composed / external_llm_required` | `--with-research` 會 materialize daily snapshot、執行 fenced LLM＋Kronos job並以SSE顯示typed結果；LLM endpoint／model／key可直接在GUI設定並先做structured completion驗證 |
+| Desk paper 投資組合面板（0.2.0 candidate） | `actual_runtime_verified` | `--with-paper` 啟動本機 PostgreSQL；typed 唯讀顯示 NAV、cash／reservation、positions、risk、global kill switch 與 projection integrity |
+| Desk durable research（0.2.0 candidate） | `composed / external_llm_required` | `--with-research` 會 materialize daily snapshot、執行 fenced LLM＋Kronos job並以SSE顯示typed結果；LLM endpoint／model／key可直接在GUI設定並先做structured completion驗證 |
 | Kronos CPU forecast | `gui_composed / shadow` | research mode 自動啟停 authenticated CPU worker；每次 run 封存 snapshot-bound raw response、3 paths 與 forecast，paper weight 0、不具下單 authority |
 | Public `v0.1.2` release | `externally_verified` | protected tag、GHCR、keyless signatures、provenance、SBOM 與 immutable assets 已重驗 |
 | Default Docker deployment | `implemented` | 單機 core／PostgreSQL health、migration、restart、outage 與 replay baseline 已驗證 |
@@ -105,7 +105,7 @@ Linux／macOS 使用對等的 `./start.sh --mode market`；兩支 launcher 的�
 根目錄 launcher 會檢查 source checkout、`uv`、Docker Compose 與 Docker daemon，
 同步 frozen dependencies，再建立只含 public key 的暫時 JWKS、build／啟動 isolated
 OpenBB sidecar，並在
-`http://127.0.0.1:8787` 開啟終端。GUI 預設讀取目前可驗證最快的 `1m` historical
+`http://127.0.0.1:8787` 開啟 Stonks Desk。GUI 預設讀取目前可驗證最快的 `1m` historical
 bars，分頁可見時每 30 秒 bounded 更新；這是近即時 bar，不是交易所 tick。直接在頂端
 輸入 `AAPL` 即可讀取報價與走勢，底部命令列只作進階入口，
 `AAPL 5m` 切換週期（`1m` `5m` `15m` `1h` `1d`），`ADD NVDA` 加入關注清單，

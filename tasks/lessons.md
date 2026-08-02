@@ -1,5 +1,42 @@
 # Lessons
 
+## 2026-08-02
+
+- Capability route 存在不等於 runtime ready；GUI 必須同時合成 route contract、live service state
+  與 model `api_key_configured && verified`，不得把 `configured` 翻成「已驗證」。
+- Async deep-link 不能由 loading placeholder event 宣告完成；只允許真實 market success 或 typed
+  terminal failure 觸發最後一次 layout 校正。
+- UI market label 不得自行只判斷 `.TW`；必須跟 canonical suffix mapping 對齊 `.TW`、`.TWO`、
+  `.HK` 與 US fallback，成功／失敗畫面都使用同一 helper。
+- Secret field 在 `pagehide` 不只清值，也要恢復 `type=password` 與 reveal control state，避免
+  BFCache 返回後讓下一次輸入以明文顯示。
+
+## 2026-08-01
+
+- Quiet refresh 的每個 success／failure／preserve-last-data exit 都必須集中釋放 loading 與
+  `aria-busy`；只保留上一筆 quote 不代表狀態機已完成，永久 busy 是獨立 bug。
+- Loopback 不等於 same-origin；昂貴 browser GET 仍可被跨站觸發，必須在 provider 前拒絕
+  cross-site `Origin`／Fetch Metadata。Secret input 同時要關閉 autocomplete 並在 page exit 清除。
+- Direct hash 目標若位於 async capability render 下方，初次 layout 完成後必須重新校正；
+  320px viewport 不可再疊 `html min-width: 20rem` 與 scrollbar，固定底部 navigation 要預留 footer
+  空間，所有互動 target 至少 44px。
+- Dead-code 清理只刪除有靜態與 runtime 證據的 consumer-free chain；外部 API schema 欄位即使
+  前端未讀取也不是安全刪除對象，應保留並記錄相容性理由。
+- 全域 `:focus-visible` 不可再疊加 composite control 的 `:focus-within` box-shadow；搜尋列、
+  secret input 與命令列只能有一個清楚的 focus indicator，避免內層輸入框出現第二圈粗框。
+- 使用者否定的是廉價的 dark-fintech 模板感，不代表偏好亮色；theme 偏好與視覺品質是兩個
+  維度。這個產品固定採低彩度 graphite dark mode，靠資訊密度、分隔線與單一 cobalt accent
+  建立層級，不用金色、霓虹、glow、glass 或卡片海。
+- 介面資訊架構必須從實際 backend capability 反推；每個已組合功能要在首屏功能總覽或
+  一次點擊內可見，並顯示 truthful ready／blocked／degraded 狀態。沒有 backend route 的
+  buy/sell、kill-switch mutation、cancel run 或 Kronos promotion 不得畫假按鈕。
+- 使用者明確指出現有 GUI「看起來就是 AI 垃圾」時，不能把 dark fintech、金色 CTA、
+  uppercase tracked kicker、rounded card grid、狀態側條換色後再交付；要先改資訊架構與
+  component vocabulary，採真正 task-first 的 product workbench，並以實際桌面／窄版畫面
+  通過 anti-AI-slop review 才能稱為重新設計。
+- 完全重設計仍要保留 provider freshness、typed failure、paper-only、secret 與 deterministic
+  authority 邊界；視覺重寫不是刪掉可信度資訊，也不能用新框架擴大 CSP 或供應鏈範圍。
+
 ## 2026-07-28
 
 - 內建安全掃描工作區若需要使用者按鈕啟動，不能把互動式 setup 當成唯一執行路徑，

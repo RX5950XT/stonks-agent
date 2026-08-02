@@ -1,5 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-label="Stonks Terminal">
-  <rect width="16" height="16" fill="#0b0e14"/>
-  <rect x="2" y="3" width="2" height="10" fill="#f2a93b"/>
-  <path d="M6 11h2v2H6zM9 7h2v6H9zM12 4h2v9h-2z" fill="#46d3a0"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill="#75a7ff" d="M3 3h10v3H7v1h6v6H3v-3h6V9H3z"/></svg>

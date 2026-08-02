@@ -1,6 +1,4 @@
-// Session-scoped model connection settings. Secret values are never rendered.
 "use strict";
-
 (() => {
   const el = (id) => document.getElementById(id);
   const dom = {
@@ -11,7 +9,6 @@
     toggle: el("model-settings-toggle"),
     form: el("model-settings-form"),
     error: el("model-settings-error"),
-    save: el("model-settings-save"),
     clear: el("model-settings-clear"),
     key: el("model-api-key"),
     keyToggle: el("model-api-key-toggle"),
@@ -36,7 +33,6 @@
     "max_cost_usd",
     "timeout_seconds",
   ]);
-
   function configure(capabilities) {
     const research = capabilities && capabilities.research;
     state.token =
@@ -49,7 +45,6 @@
         : unavailableView()
     );
   }
-
   function render(view) {
     state.current = view;
     const configured = view && view.state === "configured" && view.config;
@@ -70,7 +65,6 @@
     dom.clear.disabled = !configured || state.busy;
     emit(view);
   }
-
   function summary(view) {
     if (!view || view.state === "unavailable") {
       return "此工作階段沒有組合模型設定服務。";
@@ -87,16 +81,14 @@
       : "";
     return `${config.model_id} · ${host} · ${verified}${usage}`;
   }
-
   function safeHost(value) {
     try {
       const url = new URL(value);
       return url.host || "custom endpoint";
-    } catch (error) {
+    } catch {
       return "custom endpoint";
     }
   }
-
   function fill(config) {
     if (!config) return;
     for (const [name, value] of Object.entries(config)) {
@@ -106,7 +98,6 @@
     dom.key.value = "";
     hideKey();
   }
-
   function setDisabled(disabled) {
     for (const field of dom.form.elements) {
       if (
@@ -117,13 +108,11 @@
       }
     }
   }
-
   function emit(view) {
     window.dispatchEvent(
       new CustomEvent("stonks:model-settings", { detail: view })
     );
   }
-
   function payload() {
     const value = {};
     for (const field of dom.form.elements) {
@@ -134,7 +123,6 @@
     }
     return value;
   }
-
   async function save(event) {
     event.preventDefault();
     clearErrors();
@@ -177,7 +165,6 @@
     dom.toggle.focus();
     window.dispatchEvent(new CustomEvent("stonks:refresh-capabilities"));
   }
-
   async function clearSettings() {
     if (
       state.busy ||
@@ -206,7 +193,6 @@
     render(result.data);
     window.dispatchEvent(new CustomEvent("stonks:refresh-capabilities"));
   }
-
   function mutationHeaders() {
     return {
       Accept: "application/json",
@@ -214,7 +200,6 @@
       "X-Stonks-Intent": state.token,
     };
   }
-
   async function request(path, options) {
     try {
       const response = await fetch(path, {
@@ -229,7 +214,7 @@
         code: envelope.error && envelope.error.code,
         message: envelope.error && envelope.error.message,
       };
-    } catch (error) {
+    } catch {
       return {
         ok: false,
         code: "data_unavailable",
@@ -237,7 +222,6 @@
       };
     }
   }
-
   function clearErrors() {
     dom.error.hidden = true;
     dom.error.textContent = "";
@@ -245,18 +229,15 @@
       field.removeAttribute("aria-invalid");
     }
   }
-
   function showError(message) {
     dom.error.textContent = message;
     dom.error.hidden = false;
   }
-
   function hideKey() {
     dom.key.type = "password";
     dom.keyToggle.textContent = "顯示";
     dom.keyToggle.setAttribute("aria-pressed", "false");
   }
-
   function toggleKey() {
     const show = dom.key.type === "password";
     dom.key.type = show ? "text" : "password";
@@ -264,13 +245,11 @@
     dom.keyToggle.setAttribute("aria-pressed", String(show));
     dom.key.focus();
   }
-
   function resetDefaults() {
     dom.form.reset();
     dom.key.value = "";
     hideKey();
   }
-
   function unavailableView() {
     return {
       state: "unavailable",
@@ -279,13 +258,16 @@
       verified: false,
     };
   }
-
   window.addEventListener("stonks:capabilities", (event) =>
     configure(event.detail)
   );
   dom.form.addEventListener("submit", save);
   dom.clear.addEventListener("click", clearSettings);
   dom.keyToggle.addEventListener("click", toggleKey);
+  window.addEventListener("pagehide", () => {
+    dom.key.value = "";
+    hideKey();
+  });
   dom.form.addEventListener(
     "invalid",
     (event) => event.target.setAttribute("aria-invalid", "true"),

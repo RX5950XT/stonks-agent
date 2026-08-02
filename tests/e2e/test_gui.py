@@ -378,7 +378,7 @@ def test_console_shell_is_static_and_loads_only_same_origin_assets() -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
-    assert "Stonks Terminal" in response.text
+    assert "Stonks Desk" in response.text
     assert "AI 投資研究工作台" in response.text
     assert "PAPER ONLY · RESEARCH GATED · LOOPBACK" in response.text
     assert 'id="market-search"' in response.text
@@ -722,6 +722,47 @@ def test_untrusted_provider_warning_stays_data_in_json() -> None:
     assert response.status_code == 200
     assert response.json()["data"]["warnings"] == [warning]
     assert response.headers["content-type"].startswith("application/json")
+
+
+@pytest.mark.parametrize(
+    "headers",
+    (
+        {"Origin": "https://attacker.invalid"},
+        {"Sec-Fetch-Site": "cross-site"},
+        {
+            "Origin": "http://127.0.0.1:8787",
+            "Sec-Fetch-Site": "same-site",
+        },
+    ),
+)
+def test_console_rejects_cross_site_api_get_before_provider(
+    headers: dict[str, str],
+) -> None:
+    source = Source()
+    with client(source) as browser:
+        response = browser.get(
+            "/api/v1/market/bars?symbol=AAPL",
+            headers=headers,
+        )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "forbidden"
+    assert source.calls == []
+
+
+def test_console_allows_exact_same_origin_api_get() -> None:
+    source = Source()
+    with client(source) as browser:
+        response = browser.get(
+            "/api/v1/market/bars?symbol=AAPL",
+            headers={
+                "Origin": "http://127.0.0.1:8787",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
+
+    assert response.status_code == 200
+    assert len(source.calls) == 1
 
 
 @pytest.mark.parametrize(

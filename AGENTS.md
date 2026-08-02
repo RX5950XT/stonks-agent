@@ -38,8 +38,11 @@
 - 「免費資料源」採 curated registry；免費額度不代表 display／storage／redistribution rights。只有官方條款、credential、時效、rate limit、PIT 與 actual runtime 全數通過才能 active，GUI freshness 只由 backend session policy判定。
 - 本機 console 允許同源 script，但 CSP 必須維持 `default-src 'none'` 與全部 `'self'` 來源，禁止 inline script、eval、外部 origin、`data:` 來源與由字串產生 markup。
 - GUI 主流程不得要求使用者先記憶命令；已組合的後端能力要有可見、語意明確、鍵盤可達的控制與完整 loading／empty／failed／degraded／succeeded 狀態，命令列只作進階入口。窄版不 autofocus，主要研究與安全決策必須早於次要行情／系統診斷。
+- GUI 採低彩度 graphite dark evidence workbench；避免 dark-fintech 金色／霓虹模板、卡片海、glow、glass、裝飾性 kicker 與多色狀態噪音。資訊架構由 actual backend capabilities 反推；所有已組合功能在首屏總覽或一次點擊內可達並顯示 truthful state，沒有 route 的操作不得做假入口。Market state 固定寫入 query string，hash 只供 section navigation；quiet refresh 不得清空既有畫面或覆寫使用者輸入，所有 exit 都必須釋放 loading／`aria-busy`；section deep link 必須在 async render 後校正。
+- GUI capability 必須同時合成 route contract 與 bounded live service；model `configured` 不等於 `verified`。Market label 必須遵守 canonical symbol suffix mapping，async section deep link 只能在 terminal market success／failure 後完成校正。
+- Composite control 只允許 wrapper 的單一 `:focus-within` ring；全域 `:focus-visible` 保留清楚 outline，但不得與內層 input 疊成雙框。
 - GUI durable read projection 必須 exact owner/account scoped；研究 history 只揭露 final claim 實際引用的 snapshot evidence，paper safety 維持唯讀。服務狀態以 bounded live probe 更新；昂貴 research start 同時只允許一筆且每分鐘最多三筆。Research POST是唯一canonical workflow mutation；model settings PUT／DELETE只管理本次process-memory設定，不具durable或trading authority。
-- GUI model settings只有在local research composition可用；API key不得回傳、持久化、記錄或進入artifact。新設定必須先用pinned transport完成bounded structured completion才原子啟用；worker每筆lease讀取同一代route＋secret snapshot，未設定或未驗證時research POST fail closed。
+- GUI model settings只有在local research composition可用；API key不得回傳、持久化、記錄或進入artifact，browser secret field 必須關閉 autocomplete 並在 page exit 清除。新設定必須先用pinned transport完成bounded structured completion才原子啟用；worker每筆lease讀取同一代route＋secret snapshot，未設定或未驗證時research POST fail closed。Loopback `/api/` browser request 必須拒絕 cross-site `Origin`／Fetch Metadata，且在昂貴 provider 呼叫前完成。
 - 外部 news/web/filing/community/MCP/LLM 內容一律視為 untrusted data；tool 必須 allowlist、typed、read-only、scoped、audited。
 - 所有外部輸入必須驗證；API envelope 統一為 `success/status/data/error/metadata`，分頁資訊放 `metadata`。
 - 不硬編碼或提交 secrets；錯誤、log、event、report 不得洩漏 token、credentials、敏感 prompt/data。

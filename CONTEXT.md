@@ -1,8 +1,41 @@
 # Stonks Agent 開發交接
 
-更新日期：2026-07-30
+更新日期：2026-08-02
 
 ## 目前狀態
+
+- P22 pre-push 獨立審查補齊 truthful GUI state：capability map 現在同時要求 route contract、
+  live research service 與 `api_key_configured && verified`，不再把 configured model 誤標為
+  已驗證；loading placeholder 不再提前完成 async section deep-link；市場標籤對齊 canonical
+  `.TW`／`.TWO`／`.HK` suffix mapping；`pagehide` 同時清空 API key 並恢復 password mode。
+  實際 Chromium 驗證 AAPL direct hash、`6488.TWO` 台灣股票、unverified／failed capability 與
+  secret lifecycle，正常 runtime console 0 error。Focused GUI suite 85 passed；完整
+  `scripts/verify.py --with-postgres` 在 fresh disposable PostgreSQL 通過：824 files formatted、
+  Mypy 396 files、2,772 passed／10 skipped、coverage 86.18%，schema／Alembic／secret／upstream
+  與 core＋全部 isolated dependency audits 全綠，無已知漏洞；驗證 DB 已清除。
+
+- P21 完成三路 GUI 稽核與修復：UI micro-audit、安全 source-to-sink review、dead-code audit。
+  修正 quiet refresh 失敗後永久 loading、async direct hash 定位、degraded／runtime／paper state、
+  320px footer 與水平 overflow、44px touch target、Base URL placeholder 及舊 favicon。Loopback
+  `/api/` 現在會在 provider 呼叫前拒絕 cross-site `Origin`／Fetch Metadata；API key 關閉
+  autocomplete 並在 `pagehide` 清除。移除高信心未引用的 freshness rail chain、save DOM binding
+  與 catch bindings，外部 schema 風險的 `PaperCapability.rows` 保留。Playwright 實測 1440×1000／
+  320×844、direct hash、degraded、typed failure、quiet 429，乾淨 console 0 error；focused 72 passed。
+  完整 `scripts/verify.py` 通過：2,478 passed／9 skipped、coverage 86.87%，全部 dependency audits
+  無已知漏洞；GUI local assets 149,362 bytes（上限 150,000）。
+
+- P20 完成 Stonks Desk GUI 全面重設計：移除 dark-fintech 金色／霓虹模板與卡片海，改為
+  低彩度 graphite dark evidence workbench。首屏 capability map 由 actual backend 反推，
+  直接揭露市場資料、AI 研究、LLM 連線、Kronos、Paper／Risk、資料品質的可用狀態與入口；
+  不為不存在的 mutation route 製造假按鈕。介面以 instrument context、研究證據、paper safety、資料來源的
+  決策順序呈現；桌面使用固定 task rail，窄版改為底部 section navigation。保留所有既有
+  DOM/API contract、同源 CSP、typed failure、model secret、paper-only 與 deterministic
+  authority 邊界。Market state 從 hash 移至 query string，hash 專供 section anchor；
+  quiet 30 秒刷新不再清空 quote/chart 或覆寫搜尋輸入，並同步更新 bounded service probe。
+  Composite search／command control 的 focus indicator 已收斂到 wrapper 單一 ring，不再由
+  全域 `:focus-visible` 與內層 input box-shadow 疊成粗藍雙框。
+  Chromium 實測 AAPL／2330.TW、invalid model route、研究歷史、320／390／1024／1440
+  版面；320px 無水平溢位且 boot 不 autofocus，browser console 為 0 error。
 
 - P19 台股接入與研究輸出重排。Phase B（台股）：新增 `domain/market_region.py` 作為
   market/MIC/exchange-timezone 單一來源（`evaluation/kronos.py` 的 `_MARKET_MICS` 已收斂

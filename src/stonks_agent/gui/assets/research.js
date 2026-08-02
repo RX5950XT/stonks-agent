@@ -1,6 +1,4 @@
-// Bounded same-origin research UI. External content is always rendered as text.
 "use strict";
-
 (() => {
   const RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const SYMBOL = /^[A-Z0-9][A-Z0-9.-]{0,15}$/;
@@ -25,7 +23,6 @@
     ["analysis", "AI 綜合分析", "產生有引用的 claims、反方觀點與風險"],
     ["report", "形成決策報告", "封存報告並讀取 canonical paper 結論"],
   ];
-
   const state = {
     token: "",
     profile: "",
@@ -41,7 +38,6 @@
     serial: 0,
     hasResult: false,
   };
-
   const el = (id) => document.getElementById(id);
   const dom = {
     panel: el("panel-research"),
@@ -67,12 +63,10 @@
     historyNote: el("research-history-note"),
     historyRefresh: el("research-history-refresh"),
   };
-
   function clear(node) {
     while (node.firstChild) node.removeChild(node.firstChild);
     return node;
   }
-
   function add(parent, tag, text, attrs) {
     const node = document.createElement(tag);
     if (text !== undefined && text !== null) node.textContent = String(text);
@@ -82,17 +76,14 @@
     parent.appendChild(node);
     return node;
   }
-
   function rail(value) {
     dom.panel.setAttribute("data-rail", value);
   }
-
   function show(view) {
     dom.empty.hidden = view !== "empty";
     dom.progress.hidden = view !== "progress";
     dom.results.hidden = view !== "results";
   }
-
   function configure(capabilities) {
     const research = capabilities && capabilities.research;
     if (!research || research.state !== "ready") {
@@ -131,7 +122,6 @@
     }
     dom.action.disabled = !state.ready || state.busy;
   }
-
   function unavailable(message) {
     state.runtimeReady = false;
     state.ready = false;
@@ -146,7 +136,6 @@
     add(dom.empty, "p", message);
     rail("idle");
   }
-
   function configureModel(view) {
     state.modelReady = Boolean(
       view &&
@@ -178,7 +167,6 @@
       show("empty");
     }
   }
-
   async function jsonRequest(path, options) {
     let response;
     try {
@@ -188,7 +176,7 @@
         credentials: "omit",
         redirect: "error",
       });
-    } catch (error) {
+    } catch {
       return {
         ok: false,
         code: "unreachable",
@@ -198,7 +186,7 @@
     let payload = null;
     try {
       payload = await response.json();
-    } catch (error) {
+    } catch {
       payload = null;
     }
     if (!response.ok || !payload || payload.success !== true) {
@@ -211,7 +199,6 @@
     }
     return { ok: true, data: payload.data };
   }
-
   async function start(detail) {
     const symbol = String((detail && detail.symbol) || "").toUpperCase();
     const interval = String((detail && detail.interval) || "");
@@ -232,7 +219,6 @@
       rail("failed");
       return;
     }
-
     state.busy = true;
     state.terminal = false;
     state.events = [];
@@ -246,7 +232,6 @@
     dom.note.textContent = `${symbol} · 建立快照`;
     renderProgress(0, "current");
     rail("loading");
-
     const result = await jsonRequest("/api/v1/research/runs", {
       method: "POST",
       headers: {
@@ -269,7 +254,6 @@
     renderProgress(1, "current");
     stream(symbol, serial);
   }
-
   function stream(symbol, serial) {
     const path = `/api/v1/research/runs/${encodeURIComponent(state.runId)}/events`;
     const source = new EventSource(path);
@@ -285,13 +269,12 @@
       }
     };
   }
-
   function consume(eventType, event, symbol, serial) {
     if (serial !== state.serial) return;
     let envelope = null;
     try {
       envelope = JSON.parse(event.data);
-    } catch (error) {
+    } catch {
       envelope = null;
     }
     if (!envelope || envelope.success !== true || !envelope.data) return;
@@ -308,7 +291,6 @@
     state.source = null;
     loadDetail(symbol, serial);
   }
-
   function phaseFor(stage, eventType) {
     const value = `${stage} ${eventType}`.toLowerCase();
     if (value.includes("report") || TERMINAL.has(eventType)) return 3;
@@ -322,11 +304,9 @@
     if (value.includes("snapshot")) return 0;
     return 1;
   }
-
   function phaseLabel(index) {
     return PHASES[Math.max(0, Math.min(PHASES.length - 1, index))][1];
   }
-
   function renderProgress(active, mode) {
     show("progress");
     clear(dom.progress);
@@ -349,7 +329,6 @@
       add(item, "small", index < active ? "完成" : index === active ? "處理中" : "等待");
     });
   }
-
   async function loadDetail(symbol, serial) {
     const result = await jsonRequest(
       `/api/v1/research/runs/${encodeURIComponent(state.runId)}`,
@@ -364,7 +343,6 @@
     loadEvidence(result.data.run_id, serial);
     finish();
   }
-
   function renderDetail(view) {
     state.hasResult = true;
     show("results");
@@ -387,7 +365,6 @@
           : "failed"
     );
   }
-
   function renderSummary(view, status) {
     clear(dom.summary);
     const copy = add(dom.summary, "div");
@@ -405,7 +382,6 @@
     add(meter, "span", `${Math.round(confidence)}%`);
     add(meter, "small", "confidence");
   }
-
   function renderClaims(claims) {
     clear(dom.claims);
     if (!claims.length) {
@@ -427,7 +403,6 @@
       }
     }
   }
-
   function renderTransparency(view) {
     clear(dom.transparency);
     const grid = add(dom.transparency, "dl", null, { class: "transparency-grid" });
@@ -456,13 +431,11 @@
     dom.transparencyWrap.open =
       Boolean((view.issues || []).length || (view.warnings || []).length);
   }
-
   function pair(parent, term, value) {
     const row = add(parent, "div");
     add(row, "dt", term);
     add(row, "dd", value === null || value === undefined ? "—" : value);
   }
-
   function stamp(value) {
     if (!value) return "—";
     const parsed = new Date(value);
@@ -470,7 +443,6 @@
       ? "—"
       : `${parsed.toISOString().slice(0, 19).replace("T", " ")}Z`;
   }
-
   async function loadEvidence(runId, serial) {
     clear(dom.evidence);
     dom.evidenceNote.textContent = "讀取 cited evidence …";
@@ -492,7 +464,6 @@
     }
     for (const item of items) renderEvidenceItem(item);
   }
-
   function renderEvidenceItem(item) {
     const card = add(dom.evidence, "article", null, {
       class: "evidence-card",
@@ -511,7 +482,6 @@
     for (const field of item.fields || []) pair(details, field.name, field.value);
     for (const warning of item.warnings || []) pair(details, "Warning", warning);
   }
-
   function focusEvidence(evidenceId) {
     for (const card of dom.evidence.querySelectorAll("[data-evidence-id]")) {
       card.removeAttribute("data-highlighted");
@@ -523,7 +493,6 @@
     card.scrollIntoView({ block: "center", behavior: "auto" });
     card.focus({ preventScroll: true });
   }
-
   async function loadHistory() {
     if (!state.runtimeReady) return;
     dom.historyNote.textContent = "讀取中";
@@ -563,7 +532,6 @@
       button.addEventListener("click", () => openHistory(item));
     }
   }
-
   async function openHistory(item) {
     if (!item || !RUN_ID.test(item.run_id || "")) return;
     if (state.source) state.source.close();
@@ -595,7 +563,6 @@
     loadEvidence(result.data.run_id, serial);
     finish();
   }
-
   function renderList(node, items, emptyText) {
     clear(node);
     if (!items.length) {
@@ -604,7 +571,6 @@
     }
     for (const item of items) add(node, "li", item);
   }
-
   function renderSignals(view) {
     clear(dom.signals);
     if (view.kronos_forecast) {
@@ -618,7 +584,6 @@
       renderAuthority(view);
     }
   }
-
   function renderAuthority(view) {
     const alpha = view.kronos_alpha;
     const shadow =
@@ -644,7 +609,6 @@
       statusRow(strip, "PAPER DECISION", view.paper_decision);
     }
   }
-
   function forecastCard(forecast) {
     if (forecast.state !== "succeeded") {
       signalCard(
@@ -685,7 +649,6 @@
       add(card, "small", `warning · ${warning}`);
     }
   }
-
   function alphaCard(parent, alpha) {
     if (alpha.state === "blocked") {
       statusRow(
@@ -701,24 +664,20 @@
       `${formatPercent(alpha.value)} · confidence ${formatPercent(alpha.confidence)}`
     );
   }
-
   function statusRow(parent, label, value) {
     const row = add(parent, "div", null, { class: "authority-row" });
     add(row, "span", label);
     add(row, "p", value);
   }
-
   function formatPercent(value) {
     const number = Number(value);
     return Number.isFinite(number) ? `${(number * 100).toFixed(2)}%` : "—";
   }
-
   function signalCard(label, value) {
     const card = add(dom.signals, "article", null, { class: "signal-card" });
     add(card, "span", label);
     add(card, "p", value);
   }
-
   function finishFailure(symbol, code, message) {
     state.hasResult = true;
     show("results");
@@ -738,7 +697,6 @@
     rail("failed");
     finish();
   }
-
   function finish() {
     state.busy = false;
     dom.action.disabled = !state.ready;
@@ -748,14 +706,12 @@
     loadHistory();
     window.dispatchEvent(new CustomEvent("stonks:research-terminal"));
   }
-
   function summaryTitle(status) {
     if (status === "succeeded") return "研究完成";
     if (status === "degraded") return "研究完成，但部分能力降級";
     if (status === "cancelled") return "研究已取消";
     return "研究未完成";
   }
-
   function statusText(status) {
     if (status === "succeeded") return "完成";
     if (status === "degraded") return "降級完成";
@@ -763,7 +719,6 @@
     if (status === "cancelled") return "已取消";
     return status;
   }
-
   window.addEventListener("stonks:capabilities", (event) => configure(event.detail));
   window.addEventListener("stonks:model-settings", (event) =>
     configureModel(event.detail)

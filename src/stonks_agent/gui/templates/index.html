@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
-    <meta name="theme-color" content="#0a0f1a">
-    <title>Stonks Terminal · AI 投資研究工作台</title>
+    <meta name="theme-color" content="#0d1117">
+    <title>Stonks Desk · AI 投資研究工作台</title>
     <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/assets/terminal.css">
     <link rel="stylesheet" href="/assets/product.css">
@@ -21,14 +21,14 @@
     <div class="app-shell">
       <header class="topbar">
         <div class="brand-lockup">
-          <p class="eyebrow">AI 投資研究工作台</p>
-          <h1><span>STONKS</span><strong>DESK</strong></h1>
+          <h1><span>Stonks</span><strong>Desk</strong></h1>
+          <p>AI 投資研究工作台</p>
         </div>
 
         <form class="market-search" id="market-search" autocomplete="off">
-          <label for="symbol-search">查詢美股代號</label>
+          <label for="symbol-search">切換研究標的</label>
           <div class="search-control">
-            <span class="search-mark" aria-hidden="true">⌕</span>
+            <span class="search-mark" aria-hidden="true">搜尋</span>
             <input
               id="symbol-search"
               name="symbol"
@@ -36,20 +36,38 @@
               maxlength="32"
               spellcheck="false"
               autocapitalize="characters"
-              placeholder="AAPL、MSFT、NVDA"
+              placeholder="AAPL、2330.TW"
             >
-            <button type="submit">載入市場資料</button>
+            <button type="submit">開啟標的</button>
           </div>
         </form>
 
-        <div class="environment">
+        <div class="environment" aria-label="執行模式">
           <span class="environment-dot" aria-hidden="true"></span>
-          <span>PAPER ONLY · RESEARCH GATED · LOOPBACK</span>
+          <span>
+            <strong id="runtime-readiness">檢查後端能力</strong>
+            <small>PAPER ONLY · RESEARCH GATED · LOOPBACK</small>
+          </span>
         </div>
       </header>
 
       <div class="desk">
         <aside class="side-rail" aria-label="工作台側欄">
+          <nav class="workspace-nav" aria-label="工作台區段">
+            <a href="#panel-quote" data-workspace-target="panel-quote" aria-current="page">
+              <span>市場</span><small>報價 · 走勢 · 觀察</small>
+            </a>
+            <a href="#panel-research" data-workspace-target="panel-research">
+              <span>研究</span><small>建立 · 進度 · 歷史 · 模型</small>
+            </a>
+            <a href="#panel-paper" data-workspace-target="panel-paper">
+              <span>Paper 帳戶</span><small>NAV · 持倉 · Risk · Safety</small>
+            </a>
+            <a href="#panel-provenance" data-workspace-target="panel-provenance">
+              <span>資料來源</span><small>品質 · 新鮮度 · 系統狀態</small>
+            </a>
+          </nav>
+
           <section
             class="rail-section"
             id="panel-watch"
@@ -58,7 +76,7 @@
           >
             <div class="section-heading">
               <div>
-                <p class="kicker">MARKET</p>
+                <p class="section-label">自選市場</p>
                 <h2 id="watch-title">觀察清單</h2>
               </div>
               <p class="section-meta" id="watch-note"></p>
@@ -69,7 +87,7 @@
           <section class="rail-section system-section" aria-labelledby="system-title">
             <div class="section-heading">
               <div>
-                <p class="kicker">RUNTIME</p>
+                <p class="section-label">連線診斷</p>
                 <h2 id="system-title">服務狀態</h2>
               </div>
               <button class="text-action" type="button" id="services-refresh">
@@ -80,7 +98,7 @@
           </section>
 
           <div class="safety-note">
-            <span aria-hidden="true">◎</span>
+            <span class="safety-mark" aria-hidden="true">P</span>
             <p>
               AI 與 Kronos 只產生研究與 signal；target、risk、reservation
               與 paper execution 仍由 deterministic core 決定。
@@ -89,12 +107,24 @@
         </aside>
 
         <main class="workspace" id="workspace">
-          <nav class="workspace-nav" aria-label="工作台區段">
-            <a href="#panel-quote">決策總覽</a>
-            <a href="#panel-research">AI 研究</a>
-            <a href="#panel-paper">Paper 帳戶</a>
-            <a href="#panel-provenance">資料品質</a>
-          </nav>
+          <section class="capability-map" aria-labelledby="capability-map-title">
+            <div class="capability-map-head">
+              <div>
+                <p class="section-label">Backend capability map</p>
+                <h2 id="capability-map-title">功能總覽</h2>
+              </div>
+              <p>只列真實 backend 能力；沒有 authority 的操作不提供。</p>
+            </div>
+            <nav class="capability-grid" aria-label="後端功能入口">
+              <a href="#panel-quote" data-workspace-target="panel-quote"><span class="capability-name">市場資料</span><strong id="capability-market-state" data-state="loading">讀取中</strong><small>美股／台股 · 1m–1d · OHLCV</small></a>
+              <a href="#panel-research" data-workspace-target="panel-research"><span class="capability-name">AI 研究</span><strong id="capability-research-state" data-state="loading">檢查中</strong><small>Snapshot · claims · evidence · history</small></a>
+              <a href="#model-settings" data-workspace-target="model-settings"><span class="capability-name">模型連線</span><strong id="capability-model-state" data-state="loading">檢查中</strong><small>Session-only · structured completion</small></a>
+              <a href="#panel-research" data-workspace-target="panel-research"><span class="capability-name">Kronos 預測</span><strong id="capability-kronos-state" data-state="loading">檢查中</strong><small>Shadow forecast · paper weight 0</small></a>
+              <a href="#panel-paper" data-workspace-target="panel-paper"><span class="capability-name">Paper／Risk</span><strong id="capability-paper-state" data-state="loading">檢查中</strong><small>Portfolio · ledger · risk · kill switch</small></a>
+              <a href="#panel-provenance" data-workspace-target="panel-provenance"><span class="capability-name">資料品質</span><strong id="capability-data-state" data-state="loading">等待行情</strong><small>Provider · freshness · PIT · non-tick</small></a>
+            </nav>
+          </section>
+
           <section
             class="market-hero panel"
             id="panel-quote"
@@ -103,10 +133,10 @@
             tabindex="-1"
           >
             <div class="market-identity">
-              <p class="kicker">MARKET SNAPSHOT</p>
+              <p class="section-label">目前標的</p>
               <h2 id="quote-title">
                 <span class="symbol" id="quote-symbol">—</span>
-                <span class="market-kind">US EQUITY</span>
+                <span class="market-kind" id="quote-market-kind">股票</span>
               </h2>
               <p class="panel-note" id="quote-interval">等待真實 provider 資料</p>
             </div>
@@ -126,8 +156,8 @@
                 aria-describedby="research-action-note"
                 disabled
               >
-                <span>開始 AI 研究</span>
-                <small>建立 snapshot 並執行 bounded workflow</small>
+                <span>建立研究</span>
+                <small>封存 snapshot，再開始 bounded workflow</small>
               </button>
               <p id="research-action-note">
                 只建立 paper research run，不會直接送出訂單。
@@ -148,8 +178,8 @@
             >
               <div class="panel-head">
                 <div>
-                  <p class="kicker">BOUNDED WORKFLOW</p>
-                  <h2 id="research-title">AI 研究</h2>
+                  <p class="section-label">證據工作區</p>
+                  <h2 id="research-title">研究摘要</h2>
                 </div>
                 <span class="status-badge" id="research-note">檢查中</span>
               </div>
@@ -162,7 +192,7 @@
               >
                 <div class="model-settings-head">
                   <div>
-                    <p class="kicker">MODEL CONNECTION</p>
+                    <p class="section-label">執行前檢查</p>
                     <h3 id="model-settings-title">LLM 模型連線</h3>
                   </div>
                   <span class="status-badge" id="model-settings-status">讀取中</span>
@@ -202,7 +232,7 @@
                             name="base_url"
                             type="url"
                             maxlength="512"
-                            placeholder="api.example.com（需 HTTPS）"
+                            placeholder="https:&#47;&#47;api.example.com"
                             required
                             aria-describedby="model-base-url-help"
                           >
@@ -218,7 +248,7 @@
                             maxlength="256"
                             placeholder="gpt-4.1-mini 或本機 model id"
                             required
-                            autocomplete="username"
+                            autocomplete="off"
                             spellcheck="false"
                           >
                         </div>
@@ -230,7 +260,7 @@
                               name="api_key"
                               type="password"
                               maxlength="4096"
-                              autocomplete="new-password"
+                              autocomplete="off"
                               autocapitalize="off"
                               spellcheck="false"
                               required
@@ -346,9 +376,9 @@
                 aria-busy="false"
               >
                 <div class="research-empty" id="research-empty">
-                  <span class="empty-mark" aria-hidden="true">AI</span>
-                  <h3>從可追溯證據開始研究</h3>
-                  <p>選好標的後按「開始 AI 研究」，進度與 typed failure 會在這裡顯示。</p>
+                  <span class="empty-mark" aria-hidden="true">尚未執行</span>
+                  <h3>先確認資料，再建立研究</h3>
+                  <p>研究只引用本次 snapshot 的證據；錯誤會原樣顯示，不沿用舊結論。</p>
                 </div>
 
                 <ol
@@ -414,8 +444,8 @@
             >
               <div class="panel-head">
                 <div>
-                  <p class="kicker">PRICE ACTION</p>
-                  <h2 id="chart-title">價格走勢與成交量</h2>
+                  <p class="section-label">市場脈絡</p>
+                  <h2 id="chart-title">價格與成交量</h2>
                 </div>
                 <div class="intervals" id="intervals" role="group" aria-label="K 線週期"></div>
               </div>
@@ -463,7 +493,7 @@
             >
               <div class="panel-head">
                 <div>
-                  <p class="kicker">CANONICAL PROJECTION</p>
+                  <p class="section-label">Canonical projection</p>
                   <h2 id="paper-title">Paper 投資組合</h2>
                 </div>
                 <span class="status-badge" id="paper-note">檢查中</span>
@@ -480,7 +510,7 @@
             >
               <div class="panel-head">
                 <div>
-                  <p class="kicker">POINT-IN-TIME</p>
+                  <p class="section-label">Point-in-time evidence</p>
                   <h2 id="prov-title">資料品質與來源</h2>
                 </div>
                 <span class="panel-note">每個數字都能追到來源與時間</span>
@@ -524,7 +554,7 @@
       <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
         <div class="overlay-head">
           <div>
-            <p class="kicker">POWER USER</p>
+            <p class="section-label">進階操作</p>
             <h2 id="help-title">命令與快捷鍵</h2>
           </div>
           <button type="button" id="help-close">關閉（Esc）</button>

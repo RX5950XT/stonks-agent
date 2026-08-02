@@ -557,11 +557,16 @@ class _LoopbackOnlyMiddleware:
         if scope["type"] != "http":
             await self._app(scope, receive, send)
             return
+        denial = None
         if not _is_loopback_client(scope) or not _is_loopback_host(scope):
+            denial = "GUI is available only on loopback"
+        elif not _is_allowed_api_origin(scope):
+            denial = "GUI API request origin is not allowed"
+        if denial is not None:
             envelope = error_envelope(
                 StructuredError(
                     code=ErrorCode.FORBIDDEN,
-                    message="GUI is available only on loopback",
+                    message=denial,
                 )
             )
             response = JSONResponse(
@@ -694,6 +699,20 @@ def _is_loopback_host(scope: Scope) -> bool:
     rendered_host = "[::1]" if hostname == "::1" else hostname
     rendered_port = "" if port is None else f":{port}"
     return raw == f"{rendered_host}{rendered_port}"
+
+
+def _is_allowed_api_origin(scope: Scope) -> bool:
+    path = scope.get("path")
+    if not isinstance(path, str) or not path.startswith("/api/"):
+        return True
+    request = Request(scope)
+    origins = request.headers.getlist("origin")
+    hosts = request.headers.getlist("host")
+    expected = f"{request.url.scheme}://{hosts[0]}" if len(hosts) == 1 else None
+    if origins and (len(origins) != 1 or origins[0] != expected):
+        return False
+    fetch_sites = request.headers.getlist("sec-fetch-site")
+    return not fetch_sites or fetch_sites == ["same-origin"]
 
 
 def _read_asset(path: Path) -> str:

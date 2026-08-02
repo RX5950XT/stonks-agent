@@ -6,7 +6,6 @@
     certainty,
     feedLabel,
     freshnessLabel,
-    freshnessRatio,
     humanAge,
     intervalOf,
     qualityLabel,
@@ -40,6 +39,7 @@
     watchPanel: el("panel-watch"),
     provPanel: el("panel-provenance"),
     symbol: el("quote-symbol"),
+    marketKind: el("quote-market-kind"),
     price: el("quote-price"),
     delta: el("quote-delta"),
     session: el("quote-session"),
@@ -95,10 +95,13 @@
     if (tone) dom.log.setAttribute("data-tone", tone);
     else dom.log.removeAttribute("data-tone");
   }
-  function setRail(panel, level, ageRatio) {
+  function setRail(panel, level) {
     panel.setAttribute("data-rail", level);
-    const decay = Math.max(0, Math.min(70, Math.round((ageRatio || 0) * 70)));
-    panel.style.setProperty("--rail-decay", `${decay}%`);
+  }
+  function finishLoading() {
+    state.loading = false;
+    dom.quotePanel.setAttribute("aria-busy", "false");
+    dom.chartPanel.setAttribute("aria-busy", "false");
   }
   function renderPrice(node, value) {
     clear(node);
@@ -123,19 +126,23 @@
     const sign = change > 0 ? "+" : "";
     return `${arrow} ${sign}${price.format(change)}  ${sign}${view.change_percent}%`;
   }
+  function marketLabel(symbol) {
+    const upper = symbol.toUpperCase();
+    if (upper.endsWith(".TW") || upper.endsWith(".TWO")) return "台灣股票";
+    if (upper.endsWith(".HK")) return "香港股票";
+    return "美國股票";
+  }
   function renderQuote(view) {
     state.view = view;
-    state.loading = false;
-    dom.quotePanel.setAttribute("aria-busy", "false");
-    dom.chartPanel.setAttribute("aria-busy", "false");
+    finishLoading();
     dom.symbol.textContent = view.symbol;
+    dom.marketKind.textContent = marketLabel(view.symbol);
     dom.quoteInterval.textContent =
       `${view.interval} · ${view.provider} · ${freshnessLabel(view.freshness)} · ` +
       `${view.is_real_time ? "即時" : "非 tick"}`;
     renderPrice(dom.price, view.latest.close);
     dom.delta.textContent = deltaText(view);
     dom.delta.setAttribute("data-direction", direction(view.change));
-
     clear(dom.session);
     pair(dom.session, "OPEN", price.format(Number(view.latest.open)));
     pair(dom.session, "HIGH", price.format(Number(view.latest.high)));
@@ -143,12 +150,10 @@
     pair(dom.session, "VOL", compact.format(Number(view.latest.volume)));
     pair(dom.session, "BARS", view.bars ? view.bars.length : "—");
     pair(dom.session, "AGE", humanAge(view.data_age_seconds));
-
     const level = certainty(view);
-    const ratio = freshnessRatio(view.freshness);
-    setRail(dom.quotePanel, level, ratio);
-    setRail(dom.chartPanel, level, ratio);
-    setRail(dom.provPanel, level, 0);
+    setRail(dom.quotePanel, level);
+    setRail(dom.chartPanel, level);
+    setRail(dom.provPanel, level);
     renderProvenance(view, level);
     dom.canvas.setAttribute(
       "aria-label",
@@ -193,10 +198,9 @@
   }
   function renderQuoteFailure(symbol, failure) {
     state.view = null;
-    state.loading = false;
-    dom.quotePanel.setAttribute("aria-busy", "false");
-    dom.chartPanel.setAttribute("aria-busy", "false");
+    finishLoading();
     dom.symbol.textContent = symbol;
+    dom.marketKind.textContent = marketLabel(symbol);
     clear(dom.price);
     add(dom.price, "span", "無法取得", { class: "price-void" });
     dom.delta.textContent = `${failure.message}（${failure.code}）`;
@@ -204,12 +208,12 @@
     clear(dom.session);
     clear(dom.provenance);
     pair(dom.provenance, "狀態", "外部 provider 未回傳資料。系統不會以快取或樣本資料頂替。");
-    setRail(dom.quotePanel, "failed", 0);
-    setRail(dom.chartPanel, "failed", 0);
-    setRail(dom.provPanel, "failed", 0);
+    setRail(dom.quotePanel, "failed");
+    setRail(dom.chartPanel, "failed");
+    setRail(dom.provPanel, "failed");
     syncPrimaryActions();
     drawChart();
-    window.dispatchEvent(new CustomEvent("stonks:market-view", { detail: null }));
+    window.dispatchEvent(new CustomEvent("stonks:market-failure", { detail: failure }));
   }
   function renderIntervals() {
     clear(dom.intervals);
@@ -258,7 +262,7 @@
       );
       if (worst !== "failed" && certainty(entry.quote) === "stale") worst = "stale";
     }
-    setRail(dom.watchPanel, state.quotes.size ? worst : "idle", 0);
+    setRail(dom.watchPanel, state.quotes.size ? worst : "idle");
     syncPrimaryActions();
   }
   function renderServices() {
@@ -271,7 +275,6 @@
     }
   }
   function syncPrimaryActions() {
-    dom.symbolSearch.value = state.symbol;
     const followed = state.watchlist.includes(state.symbol);
     dom.watchToggle.textContent = followed ? "移出觀察" : "加入觀察";
     dom.watchToggle.disabled = !SYMBOL_PATTERN.test(state.symbol);
@@ -298,7 +301,6 @@
     if (!context) return;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width, height);
-
     const style = getComputedStyle(document.documentElement);
     const colors = {
       rule: style.getPropertyValue("--rule").trim() || "#1e2633",
@@ -308,7 +310,6 @@
       down: style.getPropertyValue("--down").trim() || "#f2555a",
       signal: style.getPropertyValue("--signal").trim() || "#f2a93b",
     };
-
     const bars = state.view && state.view.bars ? state.view.bars : [];
     if (bars.length < 2) {
       context.fillStyle = colors.faint;
@@ -321,13 +322,11 @@
       );
       return;
     }
-
     const padRight = 58;
     const padBottom = 18;
     const volumeHeight = Math.min(56, Math.max(24, height * 0.2));
     const plotWidth = Math.max(1, width - padRight);
     const plotHeight = Math.max(1, height - padBottom - volumeHeight - 6);
-
     let low = Infinity;
     let high = -Infinity;
     let peakVolume = 0;
@@ -340,10 +339,8 @@
     const pad = span * 0.06;
     low -= pad;
     high += pad;
-
     const x = (index) => (index * plotWidth) / (bars.length - 1);
     const y = (value) => plotHeight - ((value - low) / (high - low)) * plotHeight;
-
     context.strokeStyle = colors.rule;
     context.lineWidth = 1;
     context.fillStyle = colors.faint;
@@ -358,11 +355,9 @@
       context.stroke();
       context.fillText(price.format(value), plotWidth + 6, Math.max(9, line + 3));
     }
-
     const slot = plotWidth / bars.length;
     const bodyWidth = Math.max(1, Math.min(9, slot * 0.62));
     const thin = slot < 2.2;
-
     if (thin) {
       context.beginPath();
       bars.forEach((bar, index) => {
@@ -400,7 +395,6 @@
         );
       });
     }
-
     const volumeTop = plotHeight + 6;
     bars.forEach((bar, index) => {
       const magnitude = peakVolume ? (Number(bar.volume) / peakVolume) * volumeHeight : 0;
@@ -414,14 +408,12 @@
       );
       context.globalAlpha = 1;
     });
-
     context.fillStyle = colors.dim;
     context.font = "10px ui-monospace, monospace";
     context.textAlign = "left";
     context.fillText(axisLabel(bars[0]), 0, height - 5);
     context.textAlign = "right";
     context.fillText(axisLabel(bars[bars.length - 1]), plotWidth, height - 5);
-
     if (state.hover !== null && state.hover >= 0 && state.hover < bars.length) {
       const center = x(state.hover);
       context.strokeStyle = colors.signal;
@@ -484,31 +476,32 @@
     state.loading = true;
     state.symbol = target;
     state.interval = intervalOf(interval).id;
-    dom.symbolSearch.value = target;
+    if (!quiet) dom.symbolSearch.value = target;
     state.hover = null;
     dom.crosshair.textContent = "";
     renderIntervals();
     renderWatchlist();
     writeHash();
-    setRail(dom.quotePanel, "loading", 0);
-    setRail(dom.chartPanel, "loading", 0);
-    setRail(dom.provPanel, "loading", 0);
     dom.quotePanel.setAttribute("aria-busy", "true");
     dom.chartPanel.setAttribute("aria-busy", "true");
-    state.view = null;
-    clear(dom.price);
-    add(dom.price, "span", "更新中", { class: "price-void" });
-    dom.delta.textContent = "等待 provider 回應";
-    dom.delta.setAttribute("data-direction", "unknown");
-    clear(dom.session);
-    clear(dom.provenance);
-    pair(dom.provenance, "狀態", "正在讀取外部資料；舊報價已隱藏。");
-    drawChart();
-    window.dispatchEvent(new CustomEvent("stonks:market-view", { detail: null }));
+    if (!quiet) {
+      setRail(dom.quotePanel, "loading");
+      setRail(dom.chartPanel, "loading");
+      setRail(dom.provPanel, "loading");
+      state.view = null;
+      clear(dom.price);
+      add(dom.price, "span", "更新中", { class: "price-void" });
+      dom.delta.textContent = "等待 provider 回應";
+      dom.delta.setAttribute("data-direction", "unknown");
+      clear(dom.session);
+      clear(dom.provenance);
+      pair(dom.provenance, "狀態", "正在讀取外部資料；舊報價已隱藏。");
+      drawChart();
+      window.dispatchEvent(new CustomEvent("stonks:market-view", { detail: null }));
+    }
     syncPrimaryActions();
-    dom.quoteInterval.textContent = `${state.interval} · 讀取中`;
+    if (!quiet) dom.quoteInterval.textContent = `${state.interval} · 讀取中`;
     if (!quiet) say(`讀取 ${target} ${state.interval} …`);
-
     const result = await request("/api/v1/market/bars", {
       symbol: target,
       interval: state.interval,
@@ -520,6 +513,11 @@
       state.interval !== intervalOf(interval).id
     ) return;
     if (!result.ok) {
+      if (quiet) {
+        finishLoading();
+        say(`背景更新失敗：${result.message}（${result.code}）；保留最後成功資料`, "warn");
+        return;
+      }
       renderQuoteFailure(target, result);
       say(`${target}：${result.message}（${result.code}）`, "error");
       return;
@@ -539,6 +537,7 @@
   }
   function autoRefresh() {
     if (document.visibilityState !== "visible" || state.loading) return;
+    loadCapabilities();
     if (state.symbol) loadSymbol(state.symbol, state.interval, true);
     else refreshWatchlist();
   }
@@ -600,7 +599,6 @@
     state.historyIndex = state.history.length;
     const parts = input.toUpperCase().split(" ");
     const head = parts[0];
-
     if (head === "HELP" || head === "?") return toggleHelp(true);
     if (head === "RESEARCH") {
       const symbol = parts[1];
@@ -660,17 +658,20 @@
     target.focus();
   }
   function writeHash() {
-    const params = new URLSearchParams();
-    if (state.symbol) params.set("s", state.symbol);
-    params.set("i", state.interval);
-    if (state.watchlist.length) params.set("w", state.watchlist.join(","));
-    const next = `#${params.toString()}`;
-    if (window.location.hash !== next) {
-      window.history.replaceState(null, "", next);
-    }
+    const next = new URL(window.location.href);
+    next.search = "";
+    if (state.symbol) next.searchParams.set("s", state.symbol);
+    next.searchParams.set("i", state.interval);
+    if (state.watchlist.length) next.searchParams.set("w", state.watchlist.join(","));
+    const legacy = new URLSearchParams(next.hash.slice(1));
+    if (legacy.has("s") || legacy.has("i") || legacy.has("w")) next.hash = "";
+    if (window.location.href !== next.href) window.history.replaceState(null, "", next);
   }
   function readHash() {
-    const params = new URLSearchParams(window.location.hash.slice(1));
+    const current = new URL(window.location.href);
+    const query = new URLSearchParams(current.search);
+    const legacy = new URLSearchParams(current.hash.slice(1));
+    const params = query.has("s") || query.has("i") || query.has("w") ? query : legacy;
     const watch = (params.get("w") || "")
       .split(",")
       .map((item) => item.trim().toUpperCase())
@@ -703,7 +704,6 @@
       dom.command.value = "";
       runCommand(value);
     });
-
     dom.command.addEventListener("keydown", (event) => {
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         if (!state.history.length) return;
@@ -717,7 +717,6 @@
       }
       if (event.key === "Escape") dom.command.value = "";
     });
-
     document.addEventListener("keydown", (event) => {
       if (event.key === "Tab" && !dom.help.hidden) {
         event.preventDefault();
@@ -739,7 +738,6 @@
         toggleHelp(dom.help.hidden);
       }
     });
-
     dom.helpClose.addEventListener("click", () => toggleHelp(false));
     dom.helpTrigger.addEventListener("click", () => toggleHelp(true));
     dom.canvas.addEventListener("pointermove", onChartHover);
@@ -754,10 +752,6 @@
       moveChart(event.key === "ArrowLeft" ? -1 : 1);
     });
     window.addEventListener("resize", drawChart);
-    window.addEventListener("hashchange", () => {
-      readHash();
-      loadSymbol(state.symbol, state.interval);
-    });
     window.addEventListener("stonks:research-terminal", loadCapabilities);
     window.addEventListener("stonks:refresh-capabilities", loadCapabilities);
     window.addEventListener("stonks:model-settings", syncPrimaryActions);
@@ -790,7 +784,6 @@
     loadSymbol(state.symbol, state.interval);
     window.setInterval(autoRefresh, AUTO_REFRESH_MS);
   }
-
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
   } else {

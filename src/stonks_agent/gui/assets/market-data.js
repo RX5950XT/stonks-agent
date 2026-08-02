@@ -7,11 +7,9 @@
     Object.freeze({ id: "1h", label: "1h", lookback: 120 }),
     Object.freeze({ id: "1d", label: "1d", lookback: 180 }),
   ]);
-
   function intervalOf(id) {
     return intervals.find((item) => item.id === id) || intervals[4];
   }
-
   async function request(path, params) {
     const url = new URL(path, window.location.origin);
     for (const [name, value] of Object.entries(params || {})) {
@@ -25,13 +23,13 @@
         credentials: "omit",
         redirect: "error",
       });
-    } catch (error) {
+    } catch {
       return { ok: false, code: "unreachable", message: "無法連線到本機服務" };
     }
     let body = null;
     try {
       body = await response.json();
-    } catch (error) {
+    } catch {
       body = null;
     }
     if (!response.ok || !body || body.success !== true) {
@@ -44,7 +42,6 @@
     }
     return { ok: true, data: body.data, metadata: body.metadata };
   }
-
   function certainty(view) {
     if (!view) return "idle";
     if (view.quality !== "available") return "stale";
@@ -54,7 +51,6 @@
       ? "fresh"
       : "stale";
   }
-
   function freshnessLabel(value) {
     return {
       current: "目前可用",
@@ -64,7 +60,6 @@
       unknown: "無法判定",
     }[value] || "無法判定";
   }
-
   function qualityLabel(value) {
     return {
       available: "可用",
@@ -72,24 +67,12 @@
       unknown: "未知",
     }[value] || "未知";
   }
-
   function feedLabel(value) {
     return {
       intraday_historical: "盤中歷史 bar（非交易所 tick）",
       end_of_day_historical: "日線歷史 bar（非交易所 tick）",
     }[value] || value;
   }
-
-  function freshnessRatio(value) {
-    return {
-      current: 0.05,
-      market_closed: 0.15,
-      delayed: 0.45,
-      stale: 1,
-      unknown: 0.8,
-    }[value] || 0.8;
-  }
-
   function humanAge(seconds) {
     if (seconds < 60) return `${seconds} 秒`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)} 分`;
@@ -99,20 +82,17 @@
     }
     return `${Math.floor(seconds / 86400)} 天 ${Math.floor((seconds % 86400) / 3600)} 小時`;
   }
-
   function stamp(iso) {
     const moment = new Date(iso);
     if (Number.isNaN(moment.getTime())) return iso;
     return `${moment.toISOString().slice(0, 19).replace("T", " ")}Z`;
   }
-
   window.StonksMarketData = Object.freeze({
     AUTO_REFRESH_MS: 30_000,
     INTERVALS: intervals,
     certainty,
     feedLabel,
     freshnessLabel,
-    freshnessRatio,
     humanAge,
     intervalOf,
     qualityLabel,

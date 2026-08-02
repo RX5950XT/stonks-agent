@@ -96,7 +96,7 @@ def test_gui_exposes_the_backend_driven_primary_journey_without_terminal_command
     assert 'id="model-settings-form"' in template
     assert 'id="model-api-key"' in template
     assert 'type="password"' in template
-    assert 'autocomplete="new-password"' in template
+    assert 'autocomplete="off"' in template
     assert 'id="model-settings-save"' in template
     assert 'id="model-settings-clear"' in template
     assert 'aria-describedby="research-action-note"' in template
@@ -142,11 +142,35 @@ def test_gui_exposes_the_backend_driven_primary_journey_without_terminal_command
     assert 'interval: "1m"' in terminal
     assert "AUTO_REFRESH_MS" in terminal
     assert "document.visibilityState" in terminal
+    assert "loadCapabilities();\n    if (state.symbol)" in terminal
+    assert 'next.searchParams.set("s", state.symbol)' in terminal
+    assert 'window.addEventListener("hashchange"' not in terminal
+    assert "if (!quiet) dom.symbolSearch.value = target;" in terminal
+    assert "dom.symbolSearch.value = state.symbol;" not in terminal
+    assert "if (quiet) {" in terminal
+    assert "保留最後成功資料" in terminal
     assert "view.freshness" in terminal
     assert "view.quality" in terminal
     assert 'view.is_real_time ? "即時" : "非 tick"' in terminal
     assert "staleAfter" not in terminal
     assert "kronos_summary" not in research
+
+
+def test_quiet_refresh_failure_releases_busy_state_without_hiding_last_quote() -> None:
+    terminal = (ASSETS / "assets" / "terminal.js").read_text(encoding="utf-8")
+    failure_branch = terminal.split("if (!result.ok) {", maxsplit=1)[1].split(
+        "renderQuote(result.data);", maxsplit=1
+    )[0]
+    loading_helper = terminal.split("function finishLoading() {", maxsplit=1)[1].split(
+        "}", maxsplit=1
+    )[0]
+
+    assert "if (!quiet) dom.quoteInterval.textContent" in terminal
+    assert "finishLoading();" in failure_branch
+    assert "state.loading = false;" in loading_helper
+    assert 'dom.quotePanel.setAttribute("aria-busy", "false");' in loading_helper
+    assert 'dom.chartPanel.setAttribute("aria-busy", "false");' in loading_helper
+    assert "保留最後成功資料" in failure_branch
 
 
 def test_every_script_dom_target_exists_once_and_tokens_keep_three_layers() -> None:
@@ -164,6 +188,112 @@ def test_every_script_dom_target_exists_once_and_tokens_keep_three_layers() -> N
     assert "/* Primitives */" in style
     assert "/* Semantic */" in style
     assert "/* Components */" in style
+
+
+def test_gui_dark_capability_map_exposes_every_backend_domain() -> None:
+    template = (ASSETS / "templates" / "index.html").read_text(encoding="utf-8")
+    style = (ASSETS / "assets" / "terminal.css").read_text(encoding="utf-8")
+    product = (ASSETS / "assets" / "product.js").read_text(encoding="utf-8")
+
+    assert '<meta name="color-scheme" content="dark">' in template
+    assert '<meta name="theme-color" content="#0d1117">' in template
+    assert "color-scheme: dark" in style
+    assert "color-scheme: light" not in style
+    for target in (
+        "capability-market-state",
+        "capability-research-state",
+        "capability-model-state",
+        "capability-kronos-state",
+        "capability-paper-state",
+        "capability-data-state",
+        "runtime-readiness",
+    ):
+        assert template.count(f'id="{target}"') == 1
+        assert f'el("{target}")' in product
+    assert "Backend capability map" in template
+    assert "kill switch" in template.lower()
+    assert "Shadow forecast" in template
+    assert "Provider · freshness · PIT · non-tick" in template
+
+
+def test_composite_controls_render_one_focus_ring() -> None:
+    style = (ASSETS / "assets" / "terminal.css").read_text(encoding="utf-8")
+    global_focus = style.split(":focus-visible {", 1)[1].split("}", 1)[0]
+    search_focus = style.split(".search-control:focus-within {", 1)[1].split("}", 1)[0]
+
+    assert "outline: 2px solid var(--color-primary)" in global_focus
+    assert "box-shadow" not in global_focus
+    assert "box-shadow: var(--focus-ring)" in search_focus
+
+
+def test_gui_secret_fields_avoid_password_manager_persistence_semantics() -> None:
+    template = (ASSETS / "templates" / "index.html").read_text(encoding="utf-8")
+    settings = (ASSETS / "assets" / "settings.js").read_text(encoding="utf-8")
+
+    assert 'id="model-id"' in template
+    assert 'id="model-api-key"' in template
+    assert 'autocomplete="username"' not in template
+    assert 'autocomplete="new-password"' not in template
+    assert template.count('autocomplete="off"') >= 3
+    assert 'window.addEventListener("pagehide", () =>' in settings
+    pagehide = settings.split('window.addEventListener("pagehide", () => {', 1)[
+        1
+    ].split("});", 1)[0]
+    assert 'dom.key.value = "";' in pagehide
+    assert "hideKey();" in pagehide
+
+
+def test_capability_map_requires_verified_model_and_live_research_service() -> None:
+    product = (ASSETS / "assets" / "product.js").read_text(encoding="utf-8")
+
+    assert 'const researchService = services.get("research");' in product
+    assert 'researchService.state === "ready"' in product
+    assert "model.api_key_configured === true" in product
+    assert "model.verified === true" in product
+    assert 'configured: "已設定"' in product
+    assert 'configured: "已驗證"' not in product
+
+
+def test_market_labels_follow_the_canonical_symbol_suffixes() -> None:
+    terminal = (ASSETS / "assets" / "terminal.js").read_text(encoding="utf-8")
+
+    assert 'upper.endsWith(".TW") || upper.endsWith(".TWO")' in terminal
+    assert 'upper.endsWith(".HK")' in terminal
+    assert 'return "台灣股票";' in terminal
+    assert 'return "香港股票";' in terminal
+
+
+def test_gui_removes_verified_dead_refresh_chain_and_legacy_mobile_floor() -> None:
+    style = (ASSETS / "assets" / "terminal.css").read_text(encoding="utf-8")
+    market = (ASSETS / "assets" / "market-data.js").read_text(encoding="utf-8")
+    terminal = (ASSETS / "assets" / "terminal.js").read_text(encoding="utf-8")
+    settings = (ASSETS / "assets" / "settings.js").read_text(encoding="utf-8")
+
+    assert "min-width: 20rem" not in style
+    assert "--rail-decay" not in terminal
+    assert "freshnessRatio" not in market
+    assert "freshnessRatio" not in terminal
+    assert 'save: el("model-settings-save")' not in settings
+
+
+def test_workspace_deep_link_resyncs_after_async_initial_render() -> None:
+    template = (ASSETS / "templates" / "index.html").read_text(encoding="utf-8")
+    product = (ASSETS / "assets" / "product.js").read_text(encoding="utf-8")
+    terminal = (ASSETS / "assets" / "terminal.js").read_text(encoding="utf-8")
+    style = (ASSETS / "assets" / "terminal.css").read_text(encoding="utf-8")
+
+    assert "syncWorkspaceCurrent" in product
+    assert "settleInitialAnchor" in product
+    assert "scrollIntoView" in product
+    assert "if (event.detail) settleInitialAnchor(2);" in product
+    assert 'new CustomEvent("stonks:market-failure"' in terminal
+    assert 'addEventListener("stonks:market-failure"' in product
+    assert 'strong[data-state="degraded"]' in style
+    assert "padding-bottom: 5rem" in style
+    assert 'placeholder="https:&#47;&#47;api.example.com"' in template
+    assert "dataset.state = runtimeState" in product
+    assert "stateLabel(paper && paper.state)" in product
+    assert 'view.quality === "available"' in product
 
 
 def test_research_ui_locks_single_flight_before_post_and_fences_late_results() -> None:

@@ -1,4 +1,4 @@
-# Stonks Terminal（local GUI）
+# Stonks Desk（local GUI）
 
 Stonks Desk 是 loopback-only、依後端能力設計的 AI 投資研究工作台。它透過 isolated
 OpenBB／yfinance sidecar 讀取美股與台股日線與日內 K 線，推導延遲報價，並可選擇性組合

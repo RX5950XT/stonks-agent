@@ -158,8 +158,8 @@
 - [x] 依審查結果以 TDD 修正 truthful capability、deep-link、market label、secret lifecycle
       與文件漂移。
 - [x] 執行完整驗證 gate，所有失敗修到通過。
-- [ ] 檢查 staged diff、建立符合規範的 commit。
-- [ ] push 後驗證遠端 commit、tracked tree、敏感內容與 CI 狀態。
+- [x] 檢查 staged diff、建立符合規範的 commit。
+- [x] push 後驗證遠端 commit、tracked tree、敏感內容與 CI 狀態。
 
 ## Review
 
@@ -171,3 +171,6 @@
 - `uv run --frozen python scripts/verify.py --with-postgres` 使用 fresh disposable DB：824 files
   formatted、Mypy 396 files、2,772 passed／10 skipped、coverage 86.18%，全部 security、schema、
   migration、upstream 與 dependency gates 通過；disposable DB 已清除。
+- 功能 commit `6afc07f` 已推送至 `origin/feat/local-gui-research-console`；本機與遠端 tip 一致。
+  遠端 exact path scan 無 runtime output／database／private env／key artifact，高風險 token scan
+  排除刻意測試 fixtures 後為 0；該 branch 沒有設定 push-triggered GitHub Actions run。

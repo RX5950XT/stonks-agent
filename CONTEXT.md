@@ -13,6 +13,8 @@
   `scripts/verify.py --with-postgres` 在 fresh disposable PostgreSQL 通過：824 files formatted、
   Mypy 396 files、2,772 passed／10 skipped、coverage 86.18%，schema／Alembic／secret／upstream
   與 core＋全部 isolated dependency audits 全綠，無已知漏洞；驗證 DB 已清除。
+  功能 commit `6afc07f` 已推送至 `origin/feat/local-gui-research-console`；遠端 tree 無 runtime
+  output／database／private env／key artifact，高風險 token scan（排除明示測試 fixtures）為 0。
 
 - P21 完成三路 GUI 稽核與修復：UI micro-audit、安全 source-to-sink review、dead-code audit。
   修正 quiet refresh 失敗後永久 loading、async direct hash 定位、degraded／runtime／paper state、

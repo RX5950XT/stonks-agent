@@ -7,8 +7,13 @@
 
 ## 目前狀態
 
-- 分支 `main`，工作樹 clean。最新一輪是 P23：GUI 功能分支經 PR #12 以 merge commit
-  `8a0c834` 併入 `main`，遠端功能分支已刪除，合併前 GitHub 14/14 checks 全綠。
+- 分支 `main`，工作樹 clean，與 `origin/main` 對齊。最近一輪是文件整理（本檔、README、
+  todo 大幅精簡）。前一輪 P23 將 GUI 功能分支經 PR #12 以 merge commit `8a0c834` 併入
+  `main`，遠端功能分支已刪除。
+- CI 注意：`Hardened core Compose` job 會偶發在 `compose_build_core` 失敗。smoke runner
+  刻意 capture 子行程輸出以防 secret 外洩，因此 CI log 只有 typed envelope 沒有 build
+  細節。同一 commit rerun 即通過，本機 `scripts/smoke_core_deployment.py` 亦 success；
+  遇到時先 rerun 判定 transient，再本機重現拿完整輸出。
 - 版本：正式 immutable release 是 `v0.1.2`（不含 GUI）。目前工作樹是**未發布**的 `0.2.0`
   candidate，Local GUI 只在此。不得用 `v0.1.2` 的簽章或 runtime 證據替 `0.2.0` 背書。
 - 成熟度 pre-alpha、paper-only。Default deployment 只有 health／readiness，尚未組合

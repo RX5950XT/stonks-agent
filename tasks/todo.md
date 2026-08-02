@@ -7,6 +7,7 @@
 - [x] 精簡 `tasks/todo.md`：保留最近一輪詳情，歷史輪次收斂為摘要。
 - [x] 對齊 `AGENTS.md` 與 `CLAUDE.md`（policy test 要求兩檔 byte-identical）。
 - [x] 跑 docs policy gate 與相關 regression。
+- [x] Commit 並推送 `main`，驗證 GitHub CI 與 Supply-chain 全綠。
 
 ## Review
 
@@ -21,6 +22,10 @@
 - 驗證：`scripts/verify.py --skip-audit` → `[verify] all gates passed`；Ruff、strict mypy
   396 files、2,486 passed／6 skipped、coverage 86.86%、schemas current、upstream 0 violation、
   secret scan 0 finding；`tests/policy/` 188 passed／3 skipped。
+- 推送：commit `c359b9c` 已進 `origin/main`。首次 CI 的 `Hardened core Compose` 在
+  `compose_build_core` 失敗，diff 未觸及 Dockerfile／lock；同 commit rerun 後 CI 全綠、
+  Supply-chain security 亦 success，本機 `scripts/smoke_core_deployment.py` 回
+  `runtime_hardening/persistence_replay: verified`，判定為 transient build failure。
 
 ---
 

@@ -2,8 +2,8 @@
 
 本頁是 repository 文件入口。若是第一次使用，先閱讀根目錄
 [README](../README.md) 並執行離線 `fake-cycle`。Immutable `v0.1.2`／P6 完成狀態見
-[P6 handoff evidence](verification/p6-handoff-evidence.md)；未發布 `0.2.0`／P7 則以
-[CONTEXT](../CONTEXT.md)、[P7 todo](../tasks/todo.md) 與
+[P6 handoff evidence](verification/p6-handoff-evidence.md)；未發布 `0.2.0`（Local GUI）則以
+[CONTEXT](../CONTEXT.md)、[任務 review](../tasks/todo.md) 與
 [Local GUI runbook](runbooks/local-gui.md) 為準。
 
 狀態詞彙：`implemented` 表示 repository code 與相稱測試已存在；

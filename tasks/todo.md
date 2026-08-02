@@ -174,3 +174,20 @@
 - 功能 commit `6afc07f` 已推送至 `origin/feat/local-gui-research-console`；本機與遠端 tip 一致。
   遠端 exact path scan 無 runtime output／database／private env／key artifact，高風險 token scan
   排除刻意測試 fixtures 後為 0；該 branch 沒有設定 push-triggered GitHub Actions run。
+
+---
+
+# GUI 功能分支 PR 合併至 main（2026-08-02）
+
+## 本輪執行
+
+- [x] 確認工作樹 clean、功能分支未落後 `origin/main`，且遠端尚無既有 PR。
+- [ ] 獨立審查 merge readiness、branch rules 與 workflow triggers。
+- [ ] 建立 PR，確認內容、base/head、mergeability 與 required checks。
+- [ ] 同步 merge review 至 `CONTEXT.md` 與本檔。
+- [ ] 以 merge commit 合併至 `main` 並刪除遠端功能分支。
+- [ ] 驗證遠端 `main`、PR merged、tracked tree、敏感內容與本機狀態。
+
+## Review
+
+- 待 PR 合併完成後補齊。

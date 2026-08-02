@@ -4,6 +4,15 @@
 
 ## 目前狀態
 
+- P23 建立 PR #12 合併 GUI 功能分支。初次 GitHub CI 揭露兩個本機狀態掩蓋的缺陷：
+  launcher tests 暗中依賴 gitignored `.data/models/kronos`，以及 capacity probe 的 frozen
+  schema revision 落後 Alembic head `0018`。測試現在以 scoped fixture 建立／清理最小模型目錄，
+  並保留 clean checkout 缺模型必須 fail closed 的 regression；capacity revision 已對齊 `0018`，
+  policy test 會直接比較 single Alembic head。CI 等價 capacity gate 在全新 digest-pinned
+  PostgreSQL 通過（84 tests＋actual probe）；完整 `scripts/verify.py --with-postgres` 在 fresh
+  disposable DB 通過：824 files formatted、Mypy 396 files、2,774 passed／10 skipped、coverage
+  86.18%，全部 schema／migration／security／license／dependency gates 全綠，DB 已清除。
+
 - P22 pre-push 獨立審查補齊 truthful GUI state：capability map 現在同時要求 route contract、
   live research service 與 `api_key_configured && verified`，不再把 configured model 誤標為
   已驗證；loading placeholder 不再提前完成 async section deep-link；市場標籤對齊 canonical

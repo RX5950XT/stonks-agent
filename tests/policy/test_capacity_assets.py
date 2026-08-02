@@ -1,17 +1,31 @@
 from __future__ import annotations
 
+import sys
 import tomllib
 from pathlib import Path
 
 import yaml
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from stonks_agent.config.capacity import load_capacity_policy
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from scripts.capacity_probe_common import EXPECTED_SCHEMA_REVISION  # noqa: E402
+
 POSTGRES_IMAGE = (
     "postgres:17.10-alpine@sha256:"
     "742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193"
 )
+
+
+def test_capacity_probe_revision_tracks_the_single_alembic_head() -> None:
+    config = Config(ROOT / "alembic.ini")
+    heads = ScriptDirectory.from_config(config).get_heads()
+
+    assert heads == [EXPECTED_SCHEMA_REVISION]
 
 
 def test_capacity_runbook_states_measured_boundary_and_stop_conditions() -> None:

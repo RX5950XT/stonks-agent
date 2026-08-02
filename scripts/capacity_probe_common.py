@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-EXPECTED_SCHEMA_REVISION = "0017"
+EXPECTED_SCHEMA_REVISION = "0018"
 FIXED_NOW = datetime(2026, 7, 1, 21, tzinfo=UTC)
 
 

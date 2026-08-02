@@ -72,5 +72,6 @@
 - 優先不可變資料；函數盡量小於 50 行、檔案小於 800 行、巢狀不超過 4 層。
 - 不靜默吞例外，不以空 list/DataFrame/`None` 偽裝 infra failure。
 - 新功能與 bug fix 採 TDD；核心目標 coverage 80% 以上，另做 PIT、property、contract、E2E、replay、security tests。
+- 測試不得依賴 gitignored `.data`／`.research` runtime artifact；必要前置狀態由 test scope 建立，且只清理由該測試建立的路徑。
 - Commit 格式：`<type>: <description>`，type 使用 `feat|fix|refactor|docs|test|chore|perf|ci`。
 - 每次任務完成同步精簡 `AGENTS.md`、`CLAUDE.md`、`CONTEXT.md` 與 `tasks/todo.md` review；README 只宣稱已驗證能力。

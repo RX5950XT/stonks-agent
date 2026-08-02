@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -12,9 +13,27 @@ SCRIPT = ROOT / "start.ps1"
 POWERSHELL = shutil.which("pwsh") or shutil.which("powershell")
 
 
+@pytest.fixture
+def kronos_model_directory() -> Iterator[None]:
+    paths = (
+        ROOT / ".data",
+        ROOT / ".data" / "models",
+        ROOT / ".data" / "models" / "kronos",
+    )
+    created = tuple(path for path in paths if not path.exists())
+    paths[-1].mkdir(parents=True, exist_ok=True)
+    try:
+        yield
+    finally:
+        for path in reversed(created):
+            path.rmdir()
+
+
 def _run_script(
     *arguments: str,
     environment: dict[str, str] | None = None,
+    script: Path = SCRIPT,
+    root: Path = ROOT,
 ) -> subprocess.CompletedProcess[str]:
     if POWERSHELL is None:
         pytest.skip("PowerShell is unavailable")
@@ -26,16 +45,36 @@ def _run_script(
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            str(SCRIPT),
+            str(script),
             *arguments,
         ],
-        cwd=ROOT,
+        cwd=root,
         env=environment,
         check=False,
         capture_output=True,
         encoding="utf-8",
         timeout=30,
     )
+
+
+def _copy_launcher_checkout(root: Path) -> Path:
+    (root / "infra").mkdir(parents=True)
+    (root / "workers" / "kronos").mkdir(parents=True)
+    for source, target in (
+        (SCRIPT, root / "start.ps1"),
+        (ROOT / "pyproject.toml", root / "pyproject.toml"),
+        (ROOT / "infra" / "compose.gui.yaml", root / "infra" / "compose.gui.yaml"),
+        (
+            ROOT / "infra" / "compose.kronos.yaml",
+            root / "infra" / "compose.kronos.yaml",
+        ),
+        (
+            ROOT / "workers" / "kronos" / "model-manifest.json",
+            root / "workers" / "kronos" / "model-manifest.json",
+        ),
+    ):
+        shutil.copy2(source, target)
+    return root / "start.ps1"
 
 
 def test_market_check_reports_exact_non_mutating_command() -> None:
@@ -58,7 +97,9 @@ def test_market_check_reports_exact_non_mutating_command() -> None:
     assert "--with-research" not in result.stdout
 
 
-def test_research_check_allows_model_configuration_in_gui() -> None:
+def test_research_check_allows_model_configuration_in_gui(
+    kronos_model_directory: None,
+) -> None:
     environment = os.environ.copy()
     for name in (
         "STONKS_LLM_BASE_URL",
@@ -75,7 +116,28 @@ def test_research_check_allows_model_configuration_in_gui() -> None:
     assert "STONKS_LLM" not in result.stdout + result.stderr
 
 
-def test_research_check_never_prints_api_key() -> None:
+def test_research_check_fails_closed_without_kronos_model(tmp_path: Path) -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("Docker is unavailable")
+    root = tmp_path / "checkout"
+    script = _copy_launcher_checkout(root)
+
+    result = _run_script(
+        "-Mode",
+        "research",
+        "-Check",
+        script=script,
+        root=root,
+    )
+
+    assert result.returncode == 2
+    assert "Kronos CPU model is missing" in result.stderr
+    assert "fetch_kronos_model.py" in result.stderr
+
+
+def test_research_check_never_prints_api_key(
+    kronos_model_directory: None,
+) -> None:
     environment = os.environ.copy()
     environment.update(
         {
@@ -148,7 +210,9 @@ def test_local_environment_file_rejects_foreign_keys(tmp_path: Path) -> None:
     assert "only accepts STONKS_* keys" in result.stderr
 
 
-def test_local_environment_file_never_prints_its_secret() -> None:
+def test_local_environment_file_never_prints_its_secret(
+    kronos_model_directory: None,
+) -> None:
     if POWERSHELL is None:
         pytest.skip("PowerShell is unavailable")
     env_file = ROOT / ".env"
@@ -201,7 +265,11 @@ def test_shell_launcher_mirrors_the_powershell_policy() -> None:
         ),
     ],
 )
-def test_shell_launcher_check_matches_powershell(mode: str, expected: str) -> None:
+def test_shell_launcher_check_matches_powershell(
+    mode: str,
+    expected: str,
+    kronos_model_directory: None,
+) -> None:
     bash = shutil.which("bash")
     if bash is None or shutil.which("uv") is None or shutil.which("docker") is None:
         pytest.skip("bash, uv, or docker is unavailable")

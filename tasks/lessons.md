@@ -2,6 +2,11 @@
 
 ## 2026-08-02
 
+- CI hermeticity 不能由本機 clean worktree 推論；gitignored `.data`／`.research` 仍會掩蓋缺少
+  prerequisite 的測試。需要 runtime artifact 的 test 必須自行建立 scoped state，只清理由它建立的路徑，
+  並另保留 clean checkout 的 fail-closed regression。
+- Migration 新增 head 後，所有 frozen runtime revision 都必須由 regression 對照 Alembic single head；
+  只測設定檔內容會讓 capacity 等獨立 gate 在執行期才發現 drift。
 - Capability route 存在不等於 runtime ready；GUI 必須同時合成 route contract、live service state
   與 model `api_key_configured && verified`，不得把 `configured` 翻成「已驗證」。
 - Async deep-link 不能由 loading placeholder event 宣告完成；只允許真實 market success 或 typed

@@ -123,7 +123,7 @@
   "sbom": {
     "path": "payload/release/core.cdx.json",
     "inventory_path": "payload/release/core.inventory.json",
-    "expected_components_sha256": "e80fe0cc91bd149859c1f69015d3021d6d36a567f228525bf16254e7cbf4d93f",
+    "expected_components_sha256": "b4ace313cb809bc816788049603d3084aa9bf5945a24adba0b517f5cb673a2fc",
     "license_overrides": {
       "pkg:generic/python@3.12.13": "Python-2.0",
       "pkg:pypi/annotated-types@0.7.0": "MIT",

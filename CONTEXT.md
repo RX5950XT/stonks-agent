@@ -284,3 +284,6 @@ migration drift 與真實 DB 整合。
 - 本機 `uv run --frozen python scripts/verify.py --skip-audit` 通過：`2518 passed, 9 skipped`、
   coverage `86.60%`、schema／upstream policy／secrets gate 全綠；`uv lock --check` 與文件測試
   `10 passed`。
+- 首次推送後 Supply-chain 的 frozen source、依賴 audit、SBOM／CVE 都通過，只有
+  `corresponding_sources` 因 `uv.lock` 更新而造成 Python source archive／manifest hash drift；
+  已用 generator 重新計算並同步 `config/release-policy.json`。

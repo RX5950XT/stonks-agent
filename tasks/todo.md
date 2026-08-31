@@ -355,3 +355,7 @@
 
 - 完整驗證：`ruff format --check`、`ruff check`、`mypy src packages`、`2518 passed, 9 skipped`、
   coverage `86.60%`、schema／upstream policy／secrets gate 全部通過。
+- 首次推送的 Supply-chain 只有 `corresponding_sources` 失敗；原因是 `uv.lock` 更新後
+  `config/release-policy.json` 仍是舊的 Python source archive／manifest hash，已重新生成摘要並同步。
+- 修正後 `tests/policy/test_release_supply_chain.py`、`tests/unit/test_release_source_contracts.py`、
+  `tests/unit/test_generate_python_source.py` 共 `50 passed`，再跑完整 frozen verify 全綠。

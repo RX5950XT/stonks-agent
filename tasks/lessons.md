@@ -263,4 +263,5 @@
 - 多個 Dependabot PR 要逐個以最新 `main` rebase，合併時重新讀取完整 `headRefOid`；不能拿舊的短 SHA 或舊基底重試。
 - 舊 Dependabot PR 的跨平台、Docker、sidecar 或 release check 失敗，先以最新 `main` rebase 再重跑；本次 PR #7 的四個失敗在 rebase 後全數消失，不能直接把過期 merge base 當成程式根因。
 - 合併依賴 PR 後要立刻跑 `uv lock --check`；frozen lock 真正更新時，須修正新版工具報出的型別錯誤並同步所有由來源 hash 綁定的 runtime identity 與 fixture。
+- `uv.lock` 更新也會改變 Python corresponding-source manifest；依賴鎖變更後要用 `generate_python_source.py` 重算 archive／manifest hash，同步 release policy 與 policy test。
 - 官方來源 archive 的單次網路逾時不能直接當成資料不存在；在固定次數重試後仍失敗才 fail closed，並保留完整錯誤邊界。

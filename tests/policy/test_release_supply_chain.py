@@ -243,10 +243,10 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "policy": "payload/config/release/python-source-policy.json",
         "uv_lock": "payload/uv.lock",
         "archive_sha256": (
-            "dbd1b088dca9e881cda7d3bea3518aba5e1725b55a2304f1fe126e867e974b07"
+            "b4c34999de8624d1a620508414bcecb097511430d5f77224cd1a66ce519e0441"
         ),
         "manifest_sha256": (
-            "d696a21f2ac2a4cc7ac6524d93705fc9a90a6555af52d09f39b1673e211b5a0a"
+            "f90c9070e455d0317a0ec8799c7528ef45cf8ff8cfa077241285638213b5a489"
         ),
         "source_count": 3,
         "total_source_bytes": 947504,

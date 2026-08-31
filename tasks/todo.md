@@ -318,7 +318,7 @@
 - [x] 依目前實際能力重寫根目錄 README，移除過期的歷次工作紀錄。
 - [x] 先檢查遠端所有開放 PR 的 mergeability、CI 與變更範圍。
 - [x] 提交並推送目前工作樹的功能、文件與測試改動。
-- [ ] 合併檢查全綠且屬於本專案的 PR，處理過期或失敗的 PR。
+- [x] 合併檢查全綠且屬於本專案的 PR，處理過期或失敗的 PR。
 
 ### Review
 
@@ -327,4 +327,5 @@
   證據；本機固定 Grype 掃描三個 image 均無未抑制 High/Critical。
 - 官方 Alpine aports archive 下載加入 3 次 bounded network retry，仍維持最後 fail closed；
   相關單元測試 `40 passed`。
-- #13、#14 已合併；#1–#11 需等新主線重跑後，只合併全綠且仍有價值的 Dependabot PR。
+- #13、#14 已合併；#1、#2、#4、#5、#6、#8、#9、#10、#11 已在最新主線上全綠合併。
+- #7 保留開啟，因為它的 root `mypy` 放寬會造成 Windows、Compose、LEAN 與 source 檢查失敗，未繞過保護檢查。

@@ -260,4 +260,5 @@
 
 - 根 README 只保留目前能重跑、能實測的入口；歷次驗證數字與工作紀錄放交接／證據文件，避免 README 過期。
 - Dependabot PR 要先看 required checks 與變更範圍；全綠才合併，舊且失敗的 PR 不用為了清單好看而硬併。
+- 多個 Dependabot PR 要逐個以最新 `main` rebase，合併時重新讀取完整 `headRefOid`；不能拿舊的短 SHA 或舊基底重試。
 - 官方來源 archive 的單次網路逾時不能直接當成資料不存在；在固定次數重試後仍失敗才 fail closed，並保留完整錯誤邊界。

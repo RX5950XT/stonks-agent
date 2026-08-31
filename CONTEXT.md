@@ -9,7 +9,8 @@
 
 - 分支 `main`。GUI 排版／可讀性、README 能力與 Kronos 說明、Docker/runtime/security 修復
   已提交並推上遠端；core／RD-Agent 的 OpenSSL runtime package 與 LEAN .NET base digest
-  也已更新，對應 legal／VEX 證據同步完成。
+  也已更新，對應 legal／VEX 證據同步完成。Dependabot #1、#2、#4、#5、#6、#8、#9、#10、#11
+  已在檢查全綠且基底同步後合併；#7 仍開啟，因為目前 4 項檢查失敗，沒有硬併。
 - CI 注意：`Hardened core Compose` job 會偶發在 `compose_build_core` 失敗。smoke runner
   刻意 capture 子行程輸出以防 secret 外洩，因此 CI log 只有 typed envelope 沒有 build
   細節。同一 commit rerun 即通過，本機 `scripts/smoke_core_deployment.py` 亦 success；
@@ -18,9 +19,10 @@
   candidate，Local GUI 只在此。不得用 `v0.1.2` 的簽章或 runtime 證據替 `0.2.0` 背書。
 - 成熟度 pre-alpha、paper-only。Default deployment 只有 health／readiness，尚未組合
   production business API 或常駐 dispatcher。
-- 最近一次完整 gate（`scripts/verify.py --with-postgres`，fresh disposable DB）：
-  824 files formatted、Mypy 396 files、2,777 passed／10 skipped、coverage 86.18%，
-  schema／migration／security／license／根與 8 個 isolated dependency audits 全綠。
+- 最近一次本機完整 gate（`uv run python scripts/verify.py --skip-audit`）：
+  829 files formatted、Mypy 399 source files、2,518 passed／9 skipped／292 deselected、
+  coverage 86.60%；schema／upstream policy／secrets gate 全綠。PostgreSQL 版本未在本輪重跑，
+  不以本機結果宣稱該 gate 已驗證。
 
 ## 目前的能力邊界（容易誤判的部分）
 

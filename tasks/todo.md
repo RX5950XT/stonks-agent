@@ -327,5 +327,31 @@
   證據；本機固定 Grype 掃描三個 image 均無未抑制 High/Critical。
 - 官方 Alpine aports archive 下載加入 3 次 bounded network retry，仍維持最後 fail closed；
   相關單元測試 `40 passed`。
-- #13、#14 已合併；#1、#2、#4、#5、#6、#8、#9、#10、#11 已在最新主線上全綠合併。
-- #7 保留開啟，因為它的 root `mypy` 放寬會造成 Windows、Compose、LEAN 與 source 檢查失敗，未繞過保護檢查。
+- #13、#14 已合併；#1、#2、#4、#5、#6、#7、#8、#9、#10、#11 已在最新主線上全綠合併。
+- #7 的舊失敗來自過期 merge base；rebase 到最新 `main` 後 14 個 required checks 全綠，已合併為
+  `1923db3`，沒有繞過保護檢查。
+
+## PR #7 檢查失敗修復（2026-08-31）
+
+- [x] 讀取四個失敗 job 的完整錯誤並確認不是 `main` 失敗。
+- [x] 將 PR #7 以最新 `main` rebase，保留原本單一 `mypy` 版本範圍變更。
+- [x] 重跑本機 frozen gate 與 GitHub 全部 required checks。
+- [x] 以最新完整 `headRefOid` 合併 PR #7，清理遠端暫存分支。
+
+### Review
+
+- 舊 run 的 Windows、Compose、LEAN 與 release verification failure 都在過期合併基底；rebase 後
+  同四個 check 全部通過，主線仍維持綠色。
+- 本機 `uv run --frozen python scripts/verify.py --skip-audit`：`2,518 passed`、coverage `86.60%`，
+  schema／upstream policy／secrets gate 全綠。
+
+## 檢查失敗修復（2026-08-31）
+
+- [x] 同步 PR #7 合併後的 `uv.lock`，確認 `uv lock --check` 通過。
+- [x] 修正 `mypy 2.3.1` 報出的冗餘 `cast`，同步所有受影響的 runtime identity hash。
+- [x] 更新 Kronos evaluation fixture 並重跑相關測試、文件測試與完整 frozen verify。
+
+### Review
+
+- 完整驗證：`ruff format --check`、`ruff check`、`mypy src packages`、`2518 passed, 9 skipped`、
+  coverage `86.60%`、schema／upstream policy／secrets gate 全部通過。

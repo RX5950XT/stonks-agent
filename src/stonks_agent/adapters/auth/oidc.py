@@ -359,7 +359,7 @@ def _validated_keys(
         key_ops = raw.get("key_ops")
         if key_ops is not None and key_ops != ["verify"]:
             raise ValueError("JWK operations are invalid")
-        parsed_key = jwt.PyJWK.from_dict(dict(raw), algorithm=cast(str, algorithm))
+        parsed_key = jwt.PyJWK.from_dict(dict(raw), algorithm=algorithm)
         if raw.get("kty") == "RSA" and getattr(parsed_key.key, "key_size", 0) < 2048:
             raise ValueError("JWK RSA key is too weak")
         parsed[kid] = parsed_key

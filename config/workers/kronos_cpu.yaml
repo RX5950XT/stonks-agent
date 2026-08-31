@@ -19,7 +19,7 @@ runtime:
   tokenizer_revision: 0e0117387f39004a9016484a186a908917e22426
   tokenizer_artifact_hash: 59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee
   manifest_hash: 08da84cbd5cfe0ca9f9dec300589651e77d9ee36f8ee4c1b9047bc62c6f79fc3
-  runtime_hash: 14aaee05cedb2269468e88ea3403ad86942e392448cdd9967d6a151805ec9ed3
+  runtime_hash: 4897158e50ad7f5fa0dd3d3d0f8a664bda756d4dcee1f1cbc4719d63a7819714
   device: cpu
   torch_version: 2.13.0+cpu
   inference_code_version: kronos-path-retention/1.0.0

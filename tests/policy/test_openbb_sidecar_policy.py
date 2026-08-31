@@ -116,9 +116,11 @@ def test_policy_rejects_openbb_in_core_lock(tmp_path: Path) -> None:
     lock = root / "uv.lock"
     _rewrite(
         lock,
-        lambda value: value
-        + '\n[[package]]\nname = "openbb-core"\nversion = "1.6.13"\n'
-        + 'source = { registry = "https://pypi.org/simple" }\n',
+        lambda value: (
+            value
+            + '\n[[package]]\nname = "openbb-core"\nversion = "1.6.13"\n'
+            + 'source = { registry = "https://pypi.org/simple" }\n'
+        ),
     )
 
     result = _run_policy(root)

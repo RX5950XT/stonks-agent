@@ -9,8 +9,9 @@
 
 - 分支 `main`。GUI 排版／可讀性、README 能力與 Kronos 說明、Docker/runtime/security 修復
   已提交並推上遠端；core／RD-Agent 的 OpenSSL runtime package 與 LEAN .NET base digest
-  也已更新，對應 legal／VEX 證據同步完成。Dependabot #1、#2、#4、#5、#6、#8、#9、#10、#11
-  已在檢查全綠且基底同步後合併；#7 仍開啟，因為目前 4 項檢查失敗，沒有硬併。
+  也已更新，對應 legal／VEX 證據同步完成。Dependabot #1、#2、#4、#5、#6、#7、#8、#9、#10、#11
+  已在檢查全綠且基底同步後合併；#7 先從舊基底 rebase 後，14 個 required checks 全部通過，合併
+  commit 為 `1923db3`。
 - CI 注意：`Hardened core Compose` job 會偶發在 `compose_build_core` 失敗。smoke runner
   刻意 capture 子行程輸出以防 secret 外洩，因此 CI log 只有 typed envelope 沒有 build
   細節。同一 commit rerun 即通過，本機 `scripts/smoke_core_deployment.py` 亦 success；
@@ -271,4 +272,15 @@ migration drift 與真實 DB 整合。
 ## README 與遠端 PR 整合（2026-08-31）
 
 - 根 README 已重寫成目前可用能力的短入口：Stonks Desk、K 線範圍、儀錶板、研究聊天室、資料來源、paper 邊界與驗證命令；歷次紀錄不再堆在 README。
-- 遠端 PR #13（`actions/attest`）與 #14（`docker/login-action`）的 required checks 全綠且可合併；#1–#11 為較舊的 Dependabot PR，CI 仍失敗，合併前需先更新或關閉，不能跳過 required checks。
+- 遠端 PR #13（`actions/attest`）、#14（`docker/login-action`）與 Dependabot #1、#2、#4、#5、#6、
+  #7、#8、#9、#10、#11 都已在 required checks 全綠後合併；沒有跳過保護檢查。
+
+## 檢查失敗修復（2026-08-31）
+
+- PR #7 合併後發現 `uv.lock` 未同步目前依賴範圍；更新 frozen lock 後啟用 `mypy 2.3.1`，移除
+  新版報出的 3 個冗餘 `cast`。
+- `service-auth` 來源雜湊變更後，同步更新 Kronos CPU/CUDA、Quant Lab 與 Kronos strategy 的
+  runtime identity，以及評估測試 fixture。
+- 本機 `uv run --frozen python scripts/verify.py --skip-audit` 通過：`2518 passed, 9 skipped`、
+  coverage `86.60%`、schema／upstream policy／secrets gate 全綠；`uv lock --check` 與文件測試
+  `10 passed`。

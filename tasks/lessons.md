@@ -261,4 +261,6 @@
 - 根 README 只保留目前能重跑、能實測的入口；歷次驗證數字與工作紀錄放交接／證據文件，避免 README 過期。
 - Dependabot PR 要先看 required checks 與變更範圍；全綠才合併，舊且失敗的 PR 不用為了清單好看而硬併。
 - 多個 Dependabot PR 要逐個以最新 `main` rebase，合併時重新讀取完整 `headRefOid`；不能拿舊的短 SHA 或舊基底重試。
+- 舊 Dependabot PR 的跨平台、Docker、sidecar 或 release check 失敗，先以最新 `main` rebase 再重跑；本次 PR #7 的四個失敗在 rebase 後全數消失，不能直接把過期 merge base 當成程式根因。
+- 合併依賴 PR 後要立刻跑 `uv lock --check`；frozen lock 真正更新時，須修正新版工具報出的型別錯誤並同步所有由來源 hash 綁定的 runtime identity 與 fixture。
 - 官方來源 archive 的單次網路逾時不能直接當成資料不存在；在固定次數重試後仍失敗才 fail closed，並保留完整錯誤邊界。

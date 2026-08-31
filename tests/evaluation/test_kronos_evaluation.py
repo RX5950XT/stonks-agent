@@ -88,7 +88,7 @@ def _forecast(index: int) -> ForecastOutputArtifact:
             "59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee"
         ),
         runtime_hash=(
-            "14aaee05cedb2269468e88ea3403ad86942e392448cdd9967d6a151805ec9ed3"
+            "4897158e50ad7f5fa0dd3d3d0f8a664bda756d4dcee1f1cbc4719d63a7819714"
         ),
         data_hash=HASH_A,
         stochastic=True,

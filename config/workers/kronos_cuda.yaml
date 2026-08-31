@@ -19,7 +19,7 @@ runtime:
   tokenizer_revision: 0e0117387f39004a9016484a186a908917e22426
   tokenizer_artifact_hash: 59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee
   manifest_hash: 08da84cbd5cfe0ca9f9dec300589651e77d9ee36f8ee4c1b9047bc62c6f79fc3
-  runtime_hash: 75d14b3345fd487d7d60b3d479b31f12dc0b3fdc56201914a5c8b89b06e0072f
+  runtime_hash: 50ad94019bdc3235506baf605233932cd2f496d488ace639b8c1d316dee566e2
   device: cuda
   torch_version: 2.13.0+cu129
   inference_code_version: kronos-path-retention/1.0.0

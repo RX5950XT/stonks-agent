@@ -266,8 +266,8 @@ def _validated_keys(
         key_ops = raw.get("key_ops")
         if key_ops is not None and key_ops != ["verify"]:
             raise ValueError("JWK operations are invalid")
-        key = jwt.PyJWK.from_dict(dict(raw), algorithm=cast(str, algorithm))
-        if not _strong_public_key(key, cast(str, algorithm)):
+        key = jwt.PyJWK.from_dict(dict(raw), algorithm=algorithm)
+        if not _strong_public_key(key, algorithm):
             raise ValueError("JWK public key is invalid")
         parsed[kid] = key
     return parsed

@@ -35,7 +35,7 @@ dependencies = [
     "sqlalchemy>=2.0.45,<3",
     "stonks-contracts",
     "stonks-service-auth",
-    "structlog>=25.5,<26",
+    "structlog>=25.5,<27",
     "typer>=0.21,<1",
     "botocore>=1.43.50,<1.44",
     "uvicorn>=0.41,<1",

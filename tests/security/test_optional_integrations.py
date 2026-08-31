@@ -17,6 +17,16 @@ CORE_DENIED = {
     "rdagent",
     "torch",
 }
+EXPECTED_CRYPTOGRAPHY_LOCKS = {
+    "uv.lock",
+    "workers/tradingagents/uv.lock",
+    "workers/kronos/uv.lock",
+    "workers/kronos/profiles/cuda/uv.lock",
+    "workers/quant_lab/uv.lock",
+    "sidecars/openbb/uv.lock",
+    "sidecars/nautilus/uv.lock",
+    "sidecars/lean/uv.lock",
+}
 EXPECTED_SERVICE_PROFILES = {
     "kronos-cpu": "kronos-cpu",
     "kronos-cuda": "kronos-cuda",
@@ -77,6 +87,13 @@ def test_core_lock_and_project_remain_free_of_optional_heavy_runtimes() -> None:
     assert dependencies.isdisjoint(CORE_DENIED)
     for denied in CORE_DENIED:
         assert f'name = "{denied}"' not in lock
+
+
+def test_every_cryptography_lock_uses_the_patched_release() -> None:
+    for relative in EXPECTED_CRYPTOGRAPHY_LOCKS:
+        lock = tomllib.loads((ROOT / relative).read_text(encoding="utf-8"))
+        packages = {package["name"]: package["version"] for package in lock["package"]}
+        assert packages["cryptography"] == "50.0.0", relative
 
 
 def test_optional_smoke_policy_matches_exact_compose_profiles() -> None:

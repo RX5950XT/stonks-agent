@@ -10,6 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "start.ps1"
+WINDOWS_WRAPPER = ROOT / "start.cmd"
 POWERSHELL = shutil.which("pwsh") or shutil.which("powershell")
 
 
@@ -180,6 +181,17 @@ def test_script_has_safe_defaults_and_stays_in_source_checkout() -> None:
     assert "Remove-Item" not in source
     assert "Invoke-Expression" not in source
     assert "STONKS_LLM_API_KEY =" not in source
+
+
+def test_windows_wrapper_delegates_to_research_launcher() -> None:
+    source = WINDOWS_WRAPPER.read_text(encoding="utf-8")
+
+    assert source == (
+        "@echo off\n"
+        "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "
+        '"%~dp0start.ps1" -Mode research -DatabasePort 55434\n'
+        "if errorlevel 1 pause\n"
+    )
 
 
 def test_local_environment_file_is_key_scoped_and_never_echoed() -> None:

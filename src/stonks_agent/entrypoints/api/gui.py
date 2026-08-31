@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import UTC, datetime
 from ipaddress import ip_address
 from pathlib import Path
 from threading import Lock
@@ -39,7 +39,9 @@ from stonks_agent.domain.gui_paper import (
     GuiPaperRiskView,
     GuiPaperSafetyView,
 )
+from stonks_agent.domain.instrument_data import InstrumentDataQuery, InstrumentOverview
 from stonks_agent.domain.latest_market_data import (
+    MAX_LOOKBACK_DAYS,
     BarInterval,
     LatestMarketDataQuery,
     LatestMarketDataView,
@@ -73,10 +75,11 @@ from stonks_agent.entrypoints.api.web_protection import (
 )
 from stonks_agent.ports.gui_model_settings import GuiModelSettingsPort
 from stonks_agent.ports.gui_research import GuiResearchFacade
+from stonks_agent.ports.instrument_data import InstrumentDataSource
 from stonks_agent.ports.latest_market_data import LatestMarketDataSource
 
 MAX_GUI_REQUEST_BYTES = 16_384
-MAX_WATCHLIST_SYMBOLS = 12
+MAX_WATCHLIST_QUERY_CHARS = 4_096
 QUOTE_CACHE_SECONDS = 20.0
 PROVIDER_REQUESTS_PER_MINUTE = 30
 PROVIDER_COOLDOWN_SECONDS = 15.0
@@ -150,7 +153,7 @@ class WatchlistEntry(BaseModel):
 class WatchlistView(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    quotes: tuple[WatchlistEntry, ...] = Field(max_length=MAX_WATCHLIST_SYMBOLS)
+    quotes: tuple[WatchlistEntry, ...]
 
 
 type PaperReader = Callable[[], PaperCapability]
@@ -168,6 +171,7 @@ def create_gui_app(
     research_api: GuiResearchApiOptions | None = None,
     services: Sequence[ServiceStatus] | ServiceReader = (),
     market_freshness: MarketFreshnessPolicy | None = None,
+    instrument_data: InstrumentDataSource | None = None,
 ) -> FastAPI:
     """Compose a local console without adding direct trading authority."""
 
@@ -196,6 +200,7 @@ def create_gui_app(
         selected_clock,
         freshness=market_freshness,
     )
+    instrument = _InstrumentService(instrument_data, selected_clock)
     app.add_api_route(
         "/",
         _StaticEndpoint(shell, "text/html; charset=utf-8", store=False),
@@ -246,6 +251,14 @@ def create_gui_app(
         response_model=SuccessEnvelope[LatestMarketDataView],
         responses=_ERROR_RESPONSES,
         openapi_extra={"parameters": _BARS_PARAMETERS},
+    )
+    app.add_api_route(
+        "/api/v1/instrument/overview",
+        _InstrumentEndpoint(instrument),
+        methods=["GET"],
+        response_model=SuccessEnvelope[InstrumentOverview],
+        responses=_ERROR_RESPONSES,
+        openapi_extra={"parameters": _INSTRUMENT_PARAMETERS},
     )
     install_gui_research_routes(
         app,
@@ -386,6 +399,73 @@ class _MarketService:
             except Exception:
                 del self._cache[key]
                 return None
+
+
+class _InstrumentService:
+    """One bounded company-data read with a short process-local cache."""
+
+    def __init__(
+        self,
+        source: InstrumentDataSource | None,
+        clock: Callable[[], datetime],
+        *,
+        monotonic_clock: Callable[[], float] = monotonic,
+    ) -> None:
+        self._source = source
+        self._clock = clock
+        self._monotonic = monotonic_clock
+        self._lock = Lock()
+        self._cache: dict[str, tuple[float, InstrumentOverview]] = {}
+        self._gate = _ProviderRequestGate(monotonic_clock)
+
+    def overview(self, symbol: str) -> Result[InstrumentOverview]:
+        symbol = symbol.strip().upper()
+        now = self._clock()
+        if now.tzinfo is None or now.utcoffset() is None:
+            return _failure(
+                ErrorCode.CONFIGURATION_INVALID, "Instrument data clock is invalid"
+            )
+        normalized = now.astimezone(UTC)
+        with self._lock:
+            cached = self._cache.get(symbol)
+            if cached is not None and self._monotonic() - cached[0] <= 60.0:
+                return Success(cached[1])
+        if self._source is None:
+            return _failure(
+                ErrorCode.DATA_UNAVAILABLE, "Instrument data is not composed"
+            )
+        admitted = self._gate.admit()
+        if isinstance(admitted, Failure):
+            return admitted
+        try:
+            query = InstrumentDataQuery(symbol=symbol, as_of=normalized)
+            result = self._source.fetch(query, observed_at=normalized)
+        except (TypeError, ValueError):
+            result = _failure(
+                ErrorCode.INVALID_INPUT, "Instrument data query is invalid"
+            )
+        self._gate.record(result)
+        if isinstance(result, Success):
+            with self._lock:
+                self._cache[symbol] = (self._monotonic(), result.value)
+        return result
+
+
+class _InstrumentEndpoint:
+    def __init__(self, instrument: _InstrumentService) -> None:
+        self._instrument = instrument
+
+    def __call__(self, request: Request) -> JSONResponse:
+        parameters = request.query_params
+        if any(name != "symbol" for name in parameters):
+            return _error_response(_invalid_query())
+        values = parameters.getlist("symbol")
+        if len(values) != 1:
+            return _error_response(_invalid_query())
+        result = self._instrument.overview(values[0])
+        if isinstance(result, Failure):
+            return _error_response(result)
+        return _success(result.value)
 
 
 class _ProviderRequestGate:
@@ -616,12 +696,12 @@ def _symbols_from_request(request: Request) -> Success[tuple[str, ...]] | Failur
     if any(name != "symbols" for name in parameters):
         return _invalid_query()
     values = parameters.getlist("symbols")
-    if len(values) != 1 or len(values[0]) > 512:
+    if len(values) != 1 or len(values[0]) > MAX_WATCHLIST_QUERY_CHARS:
         return _invalid_query()
     symbols = tuple(
         item.strip().upper() for item in values[0].split(",") if item.strip()
     )
-    if not symbols or len(symbols) > MAX_WATCHLIST_SYMBOLS:
+    if not symbols:
         return _invalid_query()
     if len(set(symbols)) != len(symbols):
         return _invalid_query()
@@ -635,6 +715,10 @@ def _invalid_query() -> Failure:
             message="Market-data query is invalid",
         )
     )
+
+
+def _failure(code: ErrorCode, message: str) -> Failure:
+    return Failure(StructuredError(code=code, message=message))
 
 
 def _success(value: BaseModel) -> JSONResponse:
@@ -751,7 +835,12 @@ _BARS_PARAMETERS = [
         "name": "lookback_days",
         "in": "query",
         "required": False,
-        "schema": {"type": "integer", "minimum": 1, "maximum": 366, "default": 30},
+        "schema": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": MAX_LOOKBACK_DAYS,
+            "default": 30,
+        },
     },
 ]
 _WATCHLIST_PARAMETERS = [
@@ -762,8 +851,21 @@ _WATCHLIST_PARAMETERS = [
         "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 512,
+            "maxLength": MAX_WATCHLIST_QUERY_CHARS,
             "pattern": r"^[A-Za-z0-9][A-Za-z0-9.,\-]*$",
+        },
+    }
+]
+_INSTRUMENT_PARAMETERS = [
+    {
+        "name": "symbol",
+        "in": "query",
+        "required": True,
+        "schema": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": r"^[A-Za-z0-9][A-Za-z0-9.\-]*$",
         },
     }
 ]

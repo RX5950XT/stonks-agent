@@ -20,7 +20,7 @@ rest_policy:
   endpoint: /api/v1/equity/price/historical
   provider: yfinance
   verified_markets:
-    reviewed_at: "2026-07-30"
+    reviewed_at: "2026-08-30"
     method: >-
       Each market was queried through the running sidecar with the governed
       adapter before being listed. Symbol suffix is the only discriminator:
@@ -29,7 +29,7 @@ rest_policy:
       - market: US
         symbol_suffix: none
         verified_symbols: [AAPL]
-        verified_intervals: ["1d", "1m", "5m", "15m", "1h"]
+        verified_intervals: ["1d", "1m", "2m", "5m", "15m", "30m", "90m", "1h", "1W", "1M"]
       - market: TW
         symbol_suffix: .TW
         verified_symbols: ["2330.TW", "0050.TW", "2412.TW"]
@@ -48,7 +48,7 @@ rest_policy:
   redirect_policy: deny
   arbitrary_url_policy: deny
   query_fields: [symbol, start_date, end_date, interval, provider]
-  intervals: ["1m", "5m", "15m", "1h", "1d"]
+  intervals: ["1m", "2m", "5m", "15m", "30m", "90m", "1h", "1d", "1W", "1M"]
   intraday_timestamp_semantics: naive-exchange-local
 unsupported_capabilities:
   reviewed_at: "2026-07-27"

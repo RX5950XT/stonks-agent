@@ -374,7 +374,7 @@ class PostgresGuiResearchFacade(GuiResearchFacade):
         market = market_for_symbol(command.symbol)
         request = CreateSnapshotRequest(
             market=market,
-            capability="prices",
+            capability="research_data",
             as_of=command.requested_at + timedelta(minutes=15),
             query={
                 "symbol": command.symbol,
@@ -382,7 +382,7 @@ class PostgresGuiResearchFacade(GuiResearchFacade):
                 "end_date": end_date.isoformat(),
                 "interval": "1d",
             },
-            provider_policy_id=f"{market.lower()}-prices/1",
+            provider_policy_id=f"{market.lower()}-research/1",
             idempotency_key=_request_key(command, "snapshot"),
             owner_subject=principal.subject,
             requested_at=command.requested_at,

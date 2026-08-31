@@ -1,7 +1,7 @@
 # virattt 專案研究：ai-hedge-fund 與 Dexter
 
-研究日期：2026-07-10（Asia/Taipei）  
-範圍：只研究與規劃，未實作整合程式碼。
+研究日期：2026-07-10（Asia/Taipei）；本機對照更新：2026-08-30（Asia/Taipei）
+範圍：上游研究與本機 clean-room 能力對照；未複製授權不明專案的程式碼。
 
 ## Snapshot 與結論
 
@@ -184,3 +184,23 @@ Versioned JSON API / queue（跨 TS ↔ Python，不共用內部 state）
 5. **P4 — Opt-in live**：broker credentials 進 secret manager；雙重 approval、account/position/notional limits、daily loss kill switch、reconciliation、alerts、human promotion gate 全部通過後才開啟。
 
 整合的關鍵不是「收集最多 agents」，而是只保留一個 orchestration authority、一套 data truth、一個 signal contract，以及不可被 LLM 繞過的 portfolio/risk/execution boundary。
+
+## 4. 2026-08-30 本機實作對照
+
+已完成：
+
+- `OpenBB → yfinance` 歷史行情與 K 線週期／長範圍，仍經固定 sidecar、PIT 與 bounded adapter。
+- 以官方 SEC EDGAR 與 TWSE OpenAPI 補上標的儀錶板的公司資料、財報 facts 與近期申報。
+- 研究建立同一份 snapshot，Agent 只能透過 audited read-only tools 讀取；新增 `fundamental_snapshot`、`filing_history`，不能建立 target/order。
+- 保留本專案既有 deterministic target、risk、reservation、paper execution、ledger 與 Kronos shadow 邊界。
+
+尚未完成，不能說「都做到了」：
+
+- TradingAgents 的 news/global news、insider、macro、prediction markets 與完整多角色 graph 尚未接入本機 canonical snapshot；目前研究 worker 的 TradingAgents port 仍是 unavailable。
+- Dexter 的 Financial Datasets 完整 finance meta-tools、web search/browser、memory、cron、gateway 與多通道尚未接入；而且上游 license text 仍不足，未直接 vendor。
+- OpenBB upstream 的 BLS、FRED、CFTC、Congress.gov、OECD、IMF、FINRA、Federal Reserve、Nasdaq 等 connector 尚未全部裝入或逐一做 actual runtime／display-rights 驗證。
+- 公司估值、segments、13F、新聞與跨市場宏觀面板仍是規劃缺口；目前 UI 只呈現已驗證資料，不做假入口。
+
+所以原始方向有做到「安全的資料閘道、研究對話、行情／官方財報／申報與紙上交易核心」；
+沒有做到「把參考專案所有工具原樣合併」。後者會同時放大授權、資料權利、PIT、成本與執行風險，
+不應用一句「GitHub 有」當作完成證據。

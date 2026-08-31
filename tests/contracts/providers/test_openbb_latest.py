@@ -8,7 +8,7 @@ from pydantic import SecretStr
 
 from stonks_agent.adapters.market_data.openbb_latest import OpenBBLatestMarketDataSource
 from stonks_agent.domain.errors import ErrorCode, Failure, Success
-from stonks_agent.domain.latest_market_data import LatestMarketDataQuery
+from stonks_agent.domain.latest_market_data import BarInterval, LatestMarketDataQuery
 from stonks_agent.ports.service_credentials import (
     ServiceBearerCredential,
     ServiceCredentialRequest,
@@ -79,6 +79,79 @@ def test_openbb_latest_source_fetches_sidecar_route_shape_without_future_as_of()
         "?symbol=AAPL&start_date=2026-06-25&end_date=2026-07-24"
         "&provider=yfinance"
     )
+
+
+def test_openbb_latest_aggregates_verified_monthly_bars_into_yearly_bars() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": "provider-request",
+                "provider": "yfinance",
+                "results": [
+                    {
+                        "date": "2025-01-01",
+                        "open": 10,
+                        "high": 12,
+                        "low": 9,
+                        "close": 11,
+                        "volume": 100,
+                    },
+                    {
+                        "date": "2025-06-01",
+                        "open": 11,
+                        "high": 15,
+                        "low": 10,
+                        "close": 14,
+                        "volume": 200,
+                    },
+                    {
+                        "date": "2025-12-01",
+                        "open": 14,
+                        "high": 16,
+                        "low": 13,
+                        "close": 15,
+                        "volume": 300,
+                    },
+                    {
+                        "date": "2026-03-01",
+                        "open": 15,
+                        "high": 18,
+                        "low": 14,
+                        "close": 17,
+                        "volume": 400,
+                    },
+                ],
+            },
+            request=request,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = OpenBBLatestMarketDataSource(
+            client=client,
+            credentials=Credentials(),
+        ).fetch(
+            LatestMarketDataQuery(
+                symbol="AAPL",
+                interval=BarInterval.YEAR,
+                lookback_days=730,
+            ),
+            observed_at=NOW,
+        )
+
+    assert isinstance(result, Success)
+    assert len(result.value.bars) == 2
+    first, second = result.value.bars
+    assert first.event_time.isoformat() == "2025-12-01T00:00:00+00:00"
+    assert (first.open, first.high, first.low, first.close, first.volume) == (
+        Decimal("10"),
+        Decimal("16"),
+        Decimal("9"),
+        Decimal("15"),
+        Decimal("600"),
+    )
+    assert second.event_time.isoformat() == "2026-03-01T00:00:00+00:00"
+    assert second.volume == Decimal("400")
 
 
 def test_openbb_unavailable_maps_to_public_safe_failure() -> None:

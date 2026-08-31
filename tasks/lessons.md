@@ -179,3 +179,84 @@
 - SQLAlchemy `str(engine.url)` 會把密碼渲染為 `***`；需要把同一測試連線交給 CLI 時
   必須使用 `render_as_string(hide_password=False)`，且不得把結果寫入 assertion、
   log 或錯誤訊息。
+- GUI paper 預設 port `55433` 可能被本機 Codex／ChatGPT 程序占用；先分開檢查 host
+  port owner 與 Docker binding，再改用 `55434`，不要為了啟動刪除 paper volume。
+
+## 2026-08-28 GUI 簡化與圖表互動
+
+- 模型表單只保留使用者必要輸入，預設值由 backend contract 提供；不要在前端複製 budget 欄位。
+- 自然語言先轉成既有 allowlist command；沒有 typed planner、permission、audit 就不把 LLM 接到命令執行。
+- Canvas 要能左右移動，必須搭配可視資料視窗、pointer capture、touch/wheel 與鍵盤 fallback；只加 overflow CSS 不夠。
+
+## 2026-08-29 Docker 精準清理
+
+- Docker 顯得很肥時先分開看 containers、images、volumes、networks、build cache；本次主要占用是可重建的 14.71 GB build cache，不是資料庫。
+- 只刪已退出 container、空 network、未被專案引用的 image 與指定 builder cache；保留 active services、pinned runtime／稽核 images、模型與 PostgreSQL volume，避免使用 system-wide prune。
+
+## 2026-08-30 GUI 單欄排版
+
+- 16:9 dashboard 若外層同時使用兩組雙欄 grid，會形成難讀的 2×2；主面板改單欄，只有
+  表單與資料欄位等局部內容保留 grid。
+- figure 若把固定高度給同時包含 canvas 與說明文字，說明會疊到圖表；讓 canvas 使用獨立
+  stage，輔助文字放在 stage 外並單獨量測。
+
+## 2026-08-30 行情來源與研究聊天室
+
+- 同一份 runtime readiness 之外再放一組頂端工作狀態會造成重複；操作入口應和研究上下文
+  放在一起，讓中文命令與 `RESEARCH` 共享既有 event／allowlist。
+- Provider fallback 只能接已建立 typed adapter、固定順序、timeout／quota／failure mapping
+  的真實來源；付費來源未有 key 或未完成 actual runtime 時保持未啟用，不能用 replay／fixture
+  補成成功。
+- OHLCV provider DTO 與 GUI canonical contract 的 Decimal 欄位要在 adapter 邊界明確轉型，
+  尤其 `volume` 不能把外部整數直接送進 strict Decimal contract。
+- 聊天室已和研究區合併；提示文字只留必要操作與安全限制，避免同一件事重複說明。
+- 預覽必須清楚區分 fake UI fixture 與 actual OpenBB runtime；不能用兩根測試 bar 冒充完整行情。
+- yfinance 可能在有效歷史回應混入單筆 non-finite OHLCV；adapter 應保留有效 bar、記錄 typed warning，全部無效才 fail closed。
+
+## 2026-08-30 K 線週期與拖曳
+
+- K 線聚合週期與 lookback 範圍是兩個不同選擇；UI 範圍必須依 provider 與 canonical bar 上限動態收斂，不能只新增按鈕。
+- OpenBB 新週期要同步更新 core `BarInterval`、adapter literal、sidecar surface allowlist 與 provider manifest；只改 core 會在實際 sidecar 400 時才暴露。
+- Canvas 拖曳要限制 primary pointer／左鍵、使用 pointer capture、清楚 clamp 起點，沒有隱藏資料時不顯示可拖游標；發佈前需用真實資料拖到較早日期確認畫面真的改變。
+
+## 2026-08-30 標的儀錶板
+
+- 少量週線／月線不能把 bar 中心硬拉到整個畫布寬度；有限 slot 置中可保留時間順序，也不會讓 K 線看起來散掉。
+- 隱藏資料品質欄位只代表 UI 收斂，不能刪掉後端 provenance、freshness 與 fail-closed 判定；來源狀態由系統知道即可。
+- AI 研究對話不能取代結構化基本面；沒有通過實際 provider、權利與時效驗證前，財報／估值應顯示缺口，不做假資料或假入口。
+
+## 2026-08-30 年線與長時間範圍
+
+- provider 沒有實測 `1Y` 時，年線應用已驗證的月線在 core 聚合，不能只把 UI 選項送給上游。
+- YTD、5 年、10 年與全部必須同時落到 URL、API 邊界與實際 provider 日期；只加前端按鈕會造成空白圖。
+- 全部日線需要同步調整 bounded response bytes 與 bar 數，並以真實歷史資料確認，不得用無限上限換功能。
+
+## 2026-08-30 免費資料源與 Agent
+
+- SEC accession number 是 `0000320193-26-000001` 這種 20 字元格式；只檢查 18 字元會讓申報紀錄靜默消失。
+- TWSE 季別字串清理後要 `.strip()`；模型欄位的安全文字驗證會拒絕尾端空白，不能只在畫面層修。
+- OpenBB upstream 列出 provider 不等於本機已安裝、端點已驗證或資料可顯示；每個來源都要分開記錄 runtime、PIT、rate limit 與權利。
+- Agent 要積極取資料時，先把官方回應封存成同一份 snapshot，再給 audited read-only specialized tools；不能為了「多抓」開任意網路或讓 LLM 直接碰 order plane。
+
+## 2026-08-31 標的儀錶板歷史資料
+
+- Dashboard 內部資訊不能再堆成單欄長頁；桌面用少量局部欄位分組，申報與歷史表跨欄，窄版才收斂。
+- SEC company facts 同一指標會混有季度、累計與年度期間；顯示期間與 `published_at`，保存 bounded history，不把它們假裝成同一種季度序列。
+- TWSE 公開 OpenAPI 的財報端點目前只提供最新彙總列；沒有歷史列時要如實顯示 1 筆，不可改抓被封鎖的 MOPS HTML 來冒充可靠來源。
+- 同日 TWSE 民國日期要以台灣日曆日期和 `as_of` 比較，不能直接把日期當 UTC 午夜而誤判成未來資料。
+
+## 2026-08-31 自選股與側欄導航
+
+- 移除 UI 上限要追到 frontend、API contract、OpenAPI、docs 與 tests，不能只刪一個常數。
+- 沒有固定檔數不等於無界輸入；要保留 query length、去重、rate limit 與 concurrency 邊界。
+- 刪除導航後要一併清掉 active state、hash/deep-link listener 與 CSS，避免留下孤兒程式碼。
+
+## 2026-08-31 全專案死碼掃描
+
+- Vulture 對 `locals()`、Protocol 參數與 FastAPI／Typer decorator 會報誤判；刪除前必須做全 repo caller 反查。
+- 舊型別只有測試引用時，仍要確認沒有 public export 或安全邊界契約；確認被現行契約取代後才刪除，provenance 等仍被使用的模組要保留。
+
+## 2026-08-31 README 與 PR 整合
+
+- 根 README 只保留目前能重跑、能實測的入口；歷次驗證數字與工作紀錄放交接／證據文件，避免 README 過期。
+- Dependabot PR 要先看 required checks 與變更範圍；全綠才合併，舊且失敗的 PR 不用為了清單好看而硬併。

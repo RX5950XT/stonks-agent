@@ -45,7 +45,7 @@ components:
     version: "2.7.1"
     expression: "PSF-2.0"
   aiohttp:
-    version: "3.14.1"
+    version: "3.14.3"
     expression: "Apache-2.0 AND MIT"
   aiosignal:
     version: "1.4.0"
@@ -87,7 +87,7 @@ components:
     version: "0.15.0"
     expression: "MIT"
   cryptography:
-    version: "49.0.0"
+    version: "50.0.0"
     expression: "Apache-2.0 OR BSD-3-Clause"
   deepdiff:
     version: "9.1.0"

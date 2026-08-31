@@ -36,10 +36,14 @@
 - 所有歷史研究只可讀 `available_at <= as_of` 的 immutable evidence；未知 publication lag 預設不得進嚴格 backtest。
 - GUI 或「最新資料」能力只有在 actual external runtime 通過時才可宣稱可用；必須顯示 provider、observed/event time、即時性與 quality，且 external failure 不得 fallback 到 fixture、hard-coded quote 或偽造 success。Provider 端點能力必須實測後才可納入 sidecar allowlist；上游失效的端點維持不提供，不得換來源冒充。
 - 「免費資料源」採 curated registry；免費額度不代表 display／storage／redistribution rights。只有官方條款、credential、時效、rate limit、PIT 與 actual runtime 全數通過才能 active，GUI freshness 只由 backend session policy 判定。
+- 官方 SEC/TWSE 公司資料經 bounded adapter 進儀錶板；研究必須用同一份 `research_data` snapshot，再由 audited read-only tools 讀取，不能讓 Agent 任意連網或建立 target/order。
+- 儀錶板歷史財務只能顯示 adapter 實際取得的 bounded immutable observations；SEC 期間需保留，TWSE 公開端點只有最新彙總列時不得假稱有完整季度／年度歷史。
 - 本機 console 允許同源 script，但 CSP 必須維持 `default-src 'none'` 與全部 `'self'` 來源，禁止 inline script、eval、外部 origin、`data:` 來源與由字串產生 markup。
-- GUI 主流程不得要求使用者先記憶命令；已組合的後端能力要有可見、語意明確、鍵盤可達的控制與完整 loading／empty／failed／degraded／succeeded 狀態，命令列只作進階入口。窄版不 autofocus，主要研究與安全決策必須早於次要行情／系統診斷。
+- GUI 主流程不得要求使用者先記憶命令；已組合的後端能力要有可見、語意明確、鍵盤可達的控制與完整 loading／empty／failed／degraded／succeeded 狀態，受限命令入口整合於研究區聊天室，只作進階操作。窄版不 autofocus，主要研究與安全決策必須早於次要行情／系統診斷。
+- GUI 側欄只保留觀察清單與安全提示；watchlist 不設固定檔數上限，但保留 bounded query、去重、provider rate limit 與 4 workers。
 - GUI 採低彩度 graphite dark evidence workbench；避免 dark-fintech 金色／霓虹模板、卡片海、glow、glass、裝飾性 kicker 與多色狀態噪音。資訊架構由 actual backend capabilities 反推；所有已組合功能在首屏總覽或一次點擊內可達並顯示 truthful state，沒有 route 的操作不得做假入口。Market state 固定寫入 query string，hash 只供 section navigation；quiet refresh 不得清空既有畫面或覆寫使用者輸入，所有 exit 都必須釋放 loading／`aria-busy`；section deep link 必須在 async render 後校正。
 - GUI capability 必須同時合成 route contract 與 bounded live service；model `configured` 不等於 `verified`。Market label 必須遵守 canonical symbol suffix mapping，async section deep link 只能在 terminal market success／failure 後完成校正。
+- EOD K 線長範圍最多 36,525 天；年線使用已驗證月線在 core 聚合，不得把未實測的 provider `1Y` 直接列為能力。
 - Composite control 只允許 wrapper 的單一 `:focus-within` ring；全域 `:focus-visible` 保留清楚 outline，但不得與內層 input 疊成雙框。
 - GUI durable read projection 必須 exact owner/account scoped；研究 history 只揭露 final claim 實際引用的 snapshot evidence，paper safety 維持唯讀。服務狀態以 bounded live probe 更新；昂貴 research start 同時只允許一筆且每分鐘最多三筆。Research POST 是唯一 canonical workflow mutation；model settings PUT／DELETE 只管理本次 process-memory 設定，不具 durable 或 trading authority。
 - GUI model settings 只有在 local research composition 可用；API key 不得回傳、持久化、記錄或進入 artifact，browser secret field 必須關閉 autocomplete 並在 page exit 清除。新設定必須先用 pinned transport 完成 bounded structured completion 才原子啟用；worker 每筆 lease 讀取同一代 route＋secret snapshot，未設定或未驗證時 research POST fail closed。Loopback `/api/` browser request 必須拒絕 cross-site `Origin`／Fetch Metadata，且在昂貴 provider 呼叫前完成。

@@ -14,7 +14,7 @@ COPY packages ./packages
 COPY src ./src
 RUN /sbin/apk add --no-cache \
         build-base=0.5-r3 \
-        postgresql18-dev=18.4-r0
+        postgresql18-dev=18.6-r0
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
@@ -39,7 +39,7 @@ ENV HOME=/tmp/stonks \
 WORKDIR /opt/stonks
 COPY scripts/patch_cpython_stdlib.py /tmp/patch_cpython_stdlib.py
 RUN test -n "${VCS_REF}" \
-    && /sbin/apk add --no-cache libpq=18.4-r0 \
+    && /sbin/apk add --no-cache libpq=18.6-r0 \
     && printf '%s\n' \
         gdbm keyutils-libs krb5-conf krb5-libs libbz2 libcom_err \
         libcrypto3 libffi libintl libncursesw libnsl libpanelw libssl3 \

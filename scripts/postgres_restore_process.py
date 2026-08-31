@@ -107,22 +107,6 @@ def run_bounded_output(
         stderr_path.unlink(missing_ok=True)
 
 
-def run_bounded_command(
-    command: Sequence[str],
-    *,
-    timeout: float,
-    secret: str,
-) -> None:
-    with tempfile.TemporaryDirectory(prefix="stonks-pg-command-") as raw:
-        run_bounded_output(
-            command,
-            output=Path(raw) / "stdout",
-            max_bytes=MAX_COMMAND_OUTPUT_BYTES,
-            timeout=timeout,
-            secret=secret,
-        )
-
-
 def run_bounded_input(
     command: Sequence[str],
     *,

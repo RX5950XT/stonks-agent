@@ -223,7 +223,7 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "signatures/verification-report.sigstore.json"
     )
     assert policy["sbom"]["expected_components_sha256"] == (
-        "8a07c6c3316655f15205412926abbacb1857e98503bbd50615699debdd07975b"
+        "e80fe0cc91bd149859c1f69015d3021d6d36a567f228525bf16254e7cbf4d93f"
     )
     required = set(policy["bundle"]["required_payload_files"])
     assert {
@@ -243,10 +243,10 @@ def test_release_policy_is_closed_paper_only_and_scanners_are_digest_pinned() ->
         "policy": "payload/config/release/python-source-policy.json",
         "uv_lock": "payload/uv.lock",
         "archive_sha256": (
-            "e26f443ae222cc61ca216a9a3f8e07d1da8b0597a575967688a22f8d29f61a98"
+            "dbd1b088dca9e881cda7d3bea3518aba5e1725b55a2304f1fe126e867e974b07"
         ),
         "manifest_sha256": (
-            "300c3bcdcac4f4419b7f1cc2681f36b9a0ff53ca0b993ead4967d35f69ff4f06"
+            "d696a21f2ac2a4cc7ac6524d93705fc9a90a6555af52d09f39b1673e211b5a0a"
         ),
         "source_count": 3,
         "total_source_bytes": 947504,
@@ -471,11 +471,34 @@ def test_core_vex_is_exact_and_matches_reviewed_runtime_mitigations() -> None:
         "CVE-2026-6100": "vulnerable_code_not_in_execute_path",
         "CVE-2026-7210": "inline_mitigations_already_exist",
         "CVE-2026-9669": "vulnerable_code_not_present",
+        "CVE-2026-14456": "vulnerable_code_not_in_execute_path",
     }
     assert {
         statement["vulnerability"]["name"]: statement["justification"]
         for statement in statements
     } == expected
+    openssl_products = [
+        {
+            "@id": (
+                "pkg:apk/alpine/libcrypto3@3.5.7-r0?arch=x86_64&"
+                "distro=alpine-3.23.5&upstream=openssl"
+            )
+        },
+        {
+            "@id": (
+                "pkg:apk/alpine/libssl3@3.5.7-r0?arch=x86_64&"
+                "distro=alpine-3.23.5&upstream=openssl"
+            )
+        },
+    ]
     for statement in statements:
-        assert statement["products"] == [{"@id": "pkg:generic/python@3.12.13"}]
+        products = (
+            openssl_products
+            if statement["vulnerability"]["name"] == "CVE-2026-14456"
+            else [{"@id": "pkg:generic/python@3.12.13"}]
+        )
+        assert statement["products"] == products
         assert statement["status"] == "not_affected"
+        if statement["vulnerability"]["name"] == "CVE-2026-14456":
+            assert "QUIC server listener" in statement["impact_statement"]
+            assert "PostgreSQL client" in statement["impact_statement"]

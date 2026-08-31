@@ -9,6 +9,9 @@ import yaml
 from stonks_agent.adapters.market_data.financial_datasets import (
     FINANCIAL_DATASETS_SUPPORT,
 )
+from stonks_agent.adapters.market_data.instrument_bundle import (
+    INSTRUMENT_BUNDLE_SUPPORT,
+)
 from stonks_agent.adapters.market_data.openbb_rest import OPENBB_REST_SUPPORT
 from stonks_agent.adapters.market_data.regional.base import (
     RegionalCapability,
@@ -96,7 +99,9 @@ def test_non_us_policies_only_route_to_adapters_declaring_that_market() -> None:
     policies = load_provider_policies(PROVIDER_POLICIES)
     declared = {
         (capability.market, capability.provider)
-        for capability in FINANCIAL_DATASETS_SUPPORT | OPENBB_REST_SUPPORT
+        for capability in (
+            FINANCIAL_DATASETS_SUPPORT | OPENBB_REST_SUPPORT | INSTRUMENT_BUNDLE_SUPPORT
+        )
     }
 
     non_us_external_routes = {
@@ -127,7 +132,9 @@ def test_external_provider_routes_exactly_match_adapter_declarations() -> None:
         for endpoint in route.endpoints
     }
 
-    assert configured == FINANCIAL_DATASETS_SUPPORT | OPENBB_REST_SUPPORT
+    assert configured == (
+        FINANCIAL_DATASETS_SUPPORT | OPENBB_REST_SUPPORT | INSTRUMENT_BUNDLE_SUPPORT
+    )
 
 
 def _fixture_capabilities(market: str) -> set[RegionalCapability]:

@@ -164,6 +164,36 @@ def test_historical_surface_requires_exact_market_target() -> None:
     assert sent[0]["status"] == 204
 
 
+@pytest.mark.parametrize("interval", ["2m", "30m", "90m", "1W", "1M"])
+def test_extended_historical_intervals_reach_downstream(interval: str) -> None:
+    surface = _load_surface()
+    calls: list[dict[str, Any]] = []
+    query = {"provider": "yfinance", "symbol": "AAPL", "interval": interval}
+
+    async def downstream(
+        scope: dict[str, Any],
+        _receive: Callable[[], Awaitable[dict[str, Any]]],
+        send: Callable[[dict[str, Any]], Awaitable[None]],
+    ) -> None:
+        calls.append(scope)
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    sent = _exercise(
+        surface.SurfaceAllowlist(
+            downstream,
+            authenticator=ExactServiceAuthenticator(
+                (market_target("US/AAPL"),), query=query
+            ),
+        ),
+        query_string=f"symbol=AAPL&provider=yfinance&interval={interval}".encode(),
+        headers=authorization_headers(),
+    )
+
+    assert len(calls) == 1
+    assert sent[0]["status"] == 204
+
+
 def test_core_and_sidecar_use_the_same_canonical_request_payload() -> None:
     surface = _load_surface()
     parsed = surface._target_from_scope(

@@ -22,17 +22,31 @@ from stonks_contracts.common import (
 
 
 class BarInterval(StrEnum):
-    """Exact provider bar resolutions this system is proven to serve."""
+    """Public bar resolutions this system is proven to serve."""
 
     MINUTE = "1m"
+    TWO_MINUTE = "2m"
     FIVE_MINUTE = "5m"
     FIFTEEN_MINUTE = "15m"
+    THIRTY_MINUTE = "30m"
+    NINETY_MINUTE = "90m"
     HOUR = "1h"
     DAY = "1d"
+    WEEK = "1W"
+    MONTH = "1M"
+    YEAR = "1Y"
 
     @property
     def is_intraday(self) -> bool:
-        return self is not BarInterval.DAY
+        return self in {
+            BarInterval.MINUTE,
+            BarInterval.TWO_MINUTE,
+            BarInterval.FIVE_MINUTE,
+            BarInterval.FIFTEEN_MINUTE,
+            BarInterval.THIRTY_MINUTE,
+            BarInterval.NINETY_MINUTE,
+            BarInterval.HOUR,
+        }
 
     @property
     def feed_type(self) -> FeedType:
@@ -80,21 +94,27 @@ ProviderWarning = Annotated[
     str,
     StringConstraints(min_length=1, max_length=512),
 ]
-# Upstream Yahoo history limits per resolution; requesting more silently
-# returns nothing, so the boundary is enforced before the request is made.
+# Provider and canonical response limits per resolution; requesting more can
+# return an oversized or empty result, so the boundary is enforced first.
 _INTRADAY_MAX_LOOKBACK_DAYS: dict[BarInterval, int] = {
     BarInterval.MINUTE: 7,
+    BarInterval.TWO_MINUTE: 21,
     BarInterval.FIVE_MINUTE: 59,
     BarInterval.FIFTEEN_MINUTE: 59,
+    BarInterval.THIRTY_MINUTE: 59,
+    BarInterval.NINETY_MINUTE: 59,
 }
-MAX_BARS = 3_000
+MAX_LOOKBACK_DAYS = 36_525
+# ponytail: one bounded response supports the requested all-history daily view;
+# raise only with measured provider payload and browser performance evidence.
+MAX_BARS = 20_000
 
 
 class LatestMarketDataQuery(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     symbol: MarketSymbol
-    lookback_days: int = Field(default=30, ge=1, le=366)
+    lookback_days: int = Field(default=30, ge=1, le=MAX_LOOKBACK_DAYS)
     interval: BarInterval = BarInterval.DAY
 
     @field_validator("symbol", mode="before")

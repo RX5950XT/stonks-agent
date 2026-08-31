@@ -12,6 +12,7 @@ from stonks_agent.application.latest_market_data import (
 )
 from stonks_agent.domain.errors import ErrorCode, Failure, StructuredError, Success
 from stonks_agent.domain.latest_market_data import (
+    MAX_LOOKBACK_DAYS,
     BarInterval,
     LatestMarketBar,
     LatestMarketDataObservation,
@@ -110,7 +111,7 @@ def test_symbol_drift_and_naive_clock_fail_closed() -> None:
     [
         ("../AAPL", 30),
         ("AAPL", 0),
-        ("AAPL", 367),
+        ("AAPL", MAX_LOOKBACK_DAYS + 1),
     ],
 )
 def test_query_is_bounded(symbol: str, lookback: int) -> None:
@@ -208,6 +209,37 @@ def test_intraday_query_rejects_windows_the_provider_cannot_serve() -> None:
         LatestMarketDataQuery(
             symbol="AAPL", interval=BarInterval.FIVE_MINUTE, lookback_days=60
         )
+    with pytest.raises(ValueError):
+        LatestMarketDataQuery(
+            symbol="AAPL", interval=BarInterval.TWO_MINUTE, lookback_days=22
+        )
+
+
+@pytest.mark.parametrize(
+    ("interval", "intraday", "feed_type", "lookback_days"),
+    (
+        (BarInterval.TWO_MINUTE, True, "intraday_historical", 7),
+        (BarInterval.THIRTY_MINUTE, True, "intraday_historical", 30),
+        (BarInterval.NINETY_MINUTE, True, "intraday_historical", 30),
+        (BarInterval.WEEK, False, "end_of_day_historical", 30),
+        (BarInterval.MONTH, False, "end_of_day_historical", 30),
+        (BarInterval.YEAR, False, "end_of_day_historical", 3_652),
+    ),
+)
+def test_extended_intervals_keep_their_feed_classification(
+    interval: BarInterval,
+    intraday: bool,
+    feed_type: str,
+    lookback_days: int,
+) -> None:
+    assert interval.is_intraday is intraday
+    assert interval.feed_type == feed_type
+    assert (
+        LatestMarketDataQuery(
+            symbol="AAPL", interval=interval, lookback_days=lookback_days
+        ).interval
+        is interval
+    )
 
 
 def test_feed_type_must_match_its_interval() -> None:

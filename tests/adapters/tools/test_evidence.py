@@ -109,7 +109,7 @@ def payload(
     return json.loads(stored.value)
 
 
-def test_policy_exposes_only_three_read_only_scoped_tools() -> None:
+def test_policy_exposes_read_only_scoped_tools() -> None:
     policy = build_evidence_tool_policy(
         instrument_ids=frozenset({INSTRUMENT}),
         evidence_ids=frozenset({EVIDENCE_ID}),
@@ -119,6 +119,8 @@ def test_policy_exposes_only_three_read_only_scoped_tools() -> None:
         "list_evidence",
         "read_evidence",
         "price_window",
+        "fundamental_snapshot",
+        "filing_history",
     }
     assert all(
         rule.mutation_class is ToolMutationClass.READ_ONLY for rule in policy.tools
@@ -150,6 +152,42 @@ def test_list_and_read_never_escape_the_authorized_evidence_scope() -> None:
     assert "999" not in json.dumps((listed_payload, read_payload))
     assert listed.value.materialized_evidence_ids == frozenset()
     assert read.value.materialized_evidence_ids == frozenset({EVIDENCE_ID})
+
+
+def test_specialized_tools_materialize_only_requested_evidence_kind() -> None:
+    fundamental_id = UUID("00000000-0000-4000-8000-000000000006")
+    filing_id = UUID("00000000-0000-4000-8000-000000000007")
+    fundamental = evidence(evidence_id=fundamental_id).model_copy(
+        update={
+            "kind": EvidenceKind.FUNDAMENTAL,
+            "payload": {"data_type": "fundamental", "revenue": "123"},
+        }
+    )
+    filing = evidence(evidence_id=filing_id).model_copy(
+        update={
+            "kind": EvidenceKind.FILING,
+            "payload": {"data_type": "filing", "form": "10-K"},
+        }
+    )
+    evidence_ids = frozenset({fundamental_id, filing_id})
+    artifacts = MemoryArtifactStore()
+    tool = EvidenceTool(
+        repository=EvidenceRepository((fundamental, filing)),
+        artifacts=artifacts,
+        as_of=NOW,
+    )
+
+    fundamentals = tool.execute(call("fundamental_snapshot", evidence_ids=evidence_ids))
+    filings = tool.execute(call("filing_history", evidence_ids=evidence_ids))
+
+    assert isinstance(fundamentals, Success)
+    assert isinstance(filings, Success)
+    assert payload(fundamentals, artifacts)["count"] == 1
+    assert payload(fundamentals, artifacts)["items"][0]["kind"] == "fundamental"
+    assert payload(filings, artifacts)["count"] == 1
+    assert payload(filings, artifacts)["items"][0]["kind"] == "filing"
+    assert fundamentals.value.materialized_evidence_ids == frozenset({fundamental_id})
+    assert filings.value.materialized_evidence_ids == frozenset({filing_id})
 
 
 def test_future_or_unscoped_evidence_fails_closed() -> None:

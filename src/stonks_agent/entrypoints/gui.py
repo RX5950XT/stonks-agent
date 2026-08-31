@@ -30,6 +30,18 @@ from stonks_agent.adapters.auth.service_credentials import (
     RS256ServiceCredentialProvider,
     ServiceIssuerSettings,
 )
+from stonks_agent.adapters.market_data.financial_datasets import (
+    FinancialDatasetsAdapter,
+)
+from stonks_agent.adapters.market_data.financial_datasets_latest import (
+    FinancialDatasetsLatestMarketDataSource,
+)
+from stonks_agent.adapters.market_data.latest_fallback import (
+    FailoverLatestMarketDataSource,
+)
+from stonks_agent.adapters.market_data.official_instrument import (
+    OfficialInstrumentDataSource,
+)
 from stonks_agent.adapters.market_data.openbb_latest import (
     OpenBBLatestMarketDataSource,
 )
@@ -37,6 +49,7 @@ from stonks_agent.adapters.market_data.openbb_rest import OPENBB_ORIGIN
 from stonks_agent.adapters.postgres.gui_research import (
     PostgresGuiResearchFacade,
 )
+from stonks_agent.adapters.secrets.env import EnvSecretProvider
 from stonks_agent.composition.market_calendars import (
     verified_market_freshness_policy,
 )
@@ -46,7 +59,9 @@ from stonks_agent.composition.model_settings import (
 )
 from stonks_agent.composition.runtime import build_local_runtime
 from stonks_agent.composition.worker import build_worker_composition
+from stonks_agent.domain.clock import utc_now
 from stonks_agent.domain.errors import ErrorCode, StructuredError
+from stonks_agent.domain.secrets import SecretAccessRequest, SecretRef
 from stonks_agent.entrypoints.api.envelope import (
     error_envelope,
     unexpected_error_envelope,
@@ -79,6 +94,10 @@ _CLIENT_ID = "stonks-gui-core"
 _KEY_ID = "stonks-gui-ephemeral"
 _PROJECT_NAME = "stonks-gui-openbb"
 _DB_PROJECT_NAME = "stonks-gui-postgres"
+_FINANCIAL_DATASETS_ACCESS = SecretAccessRequest(
+    reference=SecretRef(name="financial_datasets_api_key"),
+    purpose="financial_datasets_api_key",
+)
 _SAFE_AMBIENT_ENV = frozenset(
     {
         "APPDATA",
@@ -329,11 +348,28 @@ def serve(
                 follow_redirects=False,
                 timeout=httpx.Timeout(15.0),
             ) as client:
-                application = create_gui_app(
-                    OpenBBLatestMarketDataSource(
-                        client=client,
-                        credentials=runtime.credentials,
+                openbb_source = OpenBBLatestMarketDataSource(
+                    client=client,
+                    credentials=runtime.credentials,
+                )
+                financial_source = _financial_datasets_source(client)
+                instrument_data = OfficialInstrumentDataSource(
+                    client=client,
+                    user_agent=os.environ.get(
+                        "STONKS_SEC_USER_AGENT", "stonks-agent/0.2"
                     ),
+                    clock=utc_now,
+                )
+                market_source = FailoverLatestMarketDataSource(
+                    (("openbb:yfinance", openbb_source),)
+                    if financial_source is None
+                    else (
+                        ("openbb:yfinance", openbb_source),
+                        ("financial_datasets", financial_source),
+                    )
+                )
+                application = create_gui_app(
+                    market_source,
                     paper=paper.reader if paper is not None else None,
                     research=research.facade if research is not None else None,
                     model_settings=(
@@ -355,6 +391,7 @@ def serve(
                         kronos_composed=kronos is not None,
                     ),
                     market_freshness=verified_market_freshness_policy(),
+                    instrument_data=instrument_data,
                 )
                 if open_browser:
                     Timer(
@@ -545,6 +582,27 @@ def _compose_research(
         healthy=supervisor.healthy,
         close=close,
     )
+
+
+def _financial_datasets_source(
+    client: httpx.Client,
+) -> FinancialDatasetsLatestMarketDataSource | None:
+    try:
+        secret_provider = EnvSecretProvider(
+            runtime_environment=os.environ.get("STONKS_ENVIRONMENT", "local"),
+            environment=os.environ,
+            bindings={_FINANCIAL_DATASETS_ACCESS: "STONKS_FINANCIAL_DATASETS_API_KEY"},
+        )
+        return FinancialDatasetsLatestMarketDataSource(
+            FinancialDatasetsAdapter(
+                client=client,
+                secret_provider=secret_provider,
+                secret_ref=_FINANCIAL_DATASETS_ACCESS.reference,
+                clock=utc_now,
+            )
+        )
+    except (TypeError, ValueError):
+        return None
 
 
 def _service_reader(

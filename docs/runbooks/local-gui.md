@@ -1,7 +1,9 @@
 # Stonks Desk（local GUI）
 
 Stonks Desk 是 loopback-only、依後端能力設計的 AI 投資研究工作台。它透過 isolated
-OpenBB／yfinance sidecar 讀取美股與台股日線與日內 K 線，推導延遲報價，並可選擇性組合
+OpenBB／yfinance sidecar 讀取美股與台股日線、週線、月線、年線與日內 K 線，推導延遲報價；年線由已驗證的月線
+在 core 聚合。設定付費
+`STONKS_FINANCIAL_DATASETS_API_KEY` 時，OpenBB 失敗才會嘗試 US daily fallback，並可選擇性組合
 本機 PostgreSQL 與 durable research worker。介面沒有券商登入、直接下單或任何繞過
 canonical risk 的操作。
 
@@ -96,13 +98,13 @@ Paper 資料庫使用具名 volume，`down` 不帶 `--volumes`，因此 ledger �
 8. Research terminal 後會重新讀取 paper projection，避免研究結論與帳戶面板停在
    不同時間點。
 
-命令列保留在畫面底部供進階操作，按 `/` 可從任何位置跳回：
+研究區聊天室提供中文操作與進階命令，按 `/` 可從任何位置跳回：
 
 | 輸入 | 動作 |
 |---|---|
 | `AAPL` | 載入報價與走勢 |
-| `AAPL 5m` | 指定週期，可用 `1m` `5m` `15m` `1h` `1d` |
-| `ADD <代號>` | 加入關注清單，上限 12 檔 |
+| `AAPL 5m` | 指定週期，可用 `1m` `2m` `5m` `15m` `30m` `90m` `1h` `1d` `1W` `1M` `1Y` |
+| `ADD <代號>` | 加入關注清單；沒有固定檔數上限 |
 | `DROP <代號>` | 從關注清單移除 |
 | `RESEARCH <代號>` | 以 live snapshot 啟動 bounded durable research workflow |
 | `REFRESH` | 重新讀取目前代號與關注清單 |
@@ -110,7 +112,7 @@ Paper 資料庫使用具名 volume，`down` 不帶 `--volumes`，因此 ledger �
 | `↑` `↓` | 瀏覽命令紀錄 |
 | `Esc` | 清除命令列或關閉說明 |
 
-工作區狀態（代號、週期、關注清單）保存在 URL hash，因此重新整理或加入書籤都會
+工作區狀態（代號、週期、時間範圍、關注清單）保存在 URL query string，因此重新整理或加入書籤都會
 還原同一個版面。研究 run id 不寫入 URL 或 browser storage；重新整理後由 owner-scoped
 history 重新開啟 run，進行中的 run 會恢復 SSE，不把敏感狀態存到 browser storage。
 
@@ -145,14 +147,16 @@ available、紫色是 degraded／unknown、紅色是外部失敗、琥珀色是�
   水平溢位，console 0 errors／warnings；研究歷史重開、citation→evidence、
   transparency、typed paper／safety、collapsed command console 與 canvas 鍵盤導覽皆通過。
   窄版初始焦點維持 BODY，排序為市場摘要 → 研究 → 圖表 → paper／來源 → 系統側欄。
-- 每次查詢呼叫真正的 OpenBB sidecar；sidecar 再以固定 `yfinance` provider 讀取資料。
+- 每次查詢先呼叫真正的 OpenBB sidecar；sidecar 再以固定 `yfinance` provider 讀取資料。
+  若設定 `STONKS_FINANCIAL_DATASETS_API_KEY`，只有 OpenBB 失敗時才使用 Financial Datasets
+  US daily fallback；fallback 會保留來源提醒並標為 degraded。
 - Core 使用短效 RS256 service credential；private key 只存在該 Python process 記憶體，
   掛載到 sidecar 的檔案只有 public JWKS。
 - 回應保留 symbol、provider、feed type、interval、observed time、latest event time、
   served time、freshness、quality、cache hit、OHLCV、warnings 與完整精度 JSON；
   畫面才格式化為兩位小數。
-- Provider empty、timeout、auth、invalid response 或 sidecar outage 都回 structured
-  failure；不會改用 fixture、hard-coded quote 或 stale cache 偽裝成功。
+- Provider empty、timeout、auth、invalid response 或 sidecar outage 會先按固定順序嘗試已配置的
+  來源，全部失敗才回 structured failure；不會改用 fixture、hard-coded quote 或 stale cache 偽裝成功。
 - GUI 只載入同源本地 script，CSP 為 `default-src 'none'`＋`script-src 'self'`＋
   `connect-src 'self'`，沒有 inline script、eval、外部來源或 `data:` 來源。
 - Paper 面板只讀 PostgreSQL canonical 投影；顯示 NAV、settled／reserved／available
@@ -163,15 +167,15 @@ available、紫色是 degraded／unknown、紅色是外部失敗、琥珀色是�
 - Research start 另有每分鐘 3 次與 single-active 的成本 limiter；第 4 次回
   `429 rate_limited` 與 `Retry-After`，不只依賴前端 disabled state。
 - Market provider 每個 process 每分鐘最多 30 次 outbound request；連續三次失敗後
-  cooldown 15 秒。Watchlist 最多 12 檔且使用 4 workers，cache hit 仍會重算
-  `served_at`、age、freshness 與 quality。
+  cooldown 15 秒。Watchlist 沒有固定檔數上限，單次查詢仍受 4,096 字元邊界與 4 workers
+  限制，cache hit 仍會重算 `served_at`、age、freshness 與 quality。
 
 ## 資料語意
 
 | 欄位 | 語意 |
 |---|---|
 | `feed_type` | `end_of_day_historical` 或 `intraday_historical` |
-| `interval` | `1m` `5m` `15m` `1h` `1d` |
+| `interval` | `1m` `2m` `5m` `15m` `30m` `90m` `1h` `1d` `1W` `1M` `1Y` |
 | `is_real_time` | 永遠是 `false` |
 | `observed_at` | Stonks Agent 開始本次 provider request 的 UTC 時間 |
 | `served_at` | 本次 API delivery 的 UTC 時間；cache hit 仍會更新 |
@@ -187,8 +191,9 @@ available、紫色是 degraded／unknown、紅色是外部失敗、琥珀色是�
 查詢時間。日內 bar 的原始時間戳是交易所本地時間，adapter 依 `America/New_York`
 轉為 UTC 後才進入 canonical 型別。
 
-各週期可查詢的回看天數受上游限制：`1m` 最多 7 天、`5m`／`15m` 最多 59 天；超過會在
-送出請求前被拒絕，而不是回傳會被誤讀為合法空集合的空回應。
+各週期可查詢的回看天數受上游限制：`1m` 最多 7 天、`2m` 最多 21 天、`5m`／`15m`／`30m`／`90m`
+最多 59 天；EOD 最多 36,525 天。GUI 可選 YTD、1 年、5 年、10 年與全部，超過限制會在送出
+請求前被拒絕，而不是回傳會被誤讀為合法空集合的空回應。
 
 免費來源不是無條件 allowlist。Active／需使用者 credential／display-restricted／paid／
 prohibited 的逐項矩陣見[免費市場資料來源](../research/free-market-data-sources.md)。
@@ -214,7 +219,7 @@ GET /api/v1/research/runs/{run_id}/events
 ```
 
 `symbol` 接受英數、`.` 與 `-`，輸入會正規化成大寫；`lookback_days` 必須介於 1 到
-366；`symbols` 最多 12 檔且不可重複。GUI 沒有 target、order、execution、kill-switch
+36,525；`symbols` 沒有固定檔數上限，單次查詢最多 4,096 字元且不可重複。GUI 沒有 target、order、execution、kill-switch
 或 strategy mutation route。
 
 ## Provider 能力邊界

@@ -123,7 +123,7 @@
   "sbom": {
     "path": "payload/release/core.cdx.json",
     "inventory_path": "payload/release/core.inventory.json",
-    "expected_components_sha256": "8a07c6c3316655f15205412926abbacb1857e98503bbd50615699debdd07975b",
+    "expected_components_sha256": "e80fe0cc91bd149859c1f69015d3021d6d36a567f228525bf16254e7cbf4d93f",
     "license_overrides": {
       "pkg:generic/python@3.12.13": "Python-2.0",
       "pkg:pypi/annotated-types@0.7.0": "MIT",
@@ -249,8 +249,8 @@
     "archive": "payload/release/python-corresponding-source.tar.gz",
     "policy": "payload/config/release/python-source-policy.json",
     "uv_lock": "payload/uv.lock",
-    "archive_sha256": "e26f443ae222cc61ca216a9a3f8e07d1da8b0597a575967688a22f8d29f61a98",
-    "manifest_sha256": "300c3bcdcac4f4419b7f1cc2681f36b9a0ff53ca0b993ead4967d35f69ff4f06",
+    "archive_sha256": "dbd1b088dca9e881cda7d3bea3518aba5e1725b55a2304f1fe126e867e974b07",
+    "manifest_sha256": "d696a21f2ac2a4cc7ac6524d93705fc9a90a6555af52d09f39b1673e211b5a0a",
     "source_count": 3,
     "total_source_bytes": 947504
   },

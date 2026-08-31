@@ -31,8 +31,8 @@ def test_linux_release_uses_source_buildable_psycopg_and_system_libpq() -> None:
     assert "psycopg[binary]>=3.3.2,<4; sys_platform != 'linux'" in dependencies
     assert "psycopg[binary]>=3.3.2,<4" not in dependencies
     assert "build-base=0.5-r3" in dockerfile
-    assert "postgresql18-dev=18.4-r0" in dockerfile
-    assert "libpq=18.4-r0" in dockerfile
+    assert "postgresql18-dev=18.6-r0" in dockerfile
+    assert "libpq=18.6-r0" in dockerfile
 
 
 def _policy() -> dict[str, object]:
@@ -146,8 +146,15 @@ def test_alpine_package_snapshot_is_exact_and_source_policy_is_bounded() -> None
         assert all(item[key] for key in ("license", "name", "origin", "version"))
     assert _canonical_sha256(packages) == alpine["package_inventory_sha256"]
     assert alpine["package_inventory_sha256"] == (
-        "917518f3b3ff2fc4359d0810a1824e05f0f0530c7a6f70969119f9775bc83af8"
+        "ccecb09689f65955f2402a9d6851bd38a7df8bf5aad9f91433259d0d1842d897"
     )
+    assert next(item for item in packages if item["name"] == "libpq") == {
+        "aports_commit": "c2ee21f8f682d22ae282d0b82b2427a2df335548",
+        "license": "PostgreSQL",
+        "name": "libpq",
+        "origin": "postgresql18",
+        "version": "18.6-r0",
+    }
 
     source = alpine["corresponding_source"]
     assert isinstance(source, dict)
@@ -161,14 +168,18 @@ def test_alpine_package_snapshot_is_exact_and_source_policy_is_bounded() -> None
     assert source["status"] == "verified"
     assert source["release_decision"] == "allow"
     assert source["archive_sha256"] == (
-        "1429ba82117d330bc93bd685916ff1f832f25eee8b62137590f321c308c55e25"
+        "88ee68944eb4204033d7caf269b530245509538288173cf6cc9b517467cde0d3"
+    )
+    assert source["manifest_sha256"] == (
+        "8e453b818b5357d8cf91aa27fc3f149e5840f256564d8de373c9b5b9f90ca470"
     )
     assert source["package_database_sha256"] == (
-        "612931b65186067b4631019419b45f25053d8edd3f498a039d808856eb41edc1"
+        "789fbae58431cf5c0b0354c11889ee834d98da64835db3179455b7867b63a674"
     )
     assert source["package_count"] == 37
     assert source["origin_count"] == 27
     assert source["file_count"] == 244
+    assert source["total_source_bytes"] == 133_140_072
     assert any("GPL-" in item["license"] for item in packages)
     assert any("LGPL-" in item["license"] for item in packages)
     assert any("MPL-" in item["license"] for item in packages)
@@ -224,9 +235,9 @@ def test_notices_describe_the_backport_and_alpine_blocker_without_overclaim() ->
         "GPL",
         "LGPL",
         "MPL",
-        "917518f3b3ff2fc4359d0810a1824e05f0f0530c7a6f70969119f9775bc83af8",
-        "1429ba82117d330bc93bd685916ff1f832f25eee8b62137590f321c308c55e25",
-        "79538d2549a1c71a008ef5bfaf47dfafed65a9382be6bfdd4e3a4e8962ad5ddf",
+        "ccecb09689f65955f2402a9d6851bd38a7df8bf5aad9f91433259d0d1842d897",
+        "88ee68944eb4204033d7caf269b530245509538288173cf6cc9b517467cde0d3",
+        "8e453b818b5357d8cf91aa27fc3f149e5840f256564d8de373c9b5b9f90ca470",
         "alpine-corresponding-source.tar.gz",
         "已驗證的 corresponding source",
         "任何 drift 都 fail closed",

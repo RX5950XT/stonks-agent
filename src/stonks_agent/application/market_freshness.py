@@ -16,14 +16,20 @@ from stonks_agent.domain.latest_market_data import (
 
 _CURRENT_AGE_SECONDS = {
     BarInterval.MINUTE: 180,
+    BarInterval.TWO_MINUTE: 300,
     BarInterval.FIVE_MINUTE: 480,
     BarInterval.FIFTEEN_MINUTE: 1_080,
+    BarInterval.THIRTY_MINUTE: 2_100,
+    BarInterval.NINETY_MINUTE: 5_700,
     BarInterval.HOUR: 3_900,
 }
 _DELAYED_AGE_SECONDS = {
     BarInterval.MINUTE: 900,
+    BarInterval.TWO_MINUTE: 1_200,
     BarInterval.FIVE_MINUTE: 1_800,
     BarInterval.FIFTEEN_MINUTE: 3_600,
+    BarInterval.THIRTY_MINUTE: 7_200,
+    BarInterval.NINETY_MINUTE: 14_400,
     BarInterval.HOUR: 7_200,
 }
 
@@ -103,7 +109,7 @@ def _open_session_freshness(
     event: datetime,
     checked: datetime,
 ) -> MarketDataFreshness:
-    if interval is BarInterval.DAY:
+    if not interval.is_intraday:
         return MarketDataFreshness.DELAYED
     age = int((checked - event).total_seconds())
     if age <= _CURRENT_AGE_SECONDS[interval]:
@@ -118,10 +124,10 @@ def _closed_session_freshness(
     event: datetime,
     completed: MarketSession,
 ) -> MarketDataFreshness:
-    if interval is BarInterval.DAY:
+    if not interval.is_intraday:
         return (
             MarketDataFreshness.MARKET_CLOSED
-            if event.date() == completed.session_date
+            if event.date() <= completed.session_date
             else MarketDataFreshness.STALE
         )
     if completed.opens_at <= event <= completed.closes_at:

@@ -1,14 +1,46 @@
 "use strict";
 (() => {
+  const interval = (id, label, maxLookback, defaultRange, intraday, rangeIds) => Object.freeze({ id, label, maxLookback, defaultRange, intraday, rangeIds });
+  const range = (id, label, days) => Object.freeze({ id, label, days });
   const intervals = Object.freeze([
-    Object.freeze({ id: "1m", label: "1m", lookback: 7 }),
-    Object.freeze({ id: "5m", label: "5m", lookback: 30 }),
-    Object.freeze({ id: "15m", label: "15m", lookback: 59 }),
-    Object.freeze({ id: "1h", label: "1h", lookback: 120 }),
-    Object.freeze({ id: "1d", label: "1d", lookback: 180 }),
+    interval("1m","1m",7,"1w",true),
+    interval("2m","2m",21,"1w",true),
+    interval("5m","5m",59,"1mo",true),
+    interval("15m","15m",59,"1mo",true),
+    interval("30m","30m",59,"1mo",true),
+    interval("90m","90m",59,"1mo",true),
+    interval("1h","1h",366,"3mo",true),
+    interval("1d", "日線", 36525, "6mo", false),
+    interval("1W", "週線", 36525, "1y", false),
+    interval("1M", "月線", 36525, "1y", false),
+    interval("1Y", "年線", 36525, "10y", false, "3mo,6mo,ytd,1y,5y,10y,max"),
+  ]);
+  const now = new Date();
+  const daysFrom = (start) => Math.round((now - start) / 864e5) + 1;
+  const ranges = Object.freeze([
+    range("1d","1日",1), range("5d","5日",5), range("1w","1週",7),
+    range("1mo","1月",30), range("3mo","3月",90), range("6mo","6月",180),
+    range("ytd", "YTD", daysFrom(new Date(now.getFullYear(), 0, 1))),
+    range("1y", "1年", 366),
+    range("5y","5年",daysFrom(new Date(now.getFullYear() - 5, now.getMonth(), now.getDate()))),
+    range("10y","10年",daysFrom(new Date(now.getFullYear() - 10, now.getMonth(), now.getDate()))),
+    range("max","全部",36525),
   ]);
   function intervalOf(id) {
-    return intervals.find((item) => item.id === id) || intervals[4];
+    return intervals.find((item) => item.id === id) || intervals.find((item) => item.id === "1d");
+  }
+  function rangesFor(interval) {
+    const selected = intervalOf(interval);
+    return ranges.filter((item) => item.days <= selected.maxLookback && (!selected.rangeIds || selected.rangeIds.includes(item.id)));
+  }
+  function rangeOf(id, interval) {
+    const selected = intervalOf(interval);
+    const available = rangesFor(selected.id);
+    return (
+      available.find((item) => item.id === id) ||
+      available.find((item) => item.id === selected.defaultRange) ||
+      available[available.length - 1]
+    );
   }
   async function request(path, params) {
     const url = new URL(path, window.location.origin);
@@ -90,12 +122,15 @@
   window.StonksMarketData = Object.freeze({
     AUTO_REFRESH_MS: 30_000,
     INTERVALS: intervals,
+    RANGES: ranges,
     certainty,
     feedLabel,
     freshnessLabel,
     humanAge,
     intervalOf,
     qualityLabel,
+    rangeOf,
+    rangesFor,
     request,
     stamp,
   });

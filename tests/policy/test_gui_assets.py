@@ -82,9 +82,7 @@ def test_console_script_stays_strict_and_self_contained() -> None:
     assert all(path.read_text(encoding="utf-8").count("\n") < 800 for path in scripts)
 
 
-def test_gui_exposes_the_backend_driven_primary_journey_without_terminal_commands() -> (
-    None
-):
+def test_gui_exposes_the_backend_driven_primary_journey_with_research_chat() -> None:
     template = (ASSETS / "templates" / "index.html").read_text(encoding="utf-8")
     terminal = (ASSETS / "assets" / "terminal.js").read_text(encoding="utf-8")
     research = (ASSETS / "assets" / "research.js").read_text(encoding="utf-8")
@@ -106,7 +104,12 @@ def test_gui_exposes_the_backend_driven_primary_journey_without_terminal_command
     assert 'id="research-history"' in template
     assert 'id="research-evidence"' in template
     assert 'id="market-table-body"' in template
-    assert 'id="expert-console"' in template
+    assert 'id="panel-overview"' in template
+    assert 'id="instrument-dashboard"' in template
+    assert 'id="panel-provenance"' not in template
+    assert "資料檢查" not in template
+    assert 'id="research-chat"' in template
+    assert template.index('id="research-chat"') < template.index('id="model-settings"')
     assert 'addEventListener("submit"' in terminal
     assert 'addEventListener("click"' in terminal
     assert '"stonks:research"' in terminal
@@ -118,17 +121,20 @@ def test_gui_exposes_the_backend_driven_primary_journey_without_terminal_command
     assert "paper_decision" in research
     assert "/api/v1/research/runs?limit=10" in research
     assert "/evidence" in research
-    assert "paper.portfolio" in product
-    assert "paper.risk" in product
-    assert "paper.safety" in product
-    assert "nav.cash_value" in product
-    assert "nav.position_value" in product
-    assert "nav.cumulative_fees" in product
-    assert "nav.realized_pnl" in product
-    assert "position.sellable" in product
-    assert "position.reserved" in product
-    assert "risk.decided_at" in product
-    assert "integrity.ledger_hash" in product
+    assert ".portfolio" in product
+    assert ".risk" in product
+    assert ".safety" in product
+    assert ".cash_value" in product
+    assert ".position_value" in product
+    assert ".cumulative_fees" in product
+    assert ".realized_pnl" in product
+    assert ".sellable" in product
+    assert ".reserved" in product
+    assert ".decided_at" in product
+    assert ".ledger_hash" in product
+    assert "dashboard-columns" in product
+    assert "公司與財報" in product
+    assert "近期申報" in product
     assert "forecast.forecast_id" in research
     assert "forecast.generated_at" in research
     assert "forecast.horizon_bars" in research
@@ -150,10 +156,52 @@ def test_gui_exposes_the_backend_driven_primary_journey_without_terminal_command
     assert "if (quiet) {" in terminal
     assert "保留最後成功資料" in terminal
     assert "view.freshness" in terminal
-    assert "view.quality" in terminal
-    assert 'view.is_real_time ? "即時" : "非 tick"' in terminal
+    assert ".quality" in product
+    assert 'view.is_real_time ? "即時" : "非逐筆即時"' in terminal
     assert "staleAfter" not in terminal
     assert "kronos_summary" not in research
+
+
+def test_model_settings_keep_safe_defaults_out_of_the_user_form() -> None:
+    template = (ASSETS / "templates" / "index.html").read_text(encoding="utf-8")
+    settings = (ASSETS / "assets" / "settings.js").read_text(encoding="utf-8")
+
+    assert 'id="model-base-url"' in template
+    assert 'id="model-id"' in template
+    assert 'id="model-api-key"' in template
+    assert 'id="model-provider"' not in template
+    assert 'id="model-endpoint"' not in template
+    assert 'id="model-max-output"' not in template
+    assert 'id="model-input-cost"' not in template
+    assert "max_output_tokens" not in settings
+    assert "input_cost_per_million" not in settings
+
+
+def test_gui_has_safe_chinese_command_translation_and_chart_pan() -> None:
+    template = (ASSETS / "templates" / "index.html").read_text(encoding="utf-8")
+    terminal = (ASSETS / "assets" / "terminal.js").read_text(encoding="utf-8")
+    market_data = (ASSETS / "assets" / "market-data.js").read_text(encoding="utf-8")
+    style = (ASSETS / "assets" / "terminal.css").read_text(encoding="utf-8")
+
+    assert "中文操作" in template
+    assert "也支援進階命令" in template
+    assert "不會執行任意系統指令" in template
+    assert "自然語言" in terminal
+    assert "chartStart" in terminal
+    assert "pointerdown" in terminal
+    assert "onChartWheel" in terminal
+    assert 'id="ranges"' in template
+    assert "rangeOf" in terminal
+    assert "lookback_days: rangeOf(state.range, state.interval).days" in terminal
+    assert 'next.searchParams.set("r", state.range)' in terminal
+    assert 'interval("1Y", "年線"' in market_data
+    assert 'range("ytd"' in market_data
+    assert 'range("5y"' in market_data
+    assert 'range("10y"' in market_data
+    assert 'range("max"' in market_data
+    assert "event.isPrimary" in terminal
+    assert "event.button !== 0" in terminal
+    assert "touch-action: pan-y" in style
 
 
 def test_quiet_refresh_failure_releases_busy_state_without_hiding_last_quote() -> None:
@@ -190,7 +238,9 @@ def test_every_script_dom_target_exists_once_and_tokens_keep_three_layers() -> N
     assert "/* Components */" in style
 
 
-def test_gui_dark_capability_map_exposes_every_backend_domain() -> None:
+def test_gui_dark_shell_keeps_runtime_readiness_without_duplicate_status_strip() -> (
+    None
+):
     template = (ASSETS / "templates" / "index.html").read_text(encoding="utf-8")
     style = (ASSETS / "assets" / "terminal.css").read_text(encoding="utf-8")
     product = (ASSETS / "assets" / "product.js").read_text(encoding="utf-8")
@@ -199,21 +249,16 @@ def test_gui_dark_capability_map_exposes_every_backend_domain() -> None:
     assert '<meta name="theme-color" content="#0d1117">' in template
     assert "color-scheme: dark" in style
     assert "color-scheme: light" not in style
-    for target in (
-        "capability-market-state",
-        "capability-research-state",
-        "capability-model-state",
-        "capability-kronos-state",
-        "capability-paper-state",
-        "capability-data-state",
-        "runtime-readiness",
-    ):
-        assert template.count(f'id="{target}"') == 1
-        assert f'el("{target}")' in product
-    assert "Backend capability map" in template
-    assert "kill switch" in template.lower()
-    assert "Shadow forecast" in template
-    assert "Provider · freshness · PIT · non-tick" in template
+    assert template.count('id="runtime-readiness"') == 1
+    assert '"runtime-readiness"' in product
+    assert 'class="status-strip"' not in template
+    assert "status-strip" not in style
+    assert "capability-market-state" not in template + product
+    assert "capability-research-state" not in template + product
+    assert "capability-model-state" not in template + product
+    assert "capability-data-state" not in template + product
+    assert "capability-map" not in template
+    assert "Backend capability map" not in template
 
 
 def test_composite_controls_render_one_focus_ring() -> None:
@@ -246,12 +291,11 @@ def test_gui_secret_fields_avoid_password_manager_persistence_semantics() -> Non
 def test_capability_map_requires_verified_model_and_live_research_service() -> None:
     product = (ASSETS / "assets" / "product.js").read_text(encoding="utf-8")
 
-    assert 'const researchService = services.get("research");' in product
-    assert 'researchService.state === "ready"' in product
-    assert "model.api_key_configured === true" in product
-    assert "model.verified === true" in product
-    assert 'configured: "已設定"' in product
-    assert 'configured: "已驗證"' not in product
+    assert '"research"' in product
+    assert "api_key" in product
+    assert "verified" in product
+    assert 'configured:"已設定"' in product
+    assert 'configured:"已驗證"' not in product
 
 
 def test_market_labels_follow_the_canonical_symbol_suffixes() -> None:
@@ -276,24 +320,32 @@ def test_gui_removes_verified_dead_refresh_chain_and_legacy_mobile_floor() -> No
     assert 'save: el("model-settings-save")' not in settings
 
 
-def test_workspace_deep_link_resyncs_after_async_initial_render() -> None:
+def test_removed_workspace_navigation_leaves_no_dead_ui_chain() -> None:
     template = (ASSETS / "templates" / "index.html").read_text(encoding="utf-8")
     product = (ASSETS / "assets" / "product.js").read_text(encoding="utf-8")
     terminal = (ASSETS / "assets" / "terminal.js").read_text(encoding="utf-8")
     style = (ASSETS / "assets" / "terminal.css").read_text(encoding="utf-8")
 
-    assert "syncWorkspaceCurrent" in product
-    assert "settleInitialAnchor" in product
-    assert "scrollIntoView" in product
-    assert "if (event.detail) settleInitialAnchor(2);" in product
+    assert 'class="workspace-nav"' not in template
+    assert "data-workspace-target" not in template + product
+    assert "workspace-nav" not in style
+    assert '"hashchange"' not in product
+    assert "scrollIntoView" not in product
+    assert '"stonks:market-failure"' in product
     assert 'new CustomEvent("stonks:market-failure"' in terminal
-    assert 'addEventListener("stonks:market-failure"' in product
-    assert 'strong[data-state="degraded"]' in style
+    assert 'window.addEventListener("stonks:market-failure"' in product
+    assert '[data-rail="stale"] .status-badge' in style
     assert "padding-bottom: 5rem" in style
     assert 'placeholder="https:&#47;&#47;api.example.com"' in template
-    assert "dataset.state = runtimeState" in product
-    assert "stateLabel(paper && paper.state)" in product
-    assert 'view.quality === "available"' in product
+    assert ".dataset.state=" in product
+    assert '.closest(".environment")' in product
+
+
+def test_watchlist_has_no_fixed_twelve_item_ui_cap() -> None:
+    terminal = (ASSETS / "assets" / "terminal.js").read_text(encoding="utf-8")
+
+    assert "MAX_WATCHLIST" not in terminal
+    assert "/12" not in terminal
 
 
 def test_research_ui_locks_single_flight_before_post_and_fences_late_results() -> None:

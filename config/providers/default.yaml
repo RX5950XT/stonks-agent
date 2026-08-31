@@ -53,3 +53,27 @@ policies:
         endpoints: [/api/v1/equity/price/historical]
         freshness_seconds: 300
         quota_floor: 0
+  - policy_id: us-research/1
+    market: US
+    capability: research_data
+    allow_stale: false
+    allow_partial: true
+    reconciliation_threshold: "0.01"
+    routes:
+      - provider: stonks_bundle
+        origin: https://data.sec.gov
+        endpoints: [/v1/instrument/research-data]
+        freshness_seconds: 300
+        quota_floor: 0
+  - policy_id: tw-research/1
+    market: TW
+    capability: research_data
+    allow_stale: false
+    allow_partial: true
+    reconciliation_threshold: "0.01"
+    routes:
+      - provider: stonks_bundle
+        origin: https://openapi.twse.com.tw
+        endpoints: [/v1/instrument/research-data]
+        freshness_seconds: 300
+        quota_floor: 0

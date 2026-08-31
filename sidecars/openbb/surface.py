@@ -42,7 +42,9 @@ _PROTECTED_HTTP_SURFACE: Final = frozenset({("GET", HISTORICAL_PATH)})
 _ALLOWED_QUERY_FIELDS: Final = frozenset(
     {"symbol", "start_date", "end_date", "interval", "provider"}
 )
-_ALLOWED_INTERVALS: Final = frozenset({"1m", "5m", "15m", "1h", "1d"})
+_ALLOWED_INTERVALS: Final = frozenset(
+    {"1m", "2m", "5m", "15m", "30m", "90m", "1h", "1d", "1W", "1M"}
+)
 _SYMBOL: Final = re.compile(r"^[A-Z0-9][A-Z0-9.-]{0,31}$")
 _SUFFIX_MARKETS: Final = ((".TW", "TW"), (".TWO", "TW"), (".HK", "HK"))
 _MAX_QUERY_BYTES: Final = 4096

@@ -18,10 +18,10 @@
     "research.cancelled",
   ]);
   const PHASES = [
-    ["snapshot", "建立市場快照", "從 live provider 封存 point-in-time bars"],
-    ["evidence", "鎖定研究證據", "只允許本次 snapshot 內的 read-only tools"],
-    ["analysis", "AI 綜合分析", "產生有引用的 claims、反方觀點與風險"],
-    ["report", "形成決策報告", "封存報告並讀取 canonical paper 結論"],
+    ["snapshot", "建立市場快照", "從即時資料來源保存本次價格資料"],
+    ["evidence", "鎖定研究證據", "只使用本次資料中的唯讀工具"],
+    ["analysis", "整理研究結論", "產生有來源的結論、反方觀點與風險"],
+    ["report", "形成研究報告", "保存報告並讀取模擬帳戶結論"],
   ];
   const state = {
     token: "",
@@ -110,7 +110,7 @@
     state.profile = research.default_profile;
     clear(dom.profile);
     for (const profile of profiles) {
-      const option = add(dom.profile, "option", profile, { value: profile });
+      const option = add(dom.profile, "option", profile === "balanced/1" ? "一般模式" : profile, { value: profile });
       option.selected = profile === state.profile;
     }
     dom.profile.disabled = false;
@@ -148,7 +148,7 @@
     if (state.runtimeReady && !state.busy && !state.hasResult) {
       dom.note.textContent = state.modelReady ? "可以開始" : "請先設定模型";
       clear(dom.empty);
-      add(dom.empty, "span", "LLM", {
+      add(dom.empty, "span", "模型", {
         class: "empty-mark",
         "aria-hidden": "true",
       });
@@ -161,8 +161,8 @@
         dom.empty,
         "p",
         state.modelReady
-          ? "選好標的後開始研究；所有 claims 都會連回本輪實際讀取的 evidence。"
-          : "在上方輸入模型 endpoint、Model ID 與 API key，驗證成功後即可開始。"
+          ? "選好標的後開始研究；所有結論都會連回本輪實際讀取的資料。"
+          : "在上方輸入模型網址、模型名稱和存取金鑰，驗證成功後即可開始。"
       );
       show("empty");
     }
@@ -374,13 +374,13 @@
       "p",
       view.error_code
         ? `研究未 commit：${view.error_code}`
-        : "結論來自本次 snapshot 與 allowlisted evidence tools。"
+        : "結論來自本次資料與允許的資料工具。"
     );
     if (view.confidence === null || view.confidence === undefined) return;
     const confidence = Math.max(0, Math.min(100, Number(view.confidence) * 100));
     const meter = add(dom.summary, "div", null, { class: "confidence" });
     add(meter, "span", `${Math.round(confidence)}%`);
-    add(meter, "small", "confidence");
+    add(meter, "small", "信心");
   }
   function renderClaims(claims) {
     clear(dom.claims);
@@ -406,27 +406,27 @@
   function renderTransparency(view) {
     clear(dom.transparency);
     const grid = add(dom.transparency, "dl", null, { class: "transparency-grid" });
-    pair(grid, "As of", stamp(view.as_of));
-    pair(grid, "Snapshot", view.snapshot_id || "尚未建立");
-    pair(grid, "Evidence count", view.evidence_count ?? 0);
+    pair(grid, "資料時間", stamp(view.as_of));
+    pair(grid, "資料快照", view.snapshot_id || "尚未建立");
+    pair(grid, "資料筆數", view.evidence_count ?? 0);
     if (view.usage) {
-      pair(grid, "Iterations / tools", `${view.usage.iterations} / ${view.usage.tool_calls}`);
+      pair(grid, "分析次數／工具次數", `${view.usage.iterations} / ${view.usage.tool_calls}`);
       pair(
         grid,
-        "Tokens",
-        `${view.usage.input_tokens} in / ${view.usage.output_tokens} out`
+        "Token 數",
+        `輸入 ${view.usage.input_tokens}／輸出 ${view.usage.output_tokens}`
       );
-      pair(grid, "Cost", `$${view.usage.cost_usd} USD`);
-      pair(grid, "Elapsed", `${view.usage.elapsed_ms} ms`);
+      pair(grid, "費用", `$${view.usage.cost_usd} USD`);
+      pair(grid, "耗時", `${view.usage.elapsed_ms} ms`);
     }
     for (const version of view.versions || []) {
       pair(grid, version.component, version.version);
     }
     for (const issue of view.issues || []) {
-      pair(grid, `Issue · ${issue.stage}`, issue.code);
+      pair(grid, `問題 · ${issue.stage}`, issue.code);
     }
     for (const warning of view.warnings || []) {
-      pair(grid, "Warning", warning);
+      pair(grid, "提醒", warning);
     }
     dom.transparencyWrap.open =
       Boolean((view.issues || []).length || (view.warnings || []).length);
@@ -445,7 +445,7 @@
   }
   async function loadEvidence(runId, serial) {
     clear(dom.evidence);
-    dom.evidenceNote.textContent = "讀取 cited evidence …";
+    dom.evidenceNote.textContent = "讀取引用資料 …";
     const result = await jsonRequest(
       `/api/v1/research/runs/${encodeURIComponent(runId)}/evidence`,
       { headers: { Accept: "application/json" } }
@@ -457,9 +457,9 @@
       return;
     }
     const items = Array.isArray(result.data.items) ? result.data.items : [];
-    dom.evidenceNote.textContent = `${items.length} 筆 cited evidence`;
+    dom.evidenceNote.textContent = `${items.length} 筆引用資料`;
     if (!items.length) {
-      add(dom.evidence, "p", "本次 run 沒有可安全顯示的 cited evidence。");
+      add(dom.evidence, "p", "本次研究沒有可安全顯示的引用資料。");
       return;
     }
     for (const item of items) renderEvidenceItem(item);
@@ -474,13 +474,13 @@
     add(header, "h4", `${item.kind} · ${item.source}`);
     add(header, "span", String(item.evidence_id).slice(0, 8));
     const details = add(card, "dl");
-    pair(details, "Provider", item.provider);
-    pair(details, "Event time", stamp(item.event_time));
-    pair(details, "Available at", stamp(item.available_at));
-    pair(details, "Quality", `${item.quality_status} · ${formatPercent(item.completeness)}`);
-    pair(details, "Content hash", String(item.content_hash).slice(0, 16));
+    pair(details, "資料來源", item.provider);
+    pair(details, "事件時間", stamp(item.event_time));
+    pair(details, "可用時間", stamp(item.available_at));
+    pair(details, "品質", `${item.quality_status} · ${formatPercent(item.completeness)}`);
+    pair(details, "內容雜湊", String(item.content_hash).slice(0, 16));
     for (const field of item.fields || []) pair(details, field.name, field.value);
-    for (const warning of item.warnings || []) pair(details, "Warning", warning);
+    for (const warning of item.warnings || []) pair(details, "提醒", warning);
   }
   function focusEvidence(evidenceId) {
     for (const card of dom.evidence.querySelectorAll("[data-evidence-id]")) {
@@ -505,7 +505,7 @@
       return;
     }
     const items = Array.isArray(result.data.items) ? result.data.items : [];
-    dom.historyNote.textContent = items.length ? `${items.length} 筆 durable runs` : "尚無研究紀錄";
+    dom.historyNote.textContent = items.length ? `${items.length} 筆研究紀錄` : "尚無研究紀錄";
     for (const item of items) {
       const row = add(dom.history, "li");
       const button = add(row, "button", null, {
@@ -516,12 +516,12 @@
       add(copy, "strong", `${item.symbol} · ${statusText(item.status)}`);
       const confidence =
         item.confidence === null || item.confidence === undefined
-          ? "confidence —"
-          : `confidence ${formatPercent(item.confidence)}`;
+          ? "信心 —"
+          : `信心 ${formatPercent(item.confidence)}`;
       add(
         copy,
         "small",
-        `${item.profile} · as of ${stamp(item.as_of)} · ${confidence}`
+        `${item.profile} · 資料時間 ${stamp(item.as_of)} · ${confidence}`
       );
       add(
         button,
@@ -577,7 +577,7 @@
       forecastCard(view.kronos_forecast);
     }
     if (!view.kronos_forecast && !view.kronos_alpha && !view.paper_decision) {
-      signalCard("DECISION BOUNDARY", "未建立 model signal 或 paper decision。");
+      signalCard("決策界線", "尚未建立模型訊號或模擬決定。");
       return;
     }
     if (view.kronos_alpha || view.paper_decision) {
@@ -600,30 +600,30 @@
       strip,
       "p",
       shadow
-        ? "Kronos 目前是 shadow 策略、paper 權重 0，依設計不會產生下單建議。" +
+        ? "Kronos 目前是觀察策略、模擬交易權重為 0，依設計不會產生下單建議。" +
           "上方預測與研究論點才是本次輸出；以下為授權狀態，不是執行失敗。"
-        : "以下為本次 run 的訊號授權與 paper 決策狀態。"
+        : "以下為本次研究的訊號授權與模擬決定狀態。"
     );
     if (alpha) alphaCard(strip, alpha);
     if (view.paper_decision) {
-      statusRow(strip, "PAPER DECISION", view.paper_decision);
+      statusRow(strip, "模擬決定", view.paper_decision);
     }
   }
   function forecastCard(forecast) {
     if (forecast.state !== "succeeded") {
       signalCard(
-        "KRONOS FORECAST · FAILED",
-        `未產生 forecast（${forecast.error_code || "unknown"}）`
+        "Kronos 預測 · 失敗",
+        `未產生預測（${forecast.error_code || "unknown"}）`
       );
       return;
     }
     const card = add(dom.signals, "article", null, { class: "signal-card" });
-    add(card, "span", "KRONOS 預測 · 實際推論結果");
-    add(card, "strong", `${formatPercent(forecast.expected_return)} expected return`);
+    add(card, "span", "Kronos 預測 · 實際推論結果");
+    add(card, "strong", `預期報酬 ${formatPercent(forecast.expected_return)}`);
     add(
       card,
       "p",
-      `${forecast.horizon_bars} daily bars · ${forecast.path_count} paths · 上漲機率 ${formatPercent(
+      `${forecast.horizon_bars} 根日線 · ${forecast.path_count} 條路徑 · 上漲機率 ${formatPercent(
         forecast.direction_probability
       )} · 中位報酬 ${formatPercent(forecast.median_return)} · 波動 ${formatPercent(
         forecast.expected_volatility
@@ -632,7 +632,7 @@
     add(
       card,
       "p",
-      `downside ${formatPercent(forecast.downside_quantile)} · max drawdown ${formatPercent(
+      `下行風險 ${formatPercent(forecast.downside_quantile)} · 最大回撤 ${formatPercent(
         forecast.max_drawdown_quantile
       )}`
     );
@@ -646,22 +646,22 @@
       )}`
     );
     for (const warning of forecast.warnings || []) {
-      add(card, "small", `warning · ${warning}`);
+      add(card, "small", `提醒 · ${warning}`);
     }
   }
   function alphaCard(parent, alpha) {
     if (alpha.state === "blocked") {
       statusRow(
         parent,
-        `KRONOS ALPHA · ${String(alpha.deployment_state).toUpperCase()}`,
-        `blocked · weight ${alpha.weight} · ${(alpha.reason_codes || []).join(", ")}`
+        `Kronos 訊號 · ${String(alpha.deployment_state).toUpperCase()}`,
+        `已封鎖 · 權重 ${alpha.weight} · ${(alpha.reason_codes || []).join(", ")}`
       );
       return;
     }
     statusRow(
       parent,
-      `KRONOS ALPHA · ${String(alpha.direction).toUpperCase()}`,
-      `${formatPercent(alpha.value)} · confidence ${formatPercent(alpha.confidence)}`
+      `Kronos 訊號 · ${String(alpha.direction).toUpperCase()}`,
+      `${formatPercent(alpha.value)} · 信心 ${formatPercent(alpha.confidence)}`
     );
   }
   function statusRow(parent, label, value) {
@@ -690,7 +690,7 @@
     renderList(dom.counters, [], "本次 run 沒有反方觀點。");
     renderList(dom.risks, [], "本次 run 沒有風險結論。");
     clear(dom.signals);
-    signalCard("TYPED FAILURE", code);
+    signalCard("結構化錯誤", code);
     dom.report.textContent = "";
     dom.reportWrap.hidden = true;
     dom.note.textContent = `${symbol} · ${code}`;

@@ -18,21 +18,6 @@
     busy: false,
     current: null,
   };
-  const numeric = new Set([
-    "max_output_tokens",
-    "max_total_tokens",
-    "max_transient_retries",
-    "max_repairs",
-    "max_response_bytes",
-  ]);
-  const decimal = new Set([
-    "input_cost_per_million",
-    "cached_input_cost_per_million",
-    "cache_write_input_cost_per_million",
-    "output_cost_per_million",
-    "max_cost_usd",
-    "timeout_seconds",
-  ]);
   function configure(capabilities) {
     const research = capabilities && capabilities.research;
     state.token =
@@ -67,26 +52,26 @@
   }
   function summary(view) {
     if (!view || view.state === "unavailable") {
-      return "此工作階段沒有組合模型設定服務。";
+      return "目前沒有可用的模型設定服務。";
     }
     if (view.state !== "configured" || !view.config) {
-      return "開始研究前，請先設定並驗證一個支援 JSON Schema 的 OpenAI-compatible 模型。";
+      return "輸入模型網址、模型名稱和存取金鑰，系統會先測試連線。";
     }
     const config = view.config;
     const host = safeHost(config.base_url);
     const test = view.connection_test;
-    const verified = view.verified ? "structured completion 已驗證" : "尚未於本次 session 驗證";
+    const verified = view.verified ? "連線已驗證" : "尚未驗證";
     const usage = test
-      ? ` · ${test.input_tokens} in / ${test.output_tokens} out · ${test.elapsed_ms} ms`
+      ? ` · 輸入 ${test.input_tokens} · 輸出 ${test.output_tokens} · ${test.elapsed_ms} ms`
       : "";
     return `${config.model_id} · ${host} · ${verified}${usage}`;
   }
   function safeHost(value) {
     try {
       const url = new URL(value);
-      return url.host || "custom endpoint";
+      return url.host || "自訂網址";
     } catch {
-      return "custom endpoint";
+      return "自訂網址";
     }
   }
   function fill(config) {
@@ -104,7 +89,7 @@
         field instanceof HTMLInputElement ||
         field instanceof HTMLButtonElement
       ) {
-        if (field.id !== "model-provider") field.disabled = disabled;
+        field.disabled = disabled;
       }
     }
   }
@@ -117,9 +102,7 @@
     const value = {};
     for (const field of dom.form.elements) {
       if (!(field instanceof HTMLInputElement) || !field.name) continue;
-      if (numeric.has(field.name)) value[field.name] = Number.parseInt(field.value, 10);
-      else if (decimal.has(field.name)) value[field.name] = field.value;
-      else value[field.name] = field.value;
+      value[field.name] = field.value;
     }
     return value;
   }
@@ -134,14 +117,14 @@
         invalid.focus();
       }
       dom.form.reportValidity();
-      showError("請修正標示的模型設定欄位。");
+      showError("請補齊模型網址、模型名稱和存取金鑰。");
       return;
     }
     state.busy = true;
     dom.form.setAttribute("aria-busy", "true");
     dom.panel.dataset.state = "testing";
     dom.status.textContent = "驗證中";
-    dom.summary.textContent = "正在執行 bounded structured completion…";
+    dom.summary.textContent = "正在測試模型連線…";
     setDisabled(true);
     const requestBody = JSON.stringify(payload());
     dom.key.value = "";
@@ -169,7 +152,7 @@
     if (
       state.busy ||
       !state.token ||
-      !window.confirm("清除本次 session 的模型設定與 API key？")
+      !window.confirm("清除本次設定與存取金鑰？")
     ) {
       return;
     }
@@ -253,7 +236,7 @@
   function unavailableView() {
     return {
       state: "unavailable",
-      detail: "Model settings runtime is not composed.",
+      detail: "模型設定服務尚未組合。",
       source: "none",
       verified: false,
     };

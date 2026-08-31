@@ -181,8 +181,10 @@ def _research_request(
                 horizon_days=20,
                 question=(
                     f"Research {value.request.symbol} using only cited snapshot "
-                    "evidence. Inspect evidence with allowlisted tools before "
-                    "returning claims, counterarguments, risks, and confidence."
+                    "evidence. First call list_evidence. If FUNDAMENTAL or FILING "
+                    "items are available, proactively call fundamental_snapshot "
+                    "or filing_history before returning claims, counterarguments, "
+                    "risks, and confidence. Use only data actually read by tools."
                 ),
                 allowed_evidence_ids=frozenset(
                     item.evidence_id for item in value.evidence
@@ -252,21 +254,44 @@ def _context_request(
     value: ResearchLeaseInput,
 ) -> AnalysisContextRequest:
     evidence = value.evidence
+    requirements = [
+        EvidenceRequirement(
+            capability="market",
+            kinds=(EvidenceKind.MARKET_DATA,),
+            required=True,
+            minimum_items=1,
+            maximum_items=max(1, len(evidence)),
+            freshness_seconds=None,
+        )
+    ]
+    if any(item.kind is EvidenceKind.FUNDAMENTAL for item in evidence):
+        requirements.append(
+            EvidenceRequirement(
+                capability="fundamentals",
+                kinds=(EvidenceKind.FUNDAMENTAL,),
+                required=False,
+                minimum_items=0,
+                maximum_items=max(1, len(evidence)),
+                freshness_seconds=None,
+            )
+        )
+    if any(item.kind is EvidenceKind.FILING for item in evidence):
+        requirements.append(
+            EvidenceRequirement(
+                capability="filings",
+                kinds=(EvidenceKind.FILING,),
+                required=False,
+                minimum_items=0,
+                maximum_items=max(1, len(evidence)),
+                freshness_seconds=None,
+            )
+        )
     return AnalysisContextRequest(
         context_id=uuid5(lease.run_id, "analysis-context"),
         run_id=lease.run_id,
         subject=value.request.instrument_id,
         as_of=value.request.as_of,
-        requirements=(
-            EvidenceRequirement(
-                capability="market",
-                kinds=(EvidenceKind.MARKET_DATA,),
-                required=True,
-                minimum_items=1,
-                maximum_items=len(evidence),
-                freshness_seconds=None,
-            ),
-        ),
+        requirements=tuple(requirements),
         allowed_sensitivities=tuple(
             sorted({item.sensitivity for item in evidence}, key=lambda item: item.value)
         ),

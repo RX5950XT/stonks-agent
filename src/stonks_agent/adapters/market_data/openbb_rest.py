@@ -17,6 +17,7 @@ from pydantic import (
     Field,
     StrictBytes,
     ValidationError,
+    field_validator,
     model_validator,
 )
 
@@ -55,8 +56,9 @@ OPENBB_ORIGIN: Final = "http://127.0.0.1:6900"
 OPENBB_HISTORICAL_ENDPOINT: Final = "/api/v1/equity/price/historical"
 OPENBB_PROVIDER: Final = "yfinance"
 # Every market here was verified against the running sidecar before listing.
-# 2026-07-30: US (AAPL 1d/1m) and TW (2330.TW 1d/1m/15m, 0050.TW and 2412.TW 1d)
-# all returned available yfinance rows. HK has no verified route and stays off
+# 2026-08-30: US (AAPL 1d/1m/2m/5m/15m/30m/90m/1h/1W/1M) and TW
+# (2330.TW 1d/1m/15m, 0050.TW and 2412.TW 1d) all returned available yfinance
+# rows. HK has no verified route and stays off
 # the list, so .HK symbols fail closed as openbb_capability_not_supported.
 OPENBB_REST_SUPPORT: Final = frozenset(
     RegionalProviderCapability(
@@ -70,7 +72,18 @@ OPENBB_REST_SUPPORT: Final = frozenset(
 _ALLOWED_QUERY_FIELDS: Final = frozenset(
     {"symbol", "start_date", "end_date", "interval", "scenario"}
 )
-type OpenBBInterval = Literal["1m", "5m", "15m", "1h", "1d"]
+type OpenBBInterval = Literal[
+    "1m",
+    "2m",
+    "5m",
+    "15m",
+    "30m",
+    "90m",
+    "1h",
+    "1d",
+    "1W",
+    "1M",
+]
 # OpenBB serializes yfinance intraday bars as naive exchange-local timestamps
 # (verified 2026-07-27: 15:30 for the bar whose Yahoo epoch is 19:30Z), while
 # daily bars arrive as plain dates. Both must become explicit UTC instants, and
@@ -86,11 +99,23 @@ class OpenBBHistoricalRecord(BaseModel):
     model_config = ConfigDict(extra="allow", frozen=True)
 
     date: datetime | date
-    open: Decimal = Field(allow_inf_nan=False)
-    high: Decimal = Field(allow_inf_nan=False)
-    low: Decimal = Field(allow_inf_nan=False)
-    close: Decimal = Field(allow_inf_nan=False)
-    volume: Decimal = Field(ge=0, allow_inf_nan=False)
+    open: Decimal = Field(allow_inf_nan=True)
+    high: Decimal = Field(allow_inf_nan=True)
+    low: Decimal = Field(allow_inf_nan=True)
+    close: Decimal = Field(allow_inf_nan=True)
+    volume: Decimal = Field(allow_inf_nan=True)
+
+    @field_validator("open", "high", "low", "close", "volume", mode="before")
+    @classmethod
+    def normalize_missing_numeric(cls, value: object) -> object:
+        return Decimal("NaN") if value is None else value
+
+    @field_validator("volume")
+    @classmethod
+    def validate_volume(cls, value: Decimal) -> Decimal:
+        if value.is_finite() and value < 0:
+            raise ValueError("volume must be greater than or equal to zero")
+        return value
 
 
 class OpenBBPrice(BaseModel):
@@ -411,14 +436,31 @@ def _parse_response(
             state=ProviderDataState.CONFLICT,
             metadata=metadata,
         )
+    prices, invalid_record_count = normalized
+    if not prices and invalid_record_count:
+        return _failure(
+            "openbb_invalid_response",
+            observed_at,
+            metadata=metadata,
+        )
+    if invalid_record_count:
+        metadata = metadata.model_copy(
+            update={
+                "warnings": (
+                    *metadata.warnings,
+                    OpenBBWarning(
+                        category="invalid_record",
+                        message=f"Omitted {invalid_record_count} non-finite provider bar(s)",
+                    ),
+                )
+            }
+        )
     state = (
-        ProviderDataState.AVAILABLE
-        if normalized
-        else ProviderDataState.LEGITIMATE_EMPTY
+        ProviderDataState.AVAILABLE if prices else ProviderDataState.LEGITIMATE_EMPTY
     )
     return OpenBBObservation(
         state=state,
-        data=normalized,
+        data=prices,
         completeness=Decimal("1"),
         observed_at=observed_at,
         metadata=metadata,
@@ -430,11 +472,15 @@ def _normalize_results(
     query: _OpenBBQuery,
     as_of: datetime,
     observed_at: datetime,
-) -> tuple[OpenBBPrice, ...] | str:
+) -> tuple[tuple[OpenBBPrice, ...], int] | str:
     market = market_for_symbol(query.symbol)
     normalized: list[OpenBBPrice] = []
     event_times: set[datetime] = set()
+    invalid_record_count = 0
     for record in records:
+        if not _record_is_finite(record):
+            invalid_record_count += 1
+            continue
         moment = _normalize_event_time(record.date, market)
         if moment is None:
             return "openbb_conflicting_data"
@@ -450,7 +496,17 @@ def _normalize_results(
         if price is None:
             return "openbb_conflicting_data"
         normalized.append(price)
-    return tuple(sorted(normalized, key=lambda item: item.bar.timeline.event_time))
+    return (
+        tuple(sorted(normalized, key=lambda item: item.bar.timeline.event_time)),
+        invalid_record_count,
+    )
+
+
+def _record_is_finite(record: OpenBBHistoricalRecord) -> bool:
+    return all(
+        value.is_finite()
+        for value in (record.open, record.high, record.low, record.close, record.volume)
+    )
 
 
 def _normalize_record(

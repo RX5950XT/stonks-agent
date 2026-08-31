@@ -4,26 +4,28 @@
     AUTO_REFRESH_MS,
     INTERVALS,
     certainty,
-    feedLabel,
     freshnessLabel,
     humanAge,
     intervalOf,
-    qualityLabel,
+    rangeOf,
+    rangesFor,
     request,
-    stamp,
   } = window.StonksMarketData;
   const DEFAULT_WATCHLIST = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL"];
-  const MAX_WATCHLIST = 12;
+  const MAX_VISIBLE_BARS = 100;
+  const MAX_BAR_SLOT = 44;
   const SYMBOL_PATTERN = /^[A-Z0-9][A-Z0-9.-]{0,15}$/;
+  const INTERVAL_ALIASES = Object.freeze({ "1m": "1m", "1分": "1m", "一分": "1m", "1分鐘": "1m", "一分鐘": "1m", "2m": "2m", "2分": "2m", "二分": "2m", "2分鐘": "2m", "二分鐘": "2m", "5m": "5m", "5分": "5m", "五分": "5m", "5分鐘": "5m", "五分鐘": "5m", "15m": "15m", "15分": "15m", "十五分": "15m", "15分鐘": "15m", "十五分鐘": "15m", "30m": "30m", "30分": "30m", "30分鐘": "30m", "90m": "90m", "90分": "90m", "90分鐘": "90m", "1h": "1h", "1小時": "1h", "一小時": "1h", "1d": "1d", "1天": "1d", "一天": "1d", "日線": "1d", "1w": "1W", "1週": "1W", "一週": "1W", "週線": "1W", "周線": "1W", "1mo": "1M", "1月": "1M", "一個月": "1M", "月線": "1M", "1y": "1Y", "1年": "1Y", "一年": "1Y", "年線": "1Y" });
   const state = {
     symbol: "",
     interval: "1m",
+    range: "6mo",
     watchlist: [],
     view: null,
     quotes: new Map(),
-    history: [],
-    historyIndex: 0,
+    history: [], historyIndex: 0,
     hover: null,
+    chartStart: null, chartDrag: null,
     capabilities: null,
     helpReturn: null,
     loading: false,
@@ -33,11 +35,9 @@
   const dom = {
     marketSearch: el("market-search"),
     symbolSearch: el("symbol-search"),
-    services: el("services"),
     quotePanel: el("panel-quote"),
     chartPanel: el("panel-chart"),
     watchPanel: el("panel-watch"),
-    provPanel: el("panel-provenance"),
     symbol: el("quote-symbol"),
     marketKind: el("quote-market-kind"),
     price: el("quote-price"),
@@ -45,17 +45,16 @@
     session: el("quote-session"),
     quoteInterval: el("quote-interval"),
     intervals: el("intervals"),
+    ranges: el("ranges"),
     canvas: el("chart"),
     crosshair: el("crosshair"),
     watchlist: el("watchlist"),
     watchNote: el("watch-note"),
-    provenance: el("provenance"),
     researchAction: el("research-action"),
     watchToggle: el("watch-toggle"),
     log: el("log"),
     prompt: el("prompt"),
     command: el("command"),
-    hints: el("hints"),
     help: el("help"),
     helpBody: el("help-body"),
     helpClose: el("help-close"),
@@ -90,10 +89,14 @@
     add(row, "dd", value, attrs);
     return row;
   }
+  function addChatMessage(message, role, tone) {
+    const item = add(dom.log, "p", message, { class: "chat-message", "data-role": role });
+    if (tone) item.setAttribute("data-tone", tone);
+    while (dom.log.children.length > 40) dom.log.removeChild(dom.log.firstElementChild);
+    dom.log.scrollTop = dom.log.scrollHeight;
+  }
   function say(message, tone) {
-    dom.log.textContent = message;
-    if (tone) dom.log.setAttribute("data-tone", tone);
-    else dom.log.removeAttribute("data-tone");
+    addChatMessage(message, "assistant", tone);
   }
   function setRail(panel, level) {
     panel.setAttribute("data-rail", level);
@@ -105,11 +108,13 @@
   }
   function renderPrice(node, value) {
     clear(node);
-    const rendered = price.format(Number(value));
+    const rendered = formatted(price, value);
     const cut = rendered.lastIndexOf(".");
+    if (cut < 0) return add(node, "span", rendered);
     add(node, "span", rendered.slice(0, cut));
     add(node, "span", rendered.slice(cut), { class: "cents" });
   }
+  function formatted(formatter, value) { const parsed = Number(value); return Number.isFinite(parsed) ? formatter.format(parsed) : "—"; }
   function direction(change) {
     if (change === null || change === undefined) return "unknown";
     const value = Number(change);
@@ -133,101 +138,61 @@
     return "美國股票";
   }
   function renderQuote(view) {
+    const latest = view?.latest || (Array.isArray(view?.bars) ? view.bars[view.bars.length - 1] : null);
+    if (!view || !latest) return renderQuoteFailure(state.symbol, { code: "invalid_market_data", message: "行情資料不完整" });
+    const bars = Array.isArray(view.bars) ? view.bars : [];
     state.view = view;
     finishLoading();
     dom.symbol.textContent = view.symbol;
     dom.marketKind.textContent = marketLabel(view.symbol);
+    const interval = intervalOf(view.interval);
+    const range = rangeOf(state.range, state.interval);
     dom.quoteInterval.textContent =
-      `${view.interval} · ${view.provider} · ${freshnessLabel(view.freshness)} · ` +
-      `${view.is_real_time ? "即時" : "非 tick"}`;
-    renderPrice(dom.price, view.latest.close);
+      `${interval.label} · ${range.label} · ${view.provider} · ${freshnessLabel(view.freshness)} · ` +
+      `${view.is_real_time ? "即時" : "非逐筆即時"}`;
+    renderPrice(dom.price, latest.close);
     dom.delta.textContent = deltaText(view);
     dom.delta.setAttribute("data-direction", direction(view.change));
     clear(dom.session);
-    pair(dom.session, "OPEN", price.format(Number(view.latest.open)));
-    pair(dom.session, "HIGH", price.format(Number(view.latest.high)));
-    pair(dom.session, "LOW", price.format(Number(view.latest.low)));
-    pair(dom.session, "VOL", compact.format(Number(view.latest.volume)));
-    pair(dom.session, "BARS", view.bars ? view.bars.length : "—");
-    pair(dom.session, "AGE", humanAge(view.data_age_seconds));
+    pair(dom.session, "開盤", formatted(price, latest.open));
+    pair(dom.session, "最高", formatted(price, latest.high));
+    pair(dom.session, "最低", formatted(price, latest.low));
+    pair(dom.session, "成交量", formatted(compact, latest.volume));
+    pair(dom.session, "資料根數", bars.length || "—");
+    pair(dom.session, "資料年齡", humanAge(view.data_age_seconds));
     const level = certainty(view);
     setRail(dom.quotePanel, level);
     setRail(dom.chartPanel, level);
-    setRail(dom.provPanel, level);
-    renderProvenance(view, level);
-    dom.canvas.setAttribute(
-      "aria-label",
-      `${view.symbol} ${view.interval} 歷史價格與成交量，共 ${view.bars.length} 根`
-    );
+    dom.canvas.setAttribute("aria-label", `${view.symbol} ${interval.label} ${range.label} 歷史價格與成交量，共 ${bars.length} 根`);
     window.dispatchEvent(new CustomEvent("stonks:market-view", { detail: view }));
     syncPrimaryActions();
-  }
-  function renderProvenance(view, level) {
-    clear(dom.provenance);
-    pair(dom.provenance, "資料來源", view.provider);
-    pair(dom.provenance, "資料型態", feedLabel(view.feed_type));
-    pair(dom.provenance, "即時報價", view.is_real_time ? "是" : "否");
-    pair(dom.provenance, "品質", qualityLabel(view.quality), {
-      "data-certainty": level,
-    });
-    pair(dom.provenance, "新鮮度", freshnessLabel(view.freshness), {
-      "data-certainty": level,
-    });
-    pair(dom.provenance, "Provider 觀測時間", stamp(view.observed_at));
-    pair(dom.provenance, "送達時間", stamp(view.served_at));
-    pair(dom.provenance, "最新資料事件", stamp(view.latest_event_time));
-    pair(dom.provenance, "短期快取", view.cache_hit ? "命中" : "未命中");
-    pair(
-      dom.provenance,
-      "資料年齡",
-      level === "stale"
-        ? `${humanAge(view.data_age_seconds)} · 超過此週期的預期更新間隔`
-        : humanAge(view.data_age_seconds),
-      { "data-certainty": level }
-    );
-    if (view.quality_reasons && view.quality_reasons.length) {
-      pair(dom.provenance, "品質原因", view.quality_reasons.join(" · "), {
-        "data-certainty": level,
-      });
-    }
-    if (view.warnings && view.warnings.length) {
-      pair(dom.provenance, "Provider warnings", view.warnings.join(" · "), {
-        "data-certainty": "stale",
-      });
-    }
   }
   function renderQuoteFailure(symbol, failure) {
     state.view = null;
     finishLoading();
     dom.symbol.textContent = symbol;
     dom.marketKind.textContent = marketLabel(symbol);
+    dom.quoteInterval.textContent = `${intervalOf(state.interval).label} · ${rangeOf(state.range, state.interval).label}`;
     clear(dom.price);
     add(dom.price, "span", "無法取得", { class: "price-void" });
     dom.delta.textContent = `${failure.message}（${failure.code}）`;
     dom.delta.setAttribute("data-direction", "unknown");
     clear(dom.session);
-    clear(dom.provenance);
-    pair(dom.provenance, "狀態", "外部 provider 未回傳資料。系統不會以快取或樣本資料頂替。");
     setRail(dom.quotePanel, "failed");
     setRail(dom.chartPanel, "failed");
-    setRail(dom.provPanel, "failed");
     syncPrimaryActions();
     drawChart();
     window.dispatchEvent(new CustomEvent("stonks:market-failure", { detail: failure }));
   }
   function renderIntervals() {
-    clear(dom.intervals);
-    for (const item of INTERVALS) {
-      const button = add(dom.intervals, "button", item.label, {
-        type: "button",
-        "aria-pressed": String(item.id === state.interval),
-      });
-      button.addEventListener("click", () => loadSymbol(state.symbol, item.id));
-    }
+    clear(dom.intervals); for (const item of INTERVALS) { const button = add(dom.intervals, "button", item.label, { type: "button", "aria-pressed": String(item.id === state.interval) }); button.addEventListener("click", () => loadSymbol(state.symbol, item.id)); }
+  }
+  function renderRanges() {
+    clear(dom.ranges); for (const item of rangesFor(state.interval)) { const button = add(dom.ranges, "button", item.label, { type: "button", "aria-pressed": String(item.id === state.range) }); button.addEventListener("click", () => loadSymbol(state.symbol, state.interval, false, item.id)); }
   }
   function renderWatchlist() {
     clear(dom.watchlist);
-    dom.watchNote.textContent = `${state.watchlist.length}/${MAX_WATCHLIST} 檔`;
+    dom.watchNote.textContent = `${state.watchlist.length} 檔`;
     let worst = "fresh";
     for (const symbol of state.watchlist) {
       const row = add(dom.watchlist, "li", null, {
@@ -265,15 +230,6 @@
     setRail(dom.watchPanel, state.quotes.size ? worst : "idle");
     syncPrimaryActions();
   }
-  function renderServices() {
-    clear(dom.services);
-    const services = (state.capabilities && state.capabilities.services) || [];
-    for (const service of services) {
-      pair(dom.services, service.name, `${service.state} · ${service.detail}`, {
-        "data-state": service.state,
-      });
-    }
-  }
   function syncPrimaryActions() {
     const followed = state.watchlist.includes(state.symbol);
     dom.watchToggle.textContent = followed ? "移出觀察" : "加入觀察";
@@ -289,6 +245,14 @@
       model.api_key_configured !== true ||
       model.verified !== true;
   }
+  function chartWindow(width) {
+    const allBars = state.view && state.view.bars ? state.view.bars : [], plotWidth = Math.max(1, width - 58);
+    if (!allBars.length) return { allBars, bars: [], start: 0, maxStart: 0, plotWidth };
+    const count = Math.min(allBars.length, Math.max(40, Math.min(MAX_VISIBLE_BARS, Math.floor(plotWidth / 10)))), maxStart = Math.max(0, allBars.length - count);
+    const start = Math.max(0, Math.min(maxStart, state.chartStart === null ? maxStart : state.chartStart)); state.chartStart = start;
+    const chartWidth = Math.min(plotWidth, Math.max(1, (count - 1) * MAX_BAR_SLOT));
+    return { allBars, bars: allBars.slice(start, start + count), start, maxStart, plotWidth, chartLeft: (plotWidth - chartWidth) / 2, chartWidth };
+  }
   function drawChart() {
     const canvas = dom.canvas;
     const frame = canvas.parentElement;
@@ -303,15 +267,17 @@
     context.clearRect(0, 0, width, height);
     const style = getComputedStyle(document.documentElement);
     const colors = {
-      rule: style.getPropertyValue("--rule").trim() || "#1e2633",
-      dim: style.getPropertyValue("--dim").trim() || "#6b7787",
-      faint: style.getPropertyValue("--faint").trim() || "#414d5e",
-      up: style.getPropertyValue("--up").trim() || "#46d3a0",
-      down: style.getPropertyValue("--down").trim() || "#f2555a",
-      signal: style.getPropertyValue("--signal").trim() || "#f2a93b",
+      rule: style.getPropertyValue("--color-border").trim() || "#1e2633",
+      dim: style.getPropertyValue("--color-muted").trim() || "#6b7787",
+      faint: style.getPropertyValue("--color-border-strong").trim() || "#414d5e",
+      up: style.getPropertyValue("--color-positive").trim() || "#46d3a0",
+      down: style.getPropertyValue("--color-negative").trim() || "#f2555a",
+      signal: style.getPropertyValue("--color-primary").trim() || "#f2a93b",
     };
-    const bars = state.view && state.view.bars ? state.view.bars : [];
-    if (bars.length < 2) {
+    const chart = chartWindow(width);
+    const bars = chart.bars;
+    canvas.dataset.pannable = String(chart.allBars.length > chart.bars.length);
+    if (chart.allBars.length < 2) {
       context.fillStyle = colors.faint;
       context.font = "12px ui-monospace, monospace";
       context.textAlign = "center";
@@ -322,10 +288,9 @@
       );
       return;
     }
-    const padRight = 58;
     const padBottom = 18;
     const volumeHeight = Math.min(56, Math.max(24, height * 0.2));
-    const plotWidth = Math.max(1, width - padRight);
+    const plotWidth = chart.plotWidth;
     const plotHeight = Math.max(1, height - padBottom - volumeHeight - 6);
     let low = Infinity;
     let high = -Infinity;
@@ -339,7 +304,7 @@
     const pad = span * 0.06;
     low -= pad;
     high += pad;
-    const x = (index) => (index * plotWidth) / (bars.length - 1);
+    const x = (index) => chart.chartLeft + (index * chart.chartWidth) / (bars.length - 1);
     const y = (value) => plotHeight - ((value - low) / (high - low)) * plotHeight;
     context.strokeStyle = colors.rule;
     context.lineWidth = 1;
@@ -355,8 +320,8 @@
       context.stroke();
       context.fillText(price.format(value), plotWidth + 6, Math.max(9, line + 3));
     }
-    const slot = plotWidth / bars.length;
-    const bodyWidth = Math.max(1, Math.min(9, slot * 0.62));
+    const slot = chart.chartWidth / Math.max(1, bars.length - 1);
+    const bodyWidth = Math.max(3, Math.min(12, slot * 0.62));
     const thin = slot < 2.2;
     if (thin) {
       context.beginPath();
@@ -411,11 +376,12 @@
     context.fillStyle = colors.dim;
     context.font = "10px ui-monospace, monospace";
     context.textAlign = "left";
-    context.fillText(axisLabel(bars[0]), 0, height - 5);
+    context.fillText(axisLabel(bars[0]), chart.chartLeft, height - 5);
     context.textAlign = "right";
-    context.fillText(axisLabel(bars[bars.length - 1]), plotWidth, height - 5);
-    if (state.hover !== null && state.hover >= 0 && state.hover < bars.length) {
-      const center = x(state.hover);
+    context.fillText(axisLabel(bars[bars.length - 1]), chart.chartLeft + chart.chartWidth, height - 5);
+    const hover = state.hover === null ? null : state.hover - chart.start;
+    if (hover !== null && hover >= 0 && hover < bars.length) {
+      const center = x(hover);
       context.strokeStyle = colors.signal;
       context.globalAlpha = 0.55;
       context.beginPath();
@@ -429,29 +395,32 @@
     const moment = new Date(bar.event_time);
     if (Number.isNaN(moment.getTime())) return "";
     const iso = moment.toISOString();
-    return state.interval === "1d" ? iso.slice(0, 10) : iso.slice(5, 16).replace("T", " ");
+    return intervalOf(state.interval).intraday ? iso.slice(5, 16).replace("T", " ") : iso.slice(0, 10);
   }
   function onChartHover(event) {
-    const bars = state.view && state.view.bars ? state.view.bars : [];
-    if (bars.length < 2) return;
+    const allBars = state.view && state.view.bars ? state.view.bars : [];
+    if (allBars.length < 2) return;
     const frame = dom.canvas.parentElement;
     const bounds = frame.getBoundingClientRect();
-    const plotWidth = Math.max(1, bounds.width - 58);
+    const chart = chartWindow(bounds.width);
+    const plotWidth = chart.plotWidth;
     const offset = event.clientX - bounds.left;
-    if (offset < 0 || offset > plotWidth) {
+    if (offset < chart.chartLeft || offset > chart.chartLeft + chart.chartWidth) {
       state.hover = null;
       dom.crosshair.textContent = "";
       drawChart();
       return;
     }
-    const index = Math.round((offset / plotWidth) * (bars.length - 1));
-    showChartBar(Math.max(0, Math.min(bars.length - 1, index)));
+    const index = chart.start + Math.round(((offset - chart.chartLeft) / chart.chartWidth) * (chart.bars.length - 1));
+    showChartBar(Math.max(0, Math.min(chart.allBars.length - 1, index)));
   }
   function showChartBar(index) {
-    const bars = state.view && state.view.bars ? state.view.bars : [];
-    if (!bars.length || index < 0 || index >= bars.length) return;
+    const chart = chartWindow(dom.canvas.parentElement.clientWidth);
+    if (!chart.allBars.length || index < 0 || index >= chart.allBars.length) return;
+    if (index < chart.start) state.chartStart = Math.max(0, index - Math.floor(chart.bars.length / 4));
+    if (index >= chart.start + chart.bars.length) state.chartStart = Math.min(chart.maxStart, index - Math.floor(chart.bars.length * 0.75));
     state.hover = index;
-    const bar = bars[state.hover];
+    const bar = chart.allBars[state.hover];
     dom.crosshair.textContent =
       `${axisLabel(bar)}  O ${price.format(Number(bar.open))}` +
       `  H ${price.format(Number(bar.high))}  L ${price.format(Number(bar.low))}` +
@@ -464,22 +433,29 @@
     const current = state.hover === null ? bars.length - 1 : state.hover;
     showChartBar(Math.max(0, Math.min(bars.length - 1, current + step)));
   }
-  async function loadSymbol(symbol, interval, quiet) {
+  function onChartPointerDown(event) { const chart = chartWindow(dom.canvas.parentElement.clientWidth); if (!event.isPrimary || event.button !== 0 || chart.allBars.length <= chart.bars.length) return; event.preventDefault(); state.chartDrag = { pointerId: event.pointerId, startX: event.clientX, start: chart.start }; dom.canvas.setPointerCapture(event.pointerId); dom.canvas.dataset.dragging = "true"; }
+  function onChartPointerMove(event) { if (!state.chartDrag) return event.pointerType === "mouse" ? onChartHover(event) : undefined; if (!event.isPrimary || event.pointerId !== state.chartDrag.pointerId) return; event.preventDefault(); const chart = chartWindow(dom.canvas.parentElement.clientWidth), pixelsPerBar = chart.chartWidth / Math.max(1, chart.bars.length - 1); state.chartStart = Math.max(0, Math.min(chart.maxStart, state.chartDrag.start - Math.round((event.clientX - state.chartDrag.startX) / pixelsPerBar))); state.hover = null; dom.crosshair.textContent = ""; drawChart(); }
+  function endChartDrag(event) { if (!state.chartDrag || event.pointerId !== state.chartDrag.pointerId) return; if (dom.canvas.hasPointerCapture(event.pointerId)) dom.canvas.releasePointerCapture(event.pointerId); state.chartDrag = null; delete dom.canvas.dataset.dragging; }
+  function onChartWheel(event) { const chart = chartWindow(dom.canvas.parentElement.clientWidth); if (chart.allBars.length <= chart.bars.length) return; const delta = Math.abs(event.deltaX) >= Math.abs(event.deltaY) ? event.deltaX : event.deltaY; if (!delta) return; event.preventDefault(); const step = Math.max(1, Math.round(Math.abs(delta) / 20)); state.chartStart = Math.max(0, Math.min(chart.maxStart, chart.start + Math.sign(delta) * step)); state.hover = null; dom.crosshair.textContent = ""; drawChart(); }
+  async function loadSymbol(symbol, interval, quiet, rangeId) {
     const target = (symbol || "").trim().toUpperCase();
     if (!SYMBOL_PATTERN.test(target)) {
       say("代號格式無效，只接受英數字、點與連字號", "error");
       return;
     }
     if (quiet && state.loading) return;
+    const selectedInterval = intervalOf(interval).id, selectedRange = rangeOf(rangeId || state.range, selectedInterval).id;
     const serial = state.loadSerial + 1;
     state.loadSerial = serial;
     state.loading = true;
     state.symbol = target;
-    state.interval = intervalOf(interval).id;
+    state.interval = selectedInterval;
+    state.range = selectedRange;
     if (!quiet) dom.symbolSearch.value = target;
     state.hover = null;
+    state.chartStart = null;
     dom.crosshair.textContent = "";
-    renderIntervals();
+    renderIntervals(); renderRanges();
     renderWatchlist();
     writeHash();
     dom.quotePanel.setAttribute("aria-busy", "true");
@@ -487,30 +463,28 @@
     if (!quiet) {
       setRail(dom.quotePanel, "loading");
       setRail(dom.chartPanel, "loading");
-      setRail(dom.provPanel, "loading");
       state.view = null;
       clear(dom.price);
       add(dom.price, "span", "更新中", { class: "price-void" });
       dom.delta.textContent = "等待 provider 回應";
       dom.delta.setAttribute("data-direction", "unknown");
       clear(dom.session);
-      clear(dom.provenance);
-      pair(dom.provenance, "狀態", "正在讀取外部資料；舊報價已隱藏。");
       drawChart();
       window.dispatchEvent(new CustomEvent("stonks:market-view", { detail: null }));
     }
     syncPrimaryActions();
-    if (!quiet) dom.quoteInterval.textContent = `${state.interval} · 讀取中`;
-    if (!quiet) say(`讀取 ${target} ${state.interval} …`);
+    if (!quiet) dom.quoteInterval.textContent = `${intervalOf(state.interval).label} · ${rangeOf(state.range, state.interval).label} · 讀取中`;
+    if (!quiet) say(`讀取 ${target} ${intervalOf(state.interval).label} · ${rangeOf(state.range, state.interval).label} …`);
     const result = await request("/api/v1/market/bars", {
       symbol: target,
       interval: state.interval,
-      lookback_days: intervalOf(state.interval).lookback,
+      lookback_days: rangeOf(state.range, state.interval).days,
     });
     if (
       serial !== state.loadSerial ||
       state.symbol !== target ||
-      state.interval !== intervalOf(interval).id
+      state.interval !== selectedInterval ||
+      state.range !== selectedRange
     ) return;
     if (!result.ok) {
       if (quiet) {
@@ -527,7 +501,7 @@
     const level = certainty(result.data);
     if (!quiet) {
       say(
-        `${target} ${state.interval} · ${result.data.bars.length} 根 · ` +
+        `${target} ${intervalOf(state.interval).label} · ${rangeOf(state.range, state.interval).label} · ${result.data.bars.length} 根 · ` +
           `${result.data.provider} · ${freshnessLabel(result.data.freshness)} · ` +
           `資料年齡 ${humanAge(result.data.data_age_seconds)}`,
         level === "stale" ? "warn" : "ok"
@@ -577,23 +551,26 @@
           model_settings: { state: "unavailable", detail: result.message },
         };
     window.dispatchEvent(new CustomEvent("stonks:capabilities", { detail: state.capabilities }));
-    renderServices();
     syncPrimaryActions();
   }
-  const COMMANDS = [
-    ["<代號>", "載入報價與走勢，例如 AAPL"],
-    ["<代號> <週期>", "指定週期，1m / 5m / 15m / 1h / 1d"],
-    ["ADD <代號>", "加入關注清單"],
-    ["DROP <代號>", "從關注清單移除"],
-    ["RESEARCH <代號>", "啟動已組合的 bounded paper research workflow"],
-    ["REFRESH", "重新讀取目前代號與關注清單"],
-    ["HELP", "開啟這個說明"],
-    ["/", "游標跳到命令列"],
-    ["↑ ↓", "瀏覽命令紀錄"],
-    ["Esc", "清除命令列或關閉說明"],
-  ];
+  const COMMANDS = [["查看 <代號>", "支援自然語言，例如「查看 AAPL」"], ["<代號> <週期>", "週期：1m / 2m / 5m / 15m / 30m / 90m / 1h / 日線 / 週線 / 月線 / 年線"], ["ADD <代號>", "加入關注清單"], ["DROP <代號>", "從關注清單移除"], ["RESEARCH <代號>", "啟動目前標的研究"], ["REFRESH", "重新讀取目前代號與關注清單"], ["HELP", "開啟操作說明"]];
+  function intervalToken(value) {
+    const normalized = value.replace(/\s+/g, ""); return normalized === "1M" ? "1M" : INTERVAL_ALIASES[normalized.toLowerCase()] || null;
+  }
+  function translateNaturalLanguage(raw) {
+    const input = raw.trim().replace(/[，。！？]+$/g, "").replace(/\s+/g, " "); if (!input) return "";
+    const head = input.split(" ")[0].toUpperCase(); if (["HELP", "?", "REFRESH", "ADD", "DROP", "RESEARCH"].includes(head) || SYMBOL_PATTERN.test(head)) return input;
+    const period = input.match(/(?:1mo|1m|2m|5m|15m|30m|90m|1h|1d|1w|1y|\d+\s*分鐘?|\d+\s*小時|\d+\s*天|[一二五十五九三十]+分鐘?|週線|周線|月線|日線|年線)/i), interval = period && intervalToken(period[0]);
+    const match = (period ? input.replace(period[0], "") : input).match(/\b(?:[A-Z][A-Z0-9.-]{0,15}|[0-9]{2,6}(?:\.[A-Z]{1,4})?)\b/i), symbol = match && match[0].toUpperCase();
+    if (/^(?:查看|檢視|看|切換|查詢|顯示|載入|打開|開啟)/.test(input) && symbol) return `${symbol}${interval ? ` ${interval}` : ""}`;
+    if (/^(?:研究|分析)/.test(input)) return symbol ? `RESEARCH ${symbol}` : state.symbol ? `RESEARCH ${state.symbol}` : null;
+    if (/^(?:加入|關注|新增)/.test(input) && symbol) return `ADD ${symbol}`; if (/^(?:移除|取消關注|刪除)/.test(input) && symbol) return `DROP ${symbol}`;
+    if (/^(?:重新整理|刷新|更新)(?:行情|資料|畫面)?$/.test(input)) return "REFRESH";
+    if (interval && state.symbol) return `${state.symbol} ${interval}`;
+    say("我只會執行查行情、切換週期、加入或移除關注、重新整理和研究。", "error"); return null;
+  }
   function runCommand(raw) {
-    const input = raw.trim().replace(/\s+/g, " ");
+    const input = translateNaturalLanguage(raw);
     if (!input) return;
     state.history.push(input);
     state.historyIndex = state.history.length;
@@ -602,7 +579,7 @@
     if (head === "HELP" || head === "?") return toggleHelp(true);
     if (head === "RESEARCH") {
       const symbol = parts[1];
-      if (!symbol || !SYMBOL_PATTERN.test(symbol)) return say("RESEARCH 需要一個有效代號", "error");
+      if (!symbol || !SYMBOL_PATTERN.test(symbol)) return say("研究需要一個有效代號", "error");
       window.dispatchEvent(new CustomEvent("stonks:research", { detail: { symbol, interval: state.interval } }));
       return;
     }
@@ -615,14 +592,11 @@
     if (head === "ADD" || head === "DROP") {
       const symbol = parts[1];
       if (!symbol || !SYMBOL_PATTERN.test(symbol)) {
-        say(`${head} 需要一個有效代號`, "error");
+         say(`${head === "ADD" ? "加入" : "移除"}需要一個有效代號`, "error");
         return;
       }
       if (head === "ADD") {
         if (state.watchlist.includes(symbol)) return say(`${symbol} 已在關注清單`);
-        if (state.watchlist.length >= MAX_WATCHLIST) {
-          return say(`關注清單上限為 ${MAX_WATCHLIST} 檔`, "error");
-        }
         state.watchlist.push(symbol);
         say(`已加入 ${symbol}`, "ok");
       } else {
@@ -635,10 +609,10 @@
       refreshWatchlist();
       return;
     }
-    const interval = parts[1] ? intervalOf(parts[1].toLowerCase()).id : state.interval;
-    const requested = parts[1] ? parts[1].toLowerCase() : null;
+    const requested = parts[1] ? intervalToken(parts[1]) || parts[1] : null;
+    const interval = requested ? intervalOf(requested).id : state.interval;
     if (requested && !INTERVALS.some((item) => item.id === requested)) {
-      say(`未知的週期 ${parts[1]}，可用：1m 5m 15m 1h 1d`, "error");
+       say(`未知的週期 ${parts[1]}，請用週期按鈕或輸入 1m、2m、5m、15m、30m、90m、1h、日線、週線、月線、年線`, "error");
       return;
     }
     loadSymbol(head, interval);
@@ -662,24 +636,25 @@
     next.search = "";
     if (state.symbol) next.searchParams.set("s", state.symbol);
     next.searchParams.set("i", state.interval);
+    next.searchParams.set("r", state.range);
     if (state.watchlist.length) next.searchParams.set("w", state.watchlist.join(","));
     const legacy = new URLSearchParams(next.hash.slice(1));
-    if (legacy.has("s") || legacy.has("i") || legacy.has("w")) next.hash = "";
+    if (legacy.has("s") || legacy.has("i") || legacy.has("r") || legacy.has("w")) next.hash = "";
     if (window.location.href !== next.href) window.history.replaceState(null, "", next);
   }
   function readHash() {
     const current = new URL(window.location.href);
     const query = new URLSearchParams(current.search);
     const legacy = new URLSearchParams(current.hash.slice(1));
-    const params = query.has("s") || query.has("i") || query.has("w") ? query : legacy;
+    const params = query.has("s") || query.has("i") || query.has("r") || query.has("w") ? query : legacy;
     const watch = (params.get("w") || "")
       .split(",")
       .map((item) => item.trim().toUpperCase())
-      .filter((item) => SYMBOL_PATTERN.test(item))
-      .slice(0, MAX_WATCHLIST);
+      .filter((item) => SYMBOL_PATTERN.test(item));
     state.watchlist = watch.length ? watch : DEFAULT_WATCHLIST.slice();
     const interval = params.get("i");
     state.interval = INTERVALS.some((item) => item.id === interval) ? interval : "1m";
+    state.range = rangeOf(params.get("r"), state.interval).id;
     const symbol = (params.get("s") || "").toUpperCase();
     state.symbol = SYMBOL_PATTERN.test(symbol) ? symbol : state.watchlist[0] || "AAPL";
   }
@@ -700,9 +675,10 @@
     });
     dom.prompt.addEventListener("submit", (event) => {
       event.preventDefault();
-      const value = dom.command.value;
+      const value = dom.command.value.trim();
       dom.command.value = "";
-      runCommand(value);
+      if (!value) return;
+      addChatMessage(value, "user"); runCommand(value);
     });
     dom.command.addEventListener("keydown", (event) => {
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -740,8 +716,9 @@
     });
     dom.helpClose.addEventListener("click", () => toggleHelp(false));
     dom.helpTrigger.addEventListener("click", () => toggleHelp(true));
-    dom.canvas.addEventListener("pointermove", onChartHover);
+    dom.canvas.addEventListener("pointerdown", onChartPointerDown); dom.canvas.addEventListener("pointermove", onChartPointerMove); dom.canvas.addEventListener("pointerup", endChartDrag); dom.canvas.addEventListener("pointercancel", endChartDrag); dom.canvas.addEventListener("lostpointercapture", endChartDrag); dom.canvas.addEventListener("wheel", onChartWheel, { passive: false });
     dom.canvas.addEventListener("pointerleave", () => {
+      if (state.chartDrag) return;
       state.hover = null;
       dom.crosshair.textContent = "";
       drawChart();
@@ -755,21 +732,16 @@
     window.addEventListener("stonks:research-terminal", loadCapabilities);
     window.addEventListener("stonks:refresh-capabilities", loadCapabilities);
     window.addEventListener("stonks:model-settings", syncPrimaryActions);
+    window.addEventListener("stonks:open-command", () => { dom.command.focus(); dom.command.scrollIntoView({ block: "center" }); });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") autoRefresh();
     });
   }
   function renderStatic() {
     clear(dom.helpBody);
-    clear(dom.hints);
     for (const [key, description] of COMMANDS) {
       add(dom.helpBody, "dt", key);
       add(dom.helpBody, "dd", description);
-    }
-    for (const [key, description] of COMMANDS.slice(0, 4)) {
-      const hint = add(dom.hints, "span");
-      add(hint, "b", key);
-      hint.appendChild(document.createTextNode(` ${description}`));
     }
   }
   function boot() {
@@ -779,7 +751,7 @@
     renderWatchlist();
     bind();
     syncPrimaryActions();
-    say("選擇標的後可直接開始 AI 研究；按 / 使用進階命令列。");
+    say("輸入中文或 HELP 開始。");
     loadCapabilities();
     loadSymbol(state.symbol, state.interval);
     window.setInterval(autoRefresh, AUTO_REFRESH_MS);

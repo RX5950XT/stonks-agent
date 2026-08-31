@@ -74,6 +74,10 @@ class EvidenceTool:
             result = self._read(call)
         elif call.tool_name == "price_window":
             result = self._price_window(call)
+        elif call.tool_name == "fundamental_snapshot":
+            result = self._kind_snapshot(call, EvidenceKind.FUNDAMENTAL)
+        elif call.tool_name == "filing_history":
+            result = self._kind_snapshot(call, EvidenceKind.FILING)
         else:
             return _failure(ErrorCode.CAPABILITY_DENIED, "Evidence tool is unavailable")
         if isinstance(result, Failure):
@@ -160,6 +164,32 @@ class EvidenceTool:
                 },
                 materialized_evidence_ids=frozenset(
                     item.evidence_id for item, _ in bars
+                ),
+            )
+        )
+
+    def _kind_snapshot(
+        self,
+        call: AuthorizedToolCall,
+        kind: EvidenceKind,
+    ) -> Result[_EvidenceOutput]:
+        items = self._scoped_items(call)
+        if isinstance(items, Failure):
+            return items
+        selected = tuple(item for item in items.value if item.kind is kind)[:64]
+        if not selected:
+            return _failure(
+                ErrorCode.NOT_FOUND, "Requested evidence kind is unavailable"
+            )
+        return Success(
+            _EvidenceOutput(
+                payload={
+                    "kind": kind.value,
+                    "count": len(selected),
+                    "items": [item.model_dump(mode="json") for item in selected],
+                },
+                materialized_evidence_ids=frozenset(
+                    item.evidence_id for item in selected
                 ),
             )
         )
@@ -269,6 +299,8 @@ def build_evidence_tool_policy(
                     max_length=40,
                 ),
             ),
+            _rule("fundamental_snapshot"),
+            _rule("filing_history"),
         ),
         allowed_instrument_ids=instrument_ids,
         allowed_evidence_ids=evidence_ids,

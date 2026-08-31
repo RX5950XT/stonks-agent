@@ -167,6 +167,78 @@ def test_fetch_uses_fixed_route_and_preserves_openbb_metadata() -> None:
     ]
 
 
+def test_non_finite_provider_bar_does_not_discard_valid_history() -> None:
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=response_payload(
+                results=[
+                    {
+                        "date": "2026-01-01",
+                        "open": 100,
+                        "high": 105,
+                        "low": 99,
+                        "close": 104,
+                        "volume": 1234,
+                    },
+                    {
+                        "date": "2026-01-02",
+                        "open": 105,
+                        "high": 106,
+                        "low": 103,
+                        "close": "NaN",
+                        "volume": 2345,
+                    },
+                ]
+            ),
+            request=incoming,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
+
+    assert observation.state is ProviderDataState.AVAILABLE
+    assert len(observation.data) == 1
+    assert observation.data[0].bar.close == 104
+    assert observation.metadata is not None
+    assert observation.metadata.warnings[-1].category == "invalid_record"
+
+
+def test_non_finite_volume_provider_bar_does_not_discard_valid_history() -> None:
+    def handler(incoming: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=response_payload(
+                results=[
+                    {
+                        "date": "2026-01-01",
+                        "open": 100,
+                        "high": 105,
+                        "low": 99,
+                        "close": 104,
+                        "volume": 1234,
+                    },
+                    {
+                        "date": "2026-01-02",
+                        "open": 105,
+                        "high": 106,
+                        "low": 103,
+                        "close": 105,
+                        "volume": "NaN",
+                    },
+                ]
+            ),
+            request=incoming,
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        observation = _adapter(client=client, clock=lambda: NOW).fetch(request())
+
+    assert observation.state is ProviderDataState.AVAILABLE
+    assert len(observation.data) == 1
+    assert observation.data[0].bar.volume == 1234
+
+
 def test_common_daily_policy_query_ignores_non_openbb_routing_fields() -> None:
     seen: list[httpx.Request] = []
 

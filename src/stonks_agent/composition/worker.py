@@ -10,6 +10,12 @@ from uuid import uuid5
 from stonks_agent.adapters.auth.service_credentials import (
     load_rs256_service_credential_provider,
 )
+from stonks_agent.adapters.market_data.instrument_bundle import (
+    InstrumentResearchSnapshotSource,
+)
+from stonks_agent.adapters.market_data.official_instrument import (
+    OfficialInstrumentDataSource,
+)
 from stonks_agent.adapters.market_data.openbb_rest import OpenBBRestAdapter
 from stonks_agent.adapters.market_data.openbb_snapshot import (
     OpenBBSnapshotMaterializationSource,
@@ -53,10 +59,7 @@ from stonks_agent.domain.errors import (
     StructuredError,
 )
 from stonks_agent.domain.job import FailJob, JobLease
-from stonks_agent.domain.provider_policy import (
-    ProviderPolicy,
-    load_provider_policies,
-)
+from stonks_agent.domain.provider_policy import load_provider_policies
 from stonks_agent.domain.research_job import ResearchLeaseInput
 from stonks_agent.domain.signal import ForecastOutputArtifact
 from stonks_agent.ports.research_forecast import ResearchForecastPort
@@ -92,7 +95,12 @@ def build_worker_composition(
     project_root = root.resolve(strict=True)
     queue = PostgresJobQueue(runtime.engine, recorder=runtime.telemetry)
     late_results = PostgresLateResultAudit(runtime.engine)
-    policy = _provider_policy(project_root)
+    policies = {
+        policy.policy_id: policy
+        for policy in load_provider_policies(
+            project_root / "config" / "providers" / "default.yaml"
+        )
+    }
     provider = credentials or _service_credentials(environment)
     static_model_environment = dict(environment)
     model_environment_source = model_environment or (
@@ -104,21 +112,51 @@ def build_worker_composition(
         credentials=provider,
         origin=kronos_origin or environment.get("STONKS_KRONOS_ORIGIN"),
     )
+    official_instrument = OfficialInstrumentDataSource(
+        client=runtime.http_client,
+        user_agent=environment.get("STONKS_SEC_USER_AGENT", "stonks-agent/0.2"),
+        clock=utc_now,
+    )
+    research_snapshot = InstrumentResearchSnapshotSource(
+        market=OpenBBRestAdapter(
+            client=runtime.http_client,
+            credentials=provider,
+            clock=utc_now,
+        ),
+        instrument=official_instrument,
+        clock=utc_now,
+    )
 
     def snapshot(lease: JobLease) -> Result[object]:
-        return process_snapshot_lease(
-            lease,
-            now=utc_now(),
-            source=OpenBBSnapshotMaterializationSource(
+        policy_id = lease.payload.get("provider_policy_id")
+        selected_policy = (
+            policies.get(policy_id) if isinstance(policy_id, str) else None
+        )
+        if selected_policy is None:
+            return Failure(
+                StructuredError(
+                    code=ErrorCode.CAPABILITY_DENIED,
+                    message="Snapshot policy is not composed",
+                )
+            )
+        source = (
+            research_snapshot
+            if selected_policy.capability == "research_data"
+            else OpenBBSnapshotMaterializationSource(
                 OpenBBRestAdapter(
                     client=runtime.http_client,
                     credentials=provider,
                     clock=utc_now,
                 )
-            ),
+            )
+        )
+        return process_snapshot_lease(
+            lease,
+            now=utc_now(),
+            source=source,
             artifacts=runtime.artifacts,
             completions=PostgresSnapshotCompletionStore(runtime.engine),
-            policy=policy,
+            policy=selected_policy,
         )
 
     def research(lease: JobLease) -> Result[object]:
@@ -191,17 +229,6 @@ def build_worker_composition(
             "create_snapshot": snapshot,
             "research_pipeline": research,
         },
-    )
-
-
-def _provider_policy(root: Path) -> ProviderPolicy:
-    policies = load_provider_policies(root / "config" / "providers" / "default.yaml")
-    return next(
-        policy
-        for policy in policies
-        if policy.market == "US"
-        and policy.capability == "prices"
-        and policy.policy_id == "us-prices/1"
     )
 
 

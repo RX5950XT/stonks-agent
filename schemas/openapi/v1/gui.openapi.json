@@ -31,13 +31,19 @@
         "type": "object"
       },
       "BarInterval": {
-        "description": "Exact provider bar resolutions this system is proven to serve.",
+        "description": "Public bar resolutions this system is proven to serve.",
         "enum": [
           "1m",
+          "2m",
           "5m",
           "15m",
+          "30m",
+          "90m",
           "1h",
-          "1d"
+          "1d",
+          "1W",
+          "1M",
+          "1Y"
         ],
         "title": "BarInterval",
         "type": "string"
@@ -1954,6 +1960,336 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "InstrumentFact": {
+        "additionalProperties": false,
+        "properties": {
+          "available_at": {
+            "title": "Available At",
+            "type": "string"
+          },
+          "event_time": {
+            "title": "Event Time",
+            "type": "string"
+          },
+          "history": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/InstrumentObservation"
+            },
+            "maxItems": 12,
+            "title": "History",
+            "type": "array"
+          },
+          "key": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9_.-]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "provider": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "source_url": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Source Url",
+            "type": "string"
+          },
+          "unit": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "unit",
+          "event_time",
+          "available_at",
+          "provider",
+          "source_url"
+        ],
+        "title": "InstrumentFact",
+        "type": "object"
+      },
+      "InstrumentFiling": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "filed_at": {
+            "title": "Filed At",
+            "type": "string"
+          },
+          "form": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Form",
+            "type": "string"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "provider": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "source_url": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Source Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "form",
+          "filed_at",
+          "provider",
+          "source_url"
+        ],
+        "title": "InstrumentFiling",
+        "type": "object"
+      },
+      "InstrumentObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "available_at": {
+            "title": "Available At",
+            "type": "string"
+          },
+          "event_time": {
+            "title": "Event Time",
+            "type": "string"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "unit": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "event_time",
+          "available_at"
+        ],
+        "title": "InstrumentObservation",
+        "type": "object"
+      },
+      "InstrumentOverview": {
+        "additionalProperties": false,
+        "description": "Truthful projection; partial means one official endpoint was unavailable.",
+        "properties": {
+          "as_of": {
+            "title": "As Of",
+            "type": "string"
+          },
+          "cik": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cik"
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange"
+          },
+          "facts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/InstrumentFact"
+            },
+            "maxItems": 64,
+            "title": "Facts",
+            "type": "array"
+          },
+          "filings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/InstrumentFiling"
+            },
+            "maxItems": 32,
+            "title": "Filings",
+            "type": "array"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "maxLength": 256,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry"
+          },
+          "market": {
+            "maxLength": 12,
+            "minLength": 2,
+            "pattern": "^[A-Z0-9]+$",
+            "title": "Market",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "observed_at": {
+            "title": "Observed At",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "partial"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "symbol": {
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Z0-9][A-Z0-9.-]*$",
+            "title": "Symbol",
+            "type": "string"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "symbol",
+          "market",
+          "name",
+          "state",
+          "provider",
+          "observed_at",
+          "as_of"
+        ],
+        "title": "InstrumentOverview",
+        "type": "object"
+      },
       "LatestMarketBar": {
         "additionalProperties": false,
         "properties": {
@@ -2006,7 +2342,7 @@
             "items": {
               "$ref": "#/components/schemas/LatestMarketBar"
             },
-            "maxItems": 3000,
+            "maxItems": 20000,
             "minItems": 1,
             "title": "Bars",
             "type": "array"
@@ -2717,6 +3053,39 @@
         "title": "SuccessEnvelope[GuiResearchRunView]",
         "type": "object"
       },
+      "SuccessEnvelope_InstrumentOverview_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InstrumentOverview"
+          },
+          "error": {
+            "title": "Error",
+            "type": "null"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata"
+          },
+          "status": {
+            "default": 200,
+            "exclusiveMaximum": 400.0,
+            "minimum": 200.0,
+            "title": "Status",
+            "type": "integer"
+          },
+          "success": {
+            "const": true,
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "SuccessEnvelope[InstrumentOverview]",
+        "type": "object"
+      },
       "SuccessEnvelope_LatestMarketDataView_": {
         "additionalProperties": false,
         "properties": {
@@ -2866,7 +3235,6 @@
             "items": {
               "$ref": "#/components/schemas/WatchlistEntry"
             },
-            "maxItems": 12,
             "title": "Quotes",
             "type": "array"
           }
@@ -2973,6 +3341,107 @@
         "summary": " Capabilitiesendpoint"
       }
     },
+    "/api/v1/instrument/overview": {
+      "get": {
+        "operationId": "_InstrumentEndpoint_api_v1_instrument_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9.\\-]*$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessEnvelope_InstrumentOverview_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": " Instrumentendpoint"
+      }
+    },
     "/api/v1/market-data/latest": {
       "get": {
         "operationId": "_BarsEndpoint_api_v1_market_data_latest_get",
@@ -2996,10 +3465,16 @@
               "default": "1d",
               "enum": [
                 "1m",
+                "2m",
                 "5m",
                 "15m",
+                "30m",
+                "90m",
                 "1h",
-                "1d"
+                "1d",
+                "1W",
+                "1M",
+                "1Y"
               ],
               "type": "string"
             }
@@ -3010,7 +3485,7 @@
             "required": false,
             "schema": {
               "default": 30,
-              "maximum": 366,
+              "maximum": 36525,
               "minimum": 1,
               "type": "integer"
             }
@@ -3124,10 +3599,16 @@
               "default": "1d",
               "enum": [
                 "1m",
+                "2m",
                 "5m",
                 "15m",
+                "30m",
+                "90m",
                 "1h",
-                "1d"
+                "1d",
+                "1W",
+                "1M",
+                "1Y"
               ],
               "type": "string"
             }
@@ -3138,7 +3619,7 @@
             "required": false,
             "schema": {
               "default": 30,
-              "maximum": 366,
+              "maximum": 36525,
               "minimum": 1,
               "type": "integer"
             }
@@ -3238,7 +3719,7 @@
             "name": "symbols",
             "required": true,
             "schema": {
-              "maxLength": 512,
+              "maxLength": 4096,
               "minLength": 1,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9.,\\-]*$",
               "type": "string"

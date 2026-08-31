@@ -8,7 +8,7 @@ Core runtime 的 base 是
 Final runtime 的 `/lib/apk/db/installed` 有 37 個 APK records。以
 `name`、`version`、`license`、source `origin` 與 package `repo-commit` 排序後的
 canonical inventory SHA-256 是
-`917518f3b3ff2fc4359d0810a1824e05f0f0530c7a6f70969119f9775bc83af8`。
+`ccecb09689f65955f2402a9d6851bd38a7df8bf5aad9f91433259d0d1842d897`。
 Exact package、version、license expression、origin 與 40 字元 build commit 記錄
 於 `config/release/core-runtime-legal.json`；release SBOM/inventory 仍必須由實際
 image digest 重新產生，不能只信任這份靜態快照。
@@ -25,10 +25,10 @@ metadata，APK 本身不驗證授權義務，因此 SBOM 有 license expression 
 Release tooling 已從實際 image package database 重驗 37 筆 inventory，封存
 27 個 source origins 的 exact aports recipe、patch、build script 與經
 `abuild fetch verify` 驗證的 distfiles。Deterministic archive 共 244 個 source
-files、133,074,248 bytes；兩次獨立產生的 raw bytes 相同，archive SHA-256 為
-`1429ba82117d330bc93bd685916ff1f832f25eee8b62137590f321c308c55e25`，manifest
+files、133,140,072 bytes；兩次獨立產生的 raw bytes 相同，archive SHA-256 為
+`88ee68944eb4204033d7caf269b530245509538288173cf6cc9b517467cde0d3`，manifest
 SHA-256 為
-`79538d2549a1c71a008ef5bfaf47dfafed65a9382be6bfdd4e3a4e8962ad5ddf`。
+`8e453b818b5357d8cf91aa27fc3f149e5840f256564d8de373c9b5b9f90ca470`。
 
 正式 release 必須把 exact
 `payload/release/alpine-corresponding-source.tar.gz` 納入同一 signed manifest，

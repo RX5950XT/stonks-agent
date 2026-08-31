@@ -1,8 +1,9 @@
-"""Real latest-available US daily data through the isolated OpenBB sidecar."""
+"""Real latest-available market data through the isolated OpenBB sidecar."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 import httpx
 from pydantic import ValidationError
@@ -18,6 +19,7 @@ from stonks_agent.domain.errors import (
     Success,
 )
 from stonks_agent.domain.latest_market_data import (
+    BarInterval,
     LatestMarketBar,
     LatestMarketDataObservation,
     LatestMarketDataQuery,
@@ -54,13 +56,14 @@ class OpenBBLatestMarketDataSource:
             client=self._client,
             credentials=self._credentials,
             clock=lambda: fixed_time.value,
+            max_response_bytes=4_194_304,
         ).fetch(request)
         if observation.state is not ProviderDataState.AVAILABLE:
             return _provider_failure(observation.state)
         if observation.metadata is None:
             return _failure(ErrorCode.CONFLICT, "Provider provenance is unavailable")
         try:
-            bars = tuple(
+            provider_bars = tuple(
                 LatestMarketBar(
                     event_time=item.bar.timeline.event_time,
                     open=item.bar.open,
@@ -70,6 +73,11 @@ class OpenBBLatestMarketDataSource:
                     volume=item.bar.volume,
                 )
                 for item in observation.data
+            )
+            bars = (
+                _annual_bars(provider_bars)
+                if query.interval is BarInterval.YEAR
+                else provider_bars
             )
             return Success(
                 LatestMarketDataObservation(
@@ -99,8 +107,34 @@ def _request(query: LatestMarketDataQuery, observed_at: datetime) -> FetchDataRe
             "symbol": query.symbol,
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
-            "interval": query.interval.value,
+            "interval": _provider_interval(query.interval),
         },
+    )
+
+
+def _provider_interval(interval: BarInterval) -> str:
+    """Use verified monthly bars as the source for core annual aggregation."""
+
+    return BarInterval.MONTH.value if interval is BarInterval.YEAR else interval.value
+
+
+def _annual_bars(
+    bars: tuple[LatestMarketBar, ...],
+) -> tuple[LatestMarketBar, ...]:
+    groups: dict[int, list[LatestMarketBar]] = {}
+    for bar in bars:
+        groups.setdefault(bar.event_time.year, []).append(bar)
+    return tuple(
+        LatestMarketBar(
+            event_time=group[-1].event_time,
+            open=group[0].open,
+            high=max(item.high for item in group),
+            low=min(item.low for item in group),
+            close=group[-1].close,
+            volume=sum((item.volume for item in group), Decimal("0")),
+        )
+        for year in sorted(groups)
+        for group in (groups[year],)
     )
 
 

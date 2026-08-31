@@ -40,6 +40,12 @@ from stonks_agent.domain.gui_research import (
     GuiResearchUsageView,
     GuiResearchVersionView,
 )
+from stonks_agent.domain.instrument_data import (
+    InstrumentDataQuery,
+    InstrumentFact,
+    InstrumentFiling,
+    InstrumentOverview,
+)
 from stonks_agent.domain.latest_market_data import (
     BarInterval,
     LatestMarketBar,
@@ -98,6 +104,53 @@ class Source:
                     bar("2026-07-24T00:00:00Z", "191.200000000001"),
                 ),
                 warnings=self.warnings,
+            )
+        )
+
+
+class InstrumentSource:
+    def fetch(
+        self,
+        query: InstrumentDataQuery,
+        *,
+        observed_at: datetime,
+    ) -> Success[InstrumentOverview]:
+        return Success(
+            InstrumentOverview(
+                symbol=query.symbol,
+                market="US",
+                name="Apple Inc.",
+                exchange="NASDAQ",
+                industry="Technology",
+                cik="0000320193",
+                state="available",
+                provider="sec",
+                observed_at=observed_at,
+                as_of=query.as_of,
+                facts=(
+                    InstrumentFact(
+                        key="revenue",
+                        label="營收",
+                        value="100",
+                        unit="USD",
+                        period="2026-06-30",
+                        event_time=observed_at,
+                        published_at=observed_at,
+                        available_at=observed_at,
+                        provider="sec",
+                        source_url="https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json",
+                    ),
+                ),
+                filings=(
+                    InstrumentFiling(
+                        form="10-Q",
+                        filed_at=observed_at,
+                        period_end=observed_at,
+                        description="Quarterly report",
+                        provider="sec",
+                        source_url="https://www.sec.gov/Archives/edgar/data/320193/000032019326000001/a10q.htm",
+                    ),
+                ),
             )
         )
 
@@ -380,14 +433,16 @@ def test_console_shell_is_static_and_loads_only_same_origin_assets() -> None:
     assert response.headers["content-type"].startswith("text/html")
     assert "Stonks Desk" in response.text
     assert "AI 投資研究工作台" in response.text
-    assert "PAPER ONLY · RESEARCH GATED · LOOPBACK" in response.text
+    assert "僅模擬交易 · 研究需驗證 · 僅本機" in response.text
     assert 'id="market-search"' in response.text
     assert 'id="symbol-search"' in response.text
     assert 'id="research-action"' in response.text
     assert 'id="research-progress"' in response.text
     assert 'id="research-results"' in response.text
     assert 'id="paper-body"' in response.text
-    assert 'id="provenance"' in response.text
+    assert 'id="panel-overview"' in response.text
+    assert 'id="instrument-dashboard"' in response.text
+    assert 'id="panel-provenance"' not in response.text
     assert '<script src="/assets/terminal.js" defer></script>' in response.text
     assert '<script src="/assets/product.js" defer></script>' in response.text
     assert script.status_code == 200
@@ -431,6 +486,19 @@ def test_bars_endpoint_returns_the_series_with_derived_change() -> None:
     assert response.headers["cache-control"] == "no-store"
 
 
+def test_instrument_endpoint_returns_company_financials_and_filings() -> None:
+    with client(instrument_data=InstrumentSource()) as browser:
+        response = browser.get("/api/v1/instrument/overview?symbol=aapl")
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["success"] is True
+    assert payload["data"]["symbol"] == "AAPL"
+    assert payload["data"]["name"] == "Apple Inc."
+    assert payload["data"]["facts"][0]["key"] == "revenue"
+    assert payload["data"]["filings"][0]["form"] == "10-Q"
+
+
 def test_intraday_request_reaches_the_provider_with_its_interval() -> None:
     source = Source()
     with client(source) as browser:
@@ -442,6 +510,23 @@ def test_intraday_request_reaches_the_provider_with_its_interval() -> None:
     assert response.json()["data"]["feed_type"] == "intraday_historical"
     assert source.calls[-1].interval is BarInterval.HOUR
     assert source.calls[-1].lookback_days == 30
+
+
+@pytest.mark.parametrize(
+    ("interval", "lookback_days"),
+    (("2m", 7), ("30m", 30), ("90m", 30), ("1W", 30), ("1M", 30), ("1Y", 3_652)),
+)
+def test_extended_interval_request_reaches_the_provider(
+    interval: str, lookback_days: int
+) -> None:
+    source = Source()
+    with client(source) as browser:
+        response = browser.get(
+            f"/api/v1/market/bars?symbol=NVDA&interval={interval}&lookback_days={lookback_days}"
+        )
+
+    assert response.status_code == 200
+    assert source.calls[-1].interval.value == interval
 
 
 def test_watchlist_reports_each_symbol_independently() -> None:
@@ -456,6 +541,18 @@ def test_watchlist_reports_each_symbol_independently() -> None:
     assert quotes["MSFT"]["quote"] is None
     assert quotes["MSFT"]["error"]["code"] == "data_unavailable"
     assert all(call.interval is BarInterval.MINUTE for call in source.calls)
+
+
+def test_watchlist_accepts_more_than_the_previous_twelve_symbol_limit() -> None:
+    symbols = tuple(f"S{index}" for index in range(13))
+    source = Source(warnings=())
+    with client(source) as browser:
+        response = browser.get(f"/api/v1/market/quotes?symbols={','.join(symbols)}")
+
+    assert response.status_code == 200
+    assert (
+        tuple(item["symbol"] for item in response.json()["data"]["quotes"]) == symbols
+    )
 
 
 def test_quote_cache_recomputes_age_and_marks_cached_delivery() -> None:
@@ -506,7 +603,7 @@ def test_provider_request_budget_bounds_browser_fan_out() -> None:
         "/api/v1/market/bars?symbol=%3Cscript%3E",
         "/api/v1/market/bars?symbol=AAPL&interval=1m&lookback_days=30",
         "/api/v1/market/quotes?symbols=AAPL,AAPL",
-        "/api/v1/market/quotes?symbols=" + ",".join(f"S{index}" for index in range(13)),
+        "/api/v1/market/quotes?symbols=" + "S" * 4097,
         "/api/v1/capabilities?debug=1",
     ),
 )
@@ -665,6 +762,7 @@ def test_console_surface_limits_mutations_to_research_and_session_model_settings
         "/api/v1/market/bars": {"GET"},
         "/api/v1/market/quotes": {"GET"},
         "/api/v1/market-data/latest": {"GET"},
+        "/api/v1/instrument/overview": {"GET"},
         "/api/v1/research/runs": {"GET", "POST"},
         "/api/v1/research/runs/{run_id}": {"GET"},
         "/api/v1/research/runs/{run_id}/evidence": {"GET"},

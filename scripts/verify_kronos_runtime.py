@@ -66,6 +66,8 @@ _INSTRUMENT_ID = UUID("92100000-0000-4000-8000-000000000004")
 _SNAPSHOT_ID = UUID("92100000-0000-4000-8000-000000000005")
 _DATA_HASH = "b" * 64
 _SNAPSHOT_REF = f"sha256:{'a' * 64}"
+# A cold checkout builds the ~4 GB torch runtime inside this call, not just starts it.
+_COMPOSE_UP_TIMEOUT_SECONDS = 1_800
 _SAFE_HOST_ENVIRONMENT = frozenset(
     {
         "APPDATA",
@@ -207,15 +209,21 @@ def _start_container(
     environment: dict[str, str],
 ) -> None:
     command = _compose_up_command(root)
-    result = subprocess.run(
-        command,
-        cwd=root,
-        env=environment,
-        capture_output=True,
-        check=False,
-        text=True,
-        timeout=120,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=root,
+            env=environment,
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=_COMPOSE_UP_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise RuntimeError(
+            "Kronos container failed to start: compose up exceeded "
+            f"{_COMPOSE_UP_TIMEOUT_SECONDS}s"
+        ) from error
     if result.returncode != 0:
         reason = " ".join(result.stderr.split())[:1_000]
         raise RuntimeError(f"Kronos container failed to start: {reason}")
@@ -230,6 +238,7 @@ def _compose_up_command(root: Path) -> tuple[str, ...]:
         "-f",
         str(root / "infra" / "compose.kronos.yaml"),
         "up",
+        "--build",
         "--detach",
         "--no-deps",
         "kronos-cpu",
@@ -457,6 +466,15 @@ def _next_business_close(after: datetime) -> datetime:
         candidate += timedelta(days=1)
 
 
+def _alpha_generated_at(created_at: datetime, now: datetime) -> datetime:
+    """The worker stamps the artifact on its own clock, milliseconds ahead of ours.
+
+    An alpha derived from an artifact is never generated before it, so the mapping
+    timestamp is the later of the two rather than this process's wall clock.
+    """
+    return max(now, created_at)
+
+
 def _map_shadow_alpha(
     forecast: ForecastOutputArtifact,
     *,
@@ -465,7 +483,7 @@ def _map_shadow_alpha(
     configuration = load_kronos_strategy_configuration(
         root / "config" / "strategies" / "kronos.yaml"
     )
-    generated_at = datetime.now(UTC)
+    generated_at = _alpha_generated_at(forecast.created_at, datetime.now(UTC))
     checks = tuple(
         EvaluationCheck(
             kind=kind,

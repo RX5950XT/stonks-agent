@@ -26,7 +26,7 @@
         </div>
 
         <form class="market-search" id="market-search" autocomplete="off">
-          <label for="symbol-search">切換研究標的</label>
+              <label for="symbol-search">搜尋標的</label>
           <div class="search-control">
             <span class="search-mark" aria-hidden="true">搜尋</span>
             <input
@@ -46,28 +46,13 @@
           <span class="environment-dot" aria-hidden="true"></span>
           <span>
             <strong id="runtime-readiness">檢查後端能力</strong>
-            <small>PAPER ONLY · RESEARCH GATED · LOOPBACK</small>
+            <small>僅模擬交易 · 研究需驗證 · 僅本機</small>
           </span>
         </div>
       </header>
 
       <div class="desk">
         <aside class="side-rail" aria-label="工作台側欄">
-          <nav class="workspace-nav" aria-label="工作台區段">
-            <a href="#panel-quote" data-workspace-target="panel-quote" aria-current="page">
-              <span>市場</span><small>報價 · 走勢 · 觀察</small>
-            </a>
-            <a href="#panel-research" data-workspace-target="panel-research">
-              <span>研究</span><small>建立 · 進度 · 歷史 · 模型</small>
-            </a>
-            <a href="#panel-paper" data-workspace-target="panel-paper">
-              <span>Paper 帳戶</span><small>NAV · 持倉 · Risk · Safety</small>
-            </a>
-            <a href="#panel-provenance" data-workspace-target="panel-provenance">
-              <span>資料來源</span><small>品質 · 新鮮度 · 系統狀態</small>
-            </a>
-          </nav>
-
           <section
             class="rail-section"
             id="panel-watch"
@@ -84,47 +69,16 @@
             <ul class="watchlist" id="watchlist"></ul>
           </section>
 
-          <section class="rail-section system-section" aria-labelledby="system-title">
-            <div class="section-heading">
-              <div>
-                <p class="section-label">連線診斷</p>
-                <h2 id="system-title">服務狀態</h2>
-              </div>
-              <button class="text-action" type="button" id="services-refresh">
-                更新
-              </button>
-            </div>
-            <dl class="services" id="services" aria-label="服務狀態"></dl>
-          </section>
-
           <div class="safety-note">
             <span class="safety-mark" aria-hidden="true">P</span>
             <p>
-              AI 與 Kronos 只產生研究與 signal；target、risk、reservation
-              與 paper execution 仍由 deterministic core 決定。
+              AI 與 Kronos 只產生研究與訊號；目標、風險、資金保留與模擬下單
+              仍由核心規則決定。
             </p>
           </div>
         </aside>
 
         <main class="workspace" id="workspace">
-          <section class="capability-map" aria-labelledby="capability-map-title">
-            <div class="capability-map-head">
-              <div>
-                <p class="section-label">Backend capability map</p>
-                <h2 id="capability-map-title">功能總覽</h2>
-              </div>
-              <p>只列真實 backend 能力；沒有 authority 的操作不提供。</p>
-            </div>
-            <nav class="capability-grid" aria-label="後端功能入口">
-              <a href="#panel-quote" data-workspace-target="panel-quote"><span class="capability-name">市場資料</span><strong id="capability-market-state" data-state="loading">讀取中</strong><small>美股／台股 · 1m–1d · OHLCV</small></a>
-              <a href="#panel-research" data-workspace-target="panel-research"><span class="capability-name">AI 研究</span><strong id="capability-research-state" data-state="loading">檢查中</strong><small>Snapshot · claims · evidence · history</small></a>
-              <a href="#model-settings" data-workspace-target="model-settings"><span class="capability-name">模型連線</span><strong id="capability-model-state" data-state="loading">檢查中</strong><small>Session-only · structured completion</small></a>
-              <a href="#panel-research" data-workspace-target="panel-research"><span class="capability-name">Kronos 預測</span><strong id="capability-kronos-state" data-state="loading">檢查中</strong><small>Shadow forecast · paper weight 0</small></a>
-              <a href="#panel-paper" data-workspace-target="panel-paper"><span class="capability-name">Paper／Risk</span><strong id="capability-paper-state" data-state="loading">檢查中</strong><small>Portfolio · ledger · risk · kill switch</small></a>
-              <a href="#panel-provenance" data-workspace-target="panel-provenance"><span class="capability-name">資料品質</span><strong id="capability-data-state" data-state="loading">等待行情</strong><small>Provider · freshness · PIT · non-tick</small></a>
-            </nav>
-          </section>
-
           <section
             class="market-hero panel"
             id="panel-quote"
@@ -138,7 +92,7 @@
                 <span class="symbol" id="quote-symbol">—</span>
                 <span class="market-kind" id="quote-market-kind">股票</span>
               </h2>
-              <p class="panel-note" id="quote-interval">等待真實 provider 資料</p>
+              <p class="panel-note" id="quote-interval">等待真實資料來源</p>
             </div>
 
             <div class="readout" id="quote-readout" aria-live="polite">
@@ -157,14 +111,33 @@
                 disabled
               >
                 <span>建立研究</span>
-                <small>封存 snapshot，再開始 bounded workflow</small>
+                 <small>先保存本次資料，再開始研究</small>
               </button>
               <p id="research-action-note">
-                只建立 paper research run，不會直接送出訂單。
+                只建立模擬研究，不會直接送出訂單。
               </p>
               <button class="quiet-action" type="button" id="watch-toggle">
                 加入觀察
               </button>
+            </div>
+          </section>
+
+          <section
+            class="panel instrument-dashboard"
+            id="panel-overview"
+            data-rail="idle"
+            aria-labelledby="overview-title"
+            tabindex="-1"
+          >
+            <div class="panel-head">
+              <div>
+                <p class="section-label">標的詳情</p>
+                <h2 id="overview-title">標的儀錶板</h2>
+              </div>
+              <span class="status-badge" id="overview-note">等待資料</span>
+            </div>
+            <div class="instrument-dashboard-body" id="instrument-dashboard">
+              <p class="dashboard-empty">載入標的後顯示行情摘要。</p>
             </div>
           </section>
 
@@ -184,6 +157,30 @@
                 <span class="status-badge" id="research-note">檢查中</span>
               </div>
 
+              <section class="research-chat" id="research-chat" aria-labelledby="research-chat-title">
+                <div class="research-chat-head">
+                  <div>
+                    <p class="section-label">研究助理</p>
+                    <h3 id="research-chat-title">用中文操作，也支援進階命令</h3>
+                      <p class="console-description">中文查詢、研究與安全進階命令；不會執行任意系統指令。</p>
+                  </div>
+                  <button class="help-trigger" type="button" id="help-trigger">查看可用命令</button>
+                </div>
+                <div class="chat-log" id="log" role="log" aria-live="polite" aria-relevant="additions"></div>
+                <form class="prompt" id="prompt" autocomplete="off">
+                  <label class="visually-hidden" for="command">輸入研究或行情操作</label>
+                  <input
+                    id="command"
+                    name="command"
+                    type="text"
+                    maxlength="128"
+                    spellcheck="false"
+                    placeholder="例如：查看 AAPL、研究 NVDA、ADD MSFT"
+                  >
+                  <button type="submit">送出</button>
+                </form>
+              </section>
+
               <section
                 class="model-settings"
                 id="model-settings"
@@ -192,16 +189,16 @@
               >
                 <div class="model-settings-head">
                   <div>
-                    <p class="section-label">執行前檢查</p>
-                    <h3 id="model-settings-title">LLM 模型連線</h3>
+                    <p class="section-label">研究前檢查</p>
+                    <h3 id="model-settings-title">模型連線</h3>
                   </div>
                   <span class="status-badge" id="model-settings-status">讀取中</span>
                 </div>
                 <p class="model-settings-summary" id="model-settings-summary">
-                  檢查本次 session 的 structured completion 設定。
+                  只在這次開啟期間使用；金鑰不會寫入檔案。
                 </p>
                 <details id="model-settings-disclosure">
-                  <summary id="model-settings-toggle">設定或變更模型</summary>
+                    <summary id="model-settings-toggle">設定或變更模型</summary>
                   <form
                     id="model-settings-form"
                     autocomplete="off"
@@ -214,19 +211,11 @@
                       role="alert"
                       hidden
                     ></div>
-                    <fieldset>
-                      <legend>基本連線</legend>
-                      <div class="settings-grid">
-                        <div class="field">
-                          <label for="model-provider">Provider</label>
-                          <input
-                            id="model-provider"
-                            value="OpenAI-compatible"
-                            readonly
-                          >
-                        </div>
+                      <fieldset>
+                        <legend>模型連線</legend>
+                        <div class="settings-grid">
                         <div class="field field-wide">
-                          <label for="model-base-url">Base URL</label>
+                          <label for="model-base-url">模型網址</label>
                           <input
                             id="model-base-url"
                             name="base_url"
@@ -237,23 +226,23 @@
                             aria-describedby="model-base-url-help"
                           >
                           <small id="model-base-url-help">
-                            HTTPS 公開端點；本機只接受 127.0.0.1 或 localhost 加明確 port。
+                            公開服務請用 HTTPS；本機服務請用 127.0.0.1 或 localhost。
                           </small>
                         </div>
                         <div class="field">
-                          <label for="model-id">Model ID</label>
+                          <label for="model-id">模型名稱</label>
                           <input
                             id="model-id"
                             name="model_id"
                             maxlength="256"
-                            placeholder="gpt-4.1-mini 或本機 model id"
+                            placeholder="例如 gpt-4.1-mini"
                             required
                             autocomplete="off"
                             spellcheck="false"
                           >
                         </div>
                         <div class="field">
-                          <label for="model-api-key">API key</label>
+                          <label for="model-api-key">存取金鑰</label>
                           <div class="secret-control">
                             <input
                               id="model-api-key"
@@ -274,89 +263,21 @@
                             >顯示</button>
                           </div>
                           <small id="model-api-key-help">
-                            只留在本次 server process；送出後立即清空，不寫入 DB 或檔案。
+                            只留在這次啟動的記憶體；送出後立即清空欄位。
                           </small>
                         </div>
                       </div>
                     </fieldset>
 
-                    <details class="advanced-settings" id="model-advanced">
-                      <summary>進階、成本與 request budgets</summary>
-                      <fieldset>
-                        <legend>Endpoint 與限制</legend>
-                        <div class="settings-grid compact">
-                          <div class="field field-wide">
-                            <label for="model-endpoint">Endpoint</label>
-                            <input
-                              id="model-endpoint"
-                              name="endpoint"
-                              value="/v1/chat/completions"
-                              maxlength="256"
-                              required
-                            >
-                          </div>
-                          <div class="field">
-                            <label for="model-max-output">Max output tokens</label>
-                            <input id="model-max-output" name="max_output_tokens" type="number" min="1" max="1000000" value="4096" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-max-total">Max total tokens</label>
-                            <input id="model-max-total" name="max_total_tokens" type="number" min="1" max="10000000" value="32768" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-max-cost">Max cost / request (USD)</label>
-                            <input id="model-max-cost" name="max_cost_usd" type="number" min="0" step="0.000001" value="1" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-timeout">Timeout (seconds)</label>
-                            <input id="model-timeout" name="timeout_seconds" type="number" min="0.001" max="120" step="0.001" value="30" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-retries">Transient retries</label>
-                            <input id="model-retries" name="max_transient_retries" type="number" min="0" max="3" value="1" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-repairs">Structured repairs</label>
-                            <input id="model-repairs" name="max_repairs" type="number" min="0" max="2" value="1" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-response-bytes">Max response bytes</label>
-                            <input id="model-response-bytes" name="max_response_bytes" type="number" min="1" max="16777216" value="1048576" required>
-                          </div>
-                        </div>
-                      </fieldset>
-                      <fieldset>
-                        <legend>每百萬 tokens 成本（USD）</legend>
-                        <div class="settings-grid compact">
-                          <div class="field">
-                            <label for="model-input-cost">Input</label>
-                            <input id="model-input-cost" name="input_cost_per_million" type="number" min="0" step="0.000001" value="1.25" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-cached-cost">Cached input</label>
-                            <input id="model-cached-cost" name="cached_input_cost_per_million" type="number" min="0" step="0.000001" value="0.625" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-cache-write-cost">Cache write input</label>
-                            <input id="model-cache-write-cost" name="cache_write_input_cost_per_million" type="number" min="0" step="0.000001" value="1.25" required>
-                          </div>
-                          <div class="field">
-                            <label for="model-output-cost">Output</label>
-                            <input id="model-output-cost" name="output_cost_per_million" type="number" min="0" step="0.000001" value="5" required>
-                          </div>
-                        </div>
-                      </fieldset>
-                    </details>
-
                     <p class="settings-safety" id="model-settings-safety">
-                      「儲存並驗證」會執行一次 bounded structured completion；成功後才套用到下一筆研究。
+                      儲存前會先測試模型；成功後才能開始研究。其他安全設定由系統採用預設值。
                     </p>
                     <div class="settings-actions">
                       <button class="primary-action" type="submit" id="model-settings-save">
                         儲存並驗證
                       </button>
                       <button class="quiet-action" type="button" id="model-settings-clear">
-                        清除 session 設定
+                        清除本次設定
                       </button>
                     </div>
                   </form>
@@ -364,9 +285,9 @@
               </section>
 
               <div class="research-toolbar">
-                <label for="research-profile">研究設定</label>
+                <label for="research-profile">研究模式</label>
                 <select id="research-profile" disabled></select>
-                <span>由後端 allowlist 提供</span>
+                <span>系統預設</span>
               </div>
 
               <div
@@ -378,7 +299,7 @@
                 <div class="research-empty" id="research-empty">
                   <span class="empty-mark" aria-hidden="true">尚未執行</span>
                   <h3>先確認資料，再建立研究</h3>
-                  <p>研究只引用本次 snapshot 的證據；錯誤會原樣顯示，不沿用舊結論。</p>
+                  <p>研究只引用本次資料；錯誤會直接顯示，不沿用舊結論。</p>
                 </div>
 
                 <ol
@@ -393,7 +314,7 @@
                   <section class="result-section" aria-labelledby="claims-title">
                     <div class="result-heading">
                       <h3 id="claims-title">核心論點</h3>
-                      <span>每條都需有 evidence refs</span>
+                      <span>每條都會附上資料來源</span>
                     </div>
                     <ol class="claim-list" id="research-claims"></ol>
                   </section>
@@ -411,23 +332,23 @@
                   <section class="result-section" aria-labelledby="evidence-title">
                     <div class="result-heading">
                       <h3 id="evidence-title">引用證據</h3>
-                      <span id="research-evidence-note">只顯示 final claims 實際引用項目</span>
+                      <span id="research-evidence-note">只顯示結論實際使用的資料</span>
                     </div>
                     <div class="evidence-grid" id="research-evidence"></div>
                   </section>
                   <details class="report-disclosure" id="research-transparency-wrap">
-                    <summary>執行透明度與降級原因</summary>
+                    <summary>執行狀態與原因</summary>
                     <div id="research-transparency"></div>
                   </details>
                   <details class="report-disclosure" id="research-report-wrap">
-                    <summary>展開完整研究報告</summary>
+                    <summary>查看完整研究報告</summary>
                     <pre id="research-report"></pre>
                   </details>
                 </div>
               </div>
               <section class="research-library" aria-labelledby="research-library-title">
                 <div class="result-heading">
-                  <h3 id="research-library-title">最近研究</h3>
+                    <h3 id="research-library-title">最近的研究</h3>
                   <button type="button" id="research-history-refresh">重新整理</button>
                 </div>
                 <p id="research-history-note">讀取中</p>
@@ -444,36 +365,48 @@
             >
               <div class="panel-head">
                 <div>
-                  <p class="section-label">市場脈絡</p>
+                  <p class="section-label">價格走勢</p>
                   <h2 id="chart-title">價格與成交量</h2>
                 </div>
-                <div class="intervals" id="intervals" role="group" aria-label="K 線週期"></div>
+                  <div class="chart-controls">
+                    <div class="chart-control">
+                      <span class="chart-control-label">週期</span>
+                      <div class="intervals" id="intervals" role="group" aria-label="K 線週期"></div>
+                    </div>
+                    <div class="chart-control">
+                      <span class="chart-control-label">範圍</span>
+                      <div class="ranges" id="ranges" role="group" aria-label="圖表時間範圍"></div>
+                    </div>
+                  </div>
               </div>
               <figure class="canvas-frame">
-                <canvas
-                  id="chart"
-                  role="img"
-                  aria-labelledby="chart-desc"
-                  tabindex="0"
-                ></canvas>
-                <figcaption id="chart-desc" class="visually-hidden">
-                  歷史 K 線與成交量；此為 provider 歷史資料，不是即時報價。
-                </figcaption>
-                <output class="crosshair-readout" id="crosshair" aria-live="off"></output>
+                <div class="chart-stage">
+                  <canvas
+                    id="chart"
+                    role="img"
+                    aria-labelledby="chart-desc"
+                    tabindex="0"
+                  ></canvas>
+                  <figcaption id="chart-desc" class="visually-hidden">
+                    歷史 K 線與成交量；這是歷史資料，不是即時報價。
+                  </figcaption>
+                  <output class="crosshair-readout" id="crosshair" aria-live="off"></output>
+                </div>
+                <p class="chart-help" id="chart-help">拖曳查看較早／較新資料；滾輪可平移，方向鍵可逐根查看。</p>
               </figure>
               <details class="market-table-wrap" id="market-table-wrap">
-                <summary>檢視可存取的 OHLCV 資料表</summary>
+                <summary>查看資料表</summary>
                 <p id="market-table-note">尚未載入市場資料。</p>
                 <div class="table-scroll" tabindex="0">
                   <table class="data-table" aria-describedby="market-table-note">
                     <thead>
                       <tr>
                         <th scope="col">時間</th>
-                        <th scope="col">Open</th>
-                        <th scope="col">High</th>
-                        <th scope="col">Low</th>
-                        <th scope="col">Close</th>
-                        <th scope="col">Volume</th>
+                        <th scope="col">開盤</th>
+                        <th scope="col">最高</th>
+                        <th scope="col">最低</th>
+                        <th scope="col">收盤</th>
+                        <th scope="col">成交量</th>
                       </tr>
                     </thead>
                     <tbody id="market-table-body"></tbody>
@@ -493,69 +426,26 @@
             >
               <div class="panel-head">
                 <div>
-                  <p class="section-label">Canonical projection</p>
-                  <h2 id="paper-title">Paper 投資組合</h2>
+                  <p class="section-label">模擬帳戶</p>
+                  <h2 id="paper-title">投資組合</h2>
                 </div>
                 <span class="status-badge" id="paper-note">檢查中</span>
               </div>
               <div class="paper-body" id="paper-body"></div>
             </section>
 
-            <section
-              class="panel"
-              id="panel-provenance"
-              data-rail="idle"
-              aria-labelledby="prov-title"
-              tabindex="-1"
-            >
-              <div class="panel-head">
-                <div>
-                  <p class="section-label">Point-in-time evidence</p>
-                  <h2 id="prov-title">資料品質與來源</h2>
-                </div>
-                <span class="panel-note">每個數字都能追到來源與時間</span>
-              </div>
-              <dl class="provenance" id="provenance"></dl>
-            </section>
           </div>
         </main>
       </div>
 
-      <footer class="expert-console" id="expert-console">
-        <details id="expert-disclosure">
-          <summary>進階命令列與快捷鍵</summary>
-          <div class="expert-console-grid">
-            <div class="console-copy">
-              <span class="console-label">進階命令列</span>
-              <p class="log" id="log" role="status" aria-live="polite"></p>
-            </div>
-            <form class="prompt" id="prompt" autocomplete="off">
-              <label class="visually-hidden" for="command">終端命令</label>
-              <span class="caret" aria-hidden="true">&gt;</span>
-              <input
-                id="command"
-                name="command"
-                type="text"
-                maxlength="64"
-                spellcheck="false"
-                autocapitalize="characters"
-                placeholder="AAPL 5m、ADD MSFT、RESEARCH NVDA"
-              >
-              <button type="submit">執行</button>
-            </form>
-            <button class="help-trigger" type="button" id="help-trigger">快捷鍵 F1</button>
-            <p class="hints visually-hidden" id="hints"></p>
-          </div>
-        </details>
-      </footer>
     </div>
 
     <div class="overlay" id="help" hidden>
       <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
         <div class="overlay-head">
           <div>
-            <p class="section-label">進階操作</p>
-            <h2 id="help-title">命令與快捷鍵</h2>
+            <p class="section-label">操作說明</p>
+            <h2 id="help-title">可用操作</h2>
           </div>
           <button type="button" id="help-close">關閉（Esc）</button>
         </div>

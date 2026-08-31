@@ -226,13 +226,18 @@ def test_recipe_archive_materializes_only_safe_internal_symlink(tmp_path: Path) 
 
 
 def test_aports_network_failure_is_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    attempts = 0
+
     def fail(*_: object, **__: object) -> object:
+        nonlocal attempts
+        attempts += 1
         raise urllib.error.URLError("offline")
 
     monkeypatch.setattr("urllib.request.urlopen", fail)
 
     with pytest.raises(AlpineSourceError, match="download failed"):
         fetch_aports_archive(build_aports_archive_url("zlib", COMMIT), 1024)
+    assert attempts == 3
 
 
 class _Runner:

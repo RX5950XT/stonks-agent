@@ -325,4 +325,6 @@
 - README 收斂成安裝、啟動、資料來源、K 線、研究聊天室、paper 邊界與文件索引。
 - 修復 core／RD-Agent 的 OpenSSL runtime package 與 LEAN .NET base digest，更新 legal／VEX
   證據；本機固定 Grype 掃描三個 image 均無未抑制 High/Critical。
+- 官方 Alpine aports archive 下載加入 3 次 bounded network retry，仍維持最後 fail closed；
+  相關單元測試 `40 passed`。
 - #13、#14 已合併；#1–#11 需等新主線重跑後，只合併全綠且仍有價值的 Dependabot PR。

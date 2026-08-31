@@ -11,6 +11,7 @@ import re
 import stat
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -36,6 +37,8 @@ MAX_RECIPE_TOTAL_BYTES = 32 * 1024 * 1024
 MAX_BUNDLE_FILES = 4096
 MAX_BUNDLE_FILE_BYTES = 512 * 1024 * 1024
 MAX_BUNDLE_TOTAL_BYTES = 2 * 1024 * 1024 * 1024
+APORTS_FETCH_ATTEMPTS = 3
+APORTS_FETCH_RETRY_DELAY_SECONDS = 0.25
 
 
 class AlpineSourceError(ValueError):
@@ -192,17 +195,26 @@ def fetch_aports_archive(url: str, max_bytes: int) -> bytes:
         },
         method="GET",
     )
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            declared = response.headers.get("Content-Length")
-            if declared is not None and int(declared) > max_bytes:
-                raise AlpineSourceError("aports archive exceeds policy")
-            payload = bytes(response.read(max_bytes + 1))
-    except (OSError, ValueError, urllib.error.URLError) as error:
-        raise AlpineSourceError("aports archive download failed") from error
-    if not payload or len(payload) > max_bytes:
-        raise AlpineSourceError("aports archive exceeds policy")
-    return payload
+    last_error: Exception | None = None
+    for attempt in range(APORTS_FETCH_ATTEMPTS):
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                declared = response.headers.get("Content-Length")
+                if declared is not None and int(declared) > max_bytes:
+                    raise AlpineSourceError("aports archive exceeds policy")
+                payload = bytes(response.read(max_bytes + 1))
+        except AlpineSourceError:
+            raise
+        except (OSError, ValueError, urllib.error.URLError) as error:
+            last_error = error
+            if attempt + 1 == APORTS_FETCH_ATTEMPTS:
+                break
+            time.sleep(APORTS_FETCH_RETRY_DELAY_SECONDS * (attempt + 1))
+            continue
+        if not payload or len(payload) > max_bytes:
+            raise AlpineSourceError("aports archive exceeds policy")
+        return payload
+    raise AlpineSourceError("aports archive download failed") from last_error
 
 
 def extract_recipe_archive(

@@ -217,7 +217,12 @@ def test_core_runtime_image_is_nonroot_and_excludes_build_tooling() -> None:
     assert not any("apt-get install" in command for command in runtime_runs)
     assert sum(command.count("apk add") for command in runtime_runs) == 1
     assert any(
-        "/sbin/apk add --no-cache libpq=18.6-r0" in command for command in runtime_runs
+        "/sbin/apk add --no-cache" in command
+        and all(
+            package in command
+            for package in ("libcrypto3=3.5.8-r0", "libpq=18.6-r0", "libssl3=3.5.8-r0")
+        )
+        for command in runtime_runs
     )
     assert not any("uv sync" in command for command in runtime_runs)
     assert not any("from=uv" in source for source in runtime_copies)

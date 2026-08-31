@@ -317,10 +317,12 @@
 
 - [x] 依目前實際能力重寫根目錄 README，移除過期的歷次工作紀錄。
 - [x] 先檢查遠端所有開放 PR 的 mergeability、CI 與變更範圍。
-- [ ] 提交並推送目前工作樹的功能、文件與測試改動。
+- [x] 提交並推送目前工作樹的功能、文件與測試改動。
 - [ ] 合併檢查全綠且屬於本專案的 PR，處理過期或失敗的 PR。
 
 ### Review
 
 - README 收斂成安裝、啟動、資料來源、K 線、研究聊天室、paper 邊界與文件索引。
-- #13、#14 的 CI 全綠且可合併；#1–#11 為舊 Dependabot PR，仍有多個 required check 失敗，不能直接合併。
+- 修復 core／RD-Agent 的 OpenSSL runtime package 與 LEAN .NET base digest，更新 legal／VEX
+  證據；本機固定 Grype 掃描三個 image 均無未抑制 High/Critical。
+- #13、#14 已合併；#1–#11 需等新主線重跑後，只合併全綠且仍有價值的 Dependabot PR。

@@ -62,6 +62,9 @@ RUN set -eux; \
         site-packages/pip \
         site-packages/pip-*.dist-info \
         /usr/local/bin/pip*; \
+    apk add --no-cache \
+        libcrypto3=3.5.8-r0 \
+        libssl3=3.5.8-r0; \
     apk del --no-network .python-rundeps sqlite-libs; \
     mkdir -p /tmp/worker; \
     chown 65532:65532 /tmp/worker; \

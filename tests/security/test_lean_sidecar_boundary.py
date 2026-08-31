@@ -73,11 +73,11 @@ def test_lean_build_runtime_and_source_are_exactly_pinned() -> None:
         == (upstream["license"]["evidence"][0]["sha256"])
     )
     assert (
-        "sha256:ed034a8bf0b24ded0cbbac07e17825d8e9ebfe21e308191d0f7421eaf5ad4664"
+        "sha256:e1ffd2a92ae84c1291bc1b6887501f8af98e6331e7af6d4c8d37168c5e87a64c"
         in dockerfile
     )
     assert (
-        "sha256:ed5d539b27842d656a06a5984dbcb5114d3e885fbada612a49a5a7c3c3a44e1c"
+        "sha256:a365ce6a50b09176855d085c69da3fc1204a48432e36087e9a208f6e5860e235"
         in dockerfile
     )
     assert (

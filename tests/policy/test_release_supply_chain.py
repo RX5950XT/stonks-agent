@@ -471,34 +471,11 @@ def test_core_vex_is_exact_and_matches_reviewed_runtime_mitigations() -> None:
         "CVE-2026-6100": "vulnerable_code_not_in_execute_path",
         "CVE-2026-7210": "inline_mitigations_already_exist",
         "CVE-2026-9669": "vulnerable_code_not_present",
-        "CVE-2026-14456": "vulnerable_code_not_in_execute_path",
     }
     assert {
         statement["vulnerability"]["name"]: statement["justification"]
         for statement in statements
     } == expected
-    openssl_products = [
-        {
-            "@id": (
-                "pkg:apk/alpine/libcrypto3@3.5.7-r0?arch=x86_64&"
-                "distro=alpine-3.23.5&upstream=openssl"
-            )
-        },
-        {
-            "@id": (
-                "pkg:apk/alpine/libssl3@3.5.7-r0?arch=x86_64&"
-                "distro=alpine-3.23.5&upstream=openssl"
-            )
-        },
-    ]
     for statement in statements:
-        products = (
-            openssl_products
-            if statement["vulnerability"]["name"] == "CVE-2026-14456"
-            else [{"@id": "pkg:generic/python@3.12.13"}]
-        )
-        assert statement["products"] == products
+        assert statement["products"] == [{"@id": "pkg:generic/python@3.12.13"}]
         assert statement["status"] == "not_affected"
-        if statement["vulnerability"]["name"] == "CVE-2026-14456":
-            assert "QUIC server listener" in statement["impact_statement"]
-            assert "PostgreSQL client" in statement["impact_statement"]

@@ -7,9 +7,9 @@
 
 ## 目前狀態
 
-- 分支 `main`。目前工作樹尚未 commit：GUI 排版／可讀性、README 能力與 Kronos 說明、
-  Docker/runtime/security 修復。Docker 修復過程另補 core Alpine package/legal closure、Kronos
-  verifier 時鐘／cold-build regression 與全 runtime `cryptography` security update。
+- 分支 `main`。GUI 排版／可讀性、README 能力與 Kronos 說明、Docker/runtime/security 修復
+  已提交並推上遠端；core／RD-Agent 的 OpenSSL runtime package 與 LEAN .NET base digest
+  也已更新，對應 legal／VEX 證據同步完成。
 - CI 注意：`Hardened core Compose` job 會偶發在 `compose_build_core` 失敗。smoke runner
   刻意 capture 子行程輸出以防 secret 外洩，因此 CI log 只有 typed envelope 沒有 build
   細節。同一 commit rerun 即通過，本機 `scripts/smoke_core_deployment.py` 亦 success；

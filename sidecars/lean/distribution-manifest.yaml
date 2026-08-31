@@ -11,8 +11,8 @@ source:
   archive_sha256: 258a6db94c942e77488e47cb8e5c873c2cc2cbc7e4bc1bce5d14ea4f31b6628f
   license_sha256: 522cf0a716ce03f67d46f8fceb5bf78c5b84400ec5cd8d14bf9f02cddc1cb6ba
 build:
-  dotnet_sdk_image: mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:ed034a8bf0b24ded0cbbac07e17825d8e9ebfe21e308191d0f7421eaf5ad4664
-  dotnet_runtime_image: mcr.microsoft.com/dotnet/runtime:10.0-noble@sha256:ed5d539b27842d656a06a5984dbcb5114d3e885fbada612a49a5a7c3c3a44e1c
+  dotnet_sdk_image: mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:e1ffd2a92ae84c1291bc1b6887501f8af98e6331e7af6d4c8d37168c5e87a64c
+  dotnet_runtime_image: mcr.microsoft.com/dotnet/runtime:10.0-noble@sha256:a365ce6a50b09176855d085c69da3fc1204a48432e36087e9a208f6e5860e235
   python_build_image: ghcr.io/astral-sh/uv:0.9.27-python3.12-bookworm-slim@sha256:a0cb65a2dada255d392fe0426d04ed50911f0b78b3295de0c3286c1c86148b15
   nuget_lock_tree_sha256: 23a9af4d389155e3b438e083712252b06d41d9efe6f906db51373f344ac6c488
   nuget_lock_tree_hash_method: sorted relative POSIX path, NUL, file bytes, NUL

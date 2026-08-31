@@ -146,7 +146,7 @@ def test_alpine_package_snapshot_is_exact_and_source_policy_is_bounded() -> None
         assert all(item[key] for key in ("license", "name", "origin", "version"))
     assert _canonical_sha256(packages) == alpine["package_inventory_sha256"]
     assert alpine["package_inventory_sha256"] == (
-        "ccecb09689f65955f2402a9d6851bd38a7df8bf5aad9f91433259d0d1842d897"
+        "f61429eb093628277b4ba7f4c87ab7b1c61925e496d2b99dc56fd92aeddadab8"
     )
     assert next(item for item in packages if item["name"] == "libpq") == {
         "aports_commit": "c2ee21f8f682d22ae282d0b82b2427a2df335548",
@@ -168,18 +168,18 @@ def test_alpine_package_snapshot_is_exact_and_source_policy_is_bounded() -> None
     assert source["status"] == "verified"
     assert source["release_decision"] == "allow"
     assert source["archive_sha256"] == (
-        "88ee68944eb4204033d7caf269b530245509538288173cf6cc9b517467cde0d3"
+        "304e4f09643b6b81f3de2e0c12bcfedc113031095fe60487a3b65fc8f1bed7b9"
     )
     assert source["manifest_sha256"] == (
-        "8e453b818b5357d8cf91aa27fc3f149e5840f256564d8de373c9b5b9f90ca470"
+        "caf862681e934e57df25a13c38ecc24d039f69fe83f1f19d15e0eb1d946e6384"
     )
     assert source["package_database_sha256"] == (
-        "789fbae58431cf5c0b0354c11889ee834d98da64835db3179455b7867b63a674"
+        "77831515b82ae2da799dcef36b4bab15b8c0cb1d5df2999d5d84e2abb364fa2b"
     )
     assert source["package_count"] == 37
     assert source["origin_count"] == 27
     assert source["file_count"] == 244
-    assert source["total_source_bytes"] == 133_140_072
+    assert source["total_source_bytes"] == 133_200_204
     assert any("GPL-" in item["license"] for item in packages)
     assert any("LGPL-" in item["license"] for item in packages)
     assert any("MPL-" in item["license"] for item in packages)
@@ -235,9 +235,9 @@ def test_notices_describe_the_backport_and_alpine_blocker_without_overclaim() ->
         "GPL",
         "LGPL",
         "MPL",
-        "ccecb09689f65955f2402a9d6851bd38a7df8bf5aad9f91433259d0d1842d897",
-        "88ee68944eb4204033d7caf269b530245509538288173cf6cc9b517467cde0d3",
-        "8e453b818b5357d8cf91aa27fc3f149e5840f256564d8de373c9b5b9f90ca470",
+        "f61429eb093628277b4ba7f4c87ab7b1c61925e496d2b99dc56fd92aeddadab8",
+        "304e4f09643b6b81f3de2e0c12bcfedc113031095fe60487a3b65fc8f1bed7b9",
+        "caf862681e934e57df25a13c38ecc24d039f69fe83f1f19d15e0eb1d946e6384",
         "alpine-corresponding-source.tar.gz",
         "已驗證的 corresponding source",
         "任何 drift 都 fail closed",

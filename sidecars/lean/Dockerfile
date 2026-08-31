@@ -11,7 +11,7 @@ RUN uv export --frozen --no-dev --no-emit-project --no-emit-local \
     && uv pip install --python /usr/local/bin/python3 --target /opt/python-site \
       --requirement /tmp/requirements.txt
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:ed034a8bf0b24ded0cbbac07e17825d8e9ebfe21e308191d0f7421eaf5ad4664 AS lean-build
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:e1ffd2a92ae84c1291bc1b6887501f8af98e6331e7af6d4c8d37168c5e87a64c AS lean-build
 
 ARG LEAN_COMMIT=c22774e49ee80ecef5ca84f57616f6b66fad8bc5
 ARG LEAN_ARCHIVE_SHA256=258a6db94c942e77488e47cb8e5c873c2cc2cbc7e4bc1bce5d14ea4f31b6628f
@@ -61,7 +61,7 @@ RUN set -eu; \
     cp Data/symbol-properties/security-database.csv /opt/lean/Data/symbol-properties/; \
     cp Data/symbol-properties/symbol-properties-database.csv /opt/lean/Data/symbol-properties/
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble@sha256:ed5d539b27842d656a06a5984dbcb5114d3e885fbada612a49a5a7c3c3a44e1c AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:10.0-noble@sha256:a365ce6a50b09176855d085c69da3fc1204a48432e36087e9a208f6e5860e235 AS runtime
 
 ENV HOME=/tmp/sidecar \
     PYTHONPATH=/opt/python-site:/workspace:/workspace/packages/contracts/src:/workspace/packages/service-auth/src \

@@ -39,7 +39,10 @@ ENV HOME=/tmp/stonks \
 WORKDIR /opt/stonks
 COPY scripts/patch_cpython_stdlib.py /tmp/patch_cpython_stdlib.py
 RUN test -n "${VCS_REF}" \
-    && /sbin/apk add --no-cache libpq=18.6-r0 \
+    && /sbin/apk add --no-cache \
+        libcrypto3=3.5.8-r0 \
+        libpq=18.6-r0 \
+        libssl3=3.5.8-r0 \
     && printf '%s\n' \
         gdbm keyutils-libs krb5-conf krb5-libs libbz2 libcom_err \
         libcrypto3 libffi libintl libncursesw libnsl libpanelw libssl3 \
